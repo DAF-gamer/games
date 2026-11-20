@@ -484,7 +484,9 @@ function updAir(u,dt){const t=UT[u.type];
  for(const c of u.cargo){c.x=u.x;c.y=u.y;}
  if(!baseOk(u))u.base=nearestOwnCity(u.nation,u.x,u.y);
  if(u.state==='landed'){if(!u.base){kill(u);return;}
-  u.fuel=Math.min(t.fuel,u.fuel+dt*t.fuel/6);if(u.fuel>=t.fuel){u.ammo=t.ammo||0;u.hp=Math.min(t.hp,u.hp+dt*6);}
+  // refuel; at the take-off mark, top up and rearm in the same step, so a bomber can never leave with an
+  // empty bomb bay (it used to rearm only at exactly 100% but take off at 99%, then circle home forever)
+  u.fuel=Math.min(t.fuel,u.fuel+dt*t.fuel/6);if(u.fuel>=t.fuel*.99){u.fuel=t.fuel;u.ammo=t.ammo||0;u.hp=Math.min(t.hp,u.hp+dt*6);}
   if(u.fuel>=t.fuel*.99){if(u.order&&!airOrderValid(u))u.order=null;
    if(!u.order&&u.type==='ftr'){const e=nearestEnemyAir(u.nation,u.base.x,u.base.y,230*SC);if(e)u.order={type:'attack',target:e,auto:true};}
    if(u.order){u.state='fly';const g=u.order.type==='attack'?u.order.target:u.order;u.ang=Math.atan2(g.y-u.y,g.x-u.x);}}
