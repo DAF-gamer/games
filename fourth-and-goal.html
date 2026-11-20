@@ -237,6 +237,9 @@ const FORMS={
   gunTrips:{name:'Shotgun Trips',QB:[0,-5],H:[-1.6,-5],X:[-20,-0.8],Y:[4.9,-0.9],S:[11,-1.4],Z:[19,-1.4]},
   single:{name:'Singleback',QB:[0,-1.2],H:[0,-6.5],X:[-20,-0.8],S:[-11,-1.4],Y:[4.9,-0.9],Z:[19,-1.4]},
   iform:{name:'I-Formation',QB:[0,-1.2],F:[0,-4],H:[0,-6.8],X:[-20,-0.8],Y:[4.9,-0.9],Z:[19,-1.4]},
+  gunEmpty:{name:'Shotgun Empty',QB:[0,-5],X:[-20,-0.8],H:[-7,-1.4],Y:[4.9,-0.9],S:[11,-1.4],Z:[19,-1.4]},
+  gunBunch:{name:'Shotgun Bunch',QB:[0,-5],H:[-1.6,-5],X:[-20,-0.8],Y:[10,-0.8],S:[8.8,-2],Z:[11.4,-2]},
+  pistol:{name:'Pistol',QB:[0,-4],H:[0,-7],X:[-20,-0.8],S:[-11,-1.4],Y:[4.9,-0.9],Z:[19,-1.4]},
 };
 const PROTECTORS=['H','F','Y']; // RB, FB, TE stay in to block on max protect
 const SLOTROLE={QB:'QB',H:'RB',F:'FB',X:'WR',Z:'WR',S:'WR',Y:'TE'};
@@ -251,6 +254,9 @@ const ROUTES={
   drag:{p:[[0,1.5],[-6,5],[-30,5]]},shallow:{p:[[0,1],[-5,3],[-30,3]]},cross:{p:[[0,8],[-8,14],[-30,18]]},
   stick:{p:[[0,6],[-1,6]],end:'stop'},sail:{p:[[0,8],[8,15],[14,16]]},wheel:{p:[[4,0],[7,4],[8,50]]},
   swing:{p:[[3,-1],[8,0.5],[12,4]]},screen:{p:[[3,-1.5],[5.5,-2.2]],end:'stop'},
+  bubble:{p:[[2,-1.5],[6,-1.5]],end:'stop'},deepout:{p:[[0,15],[12,15]]},shortin:{p:[[0,6],[-22,6]]},
+  snag:{p:[[0,5],[-3,6]],end:'stop'},angle:{p:[[4,2],[1,5],[-12,7]]},
+  sluggo:{p:[[0,2],[-3,5],[-2.5,7],[-2.5,55]]},hitchgo:{p:[[0,6],[0,5],[0.5,8],[0.5,55]]},
 };
 const PLAYS=[
   {id:'4verts',name:'Four Verticals',type:'pass',form:'gunDoubles',routes:{X:'go',Z:'go',S:'seam',Y:'seam',H:'flat'},tg:['S','Y','X'],desc:'Four receivers stretch the field deep. Beats single-high safeties.'},
@@ -265,6 +271,15 @@ const PLAYS=[
   {id:'papost',name:'PA Deep Post',type:'pass',pa:true,form:'single',routes:{X:'post',Z:'dig',S:'seam',Y:'block',H:'block'},tg:['X','Z','S'],desc:'Fake the run, pull the linebackers up, throw over them.'},
   {id:'boot',name:'PA Bootleg',type:'pass',pa:true,boot:1,form:'iform',routes:{X:'cross',Z:'go',Y:'sail',F:'flat',H:'block'},rbSide:1,tg:['Y','F','X'],desc:'Fake the run, QB rolls out with a flood of receivers.'},
   {id:'screen',name:'HB Screen',type:'pass',screen:true,form:'gunDoubles',routes:{X:'go',Z:'go',S:'go',Y:'seam',H:'screen'},tg:['H','S','X'],desc:'Let the rush in, dump it to the back behind a wall of linemen.'},
+  {id:'snag',name:'Snag',type:'pass',form:'gunBunch',routes:{X:'slant',Y:'flat',S:'snag',Z:'corner',H:'block'},tg:['S','Z','Y'],desc:'Bunch triangle: corner, spot and flat stress one defender.'},
+  {id:'dagger',name:'Dagger',type:'pass',form:'gunDoubles',routes:{X:'dig',S:'seam',Z:'hitch',Y:'shallow',H:'flat'},tg:['X','S','Z'],desc:'Slot clears the safety with a seam, outside receiver digs in behind.'},
+  {id:'drive',name:'Drive',type:'pass',form:'gunTrips',routes:{X:'dig',Y:'shallow',S:'seam',Z:'go',H:'flat'},tg:['Y','X','S'],desc:'Shallow cross under a dig. High-low read on the linebacker.'},
+  {id:'levels',name:'Levels',type:'pass',form:'single',routes:{X:'shortin',S:'dig',Z:'go',Y:'flat',H:'block'},tg:['X','S','Y'],desc:'Two in-breaking routes stacked at 6 and 13 yards.'},
+  {id:'texas',name:'Texas',type:'pass',form:'gunDoubles',routes:{X:'go',S:'out',Z:'go',Y:'seam',H:'angle'},tg:['H','Y','S'],desc:'Running back angle route under the clear-outs. Beats man on a linebacker.'},
+  {id:'sluggo',name:'Sluggo',type:'pass',pa:true,form:'single',routes:{X:'sluggo',Z:'hitchgo',S:'seam',Y:'flat',H:'block'},tg:['X','Z','Y'],desc:'Slant-and-go and hitch-and-go double moves. Shot play.'},
+  {id:'deepouts',name:'Deep Outs',type:'pass',form:'gunDoubles',routes:{X:'deepout',Z:'deepout',S:'seam',Y:'curl',H:'flat'},tg:['X','Z','S'],desc:'15-yard outs to the sideline. Needs time and a strong arm.'},
+  {id:'empty',name:'Empty Quick',type:'pass',form:'gunEmpty',routes:{X:'hitch',H:'out',Y:'seam',S:'stick',Z:'slant'},tg:['S','Z','X'],desc:'Five wide, ball out in under two seconds.'},
+  {id:'bubble',name:'WR Bubble Screen',type:'pass',screen:true,screenT:0.3,form:'gunTrips',routes:{X:'go',Y:'go',S:'bubble',Z:'go',H:'block'},tg:['S'],desc:'Instant throw to the slot behind two blocking receivers.'},
   {id:'hail',name:'Hail Mary',type:'pass',form:'gunTrips',routes:{X:'go',Y:'go',S:'go',Z:'go',H:'block'},tg:['X','S','Z'],desc:'Everyone deep. Pray.'},
   {id:'iz',name:'Inside Zone',type:'run',form:'single',gap:1.6,desc:'Read the defensive line and cut it up inside.'},
   {id:'oz',name:'Outside Zone',type:'run',form:'single',gap:-6,desc:'Stretch to the edge, one cut and go.'},
@@ -273,6 +288,12 @@ const PLAYS=[
   {id:'counter',name:'Counter',type:'run',form:'single',gap:3.2,style:'counter',desc:'Jab one way, cut back the other.'},
   {id:'draw',name:'HB Draw',type:'run',form:'gunDoubles',gap:0.8,style:'draw',desc:'Show pass, then hand off as the rush flies upfield.'},
   {id:'toss',name:'Toss Sweep',type:'run',form:'iform',gap:-9,style:'toss',lead:'F',desc:'Pitch to the back racing for the sideline.'},
+  {id:'pzone',name:'Pistol Zone',type:'run',form:'pistol',gap:1.6,desc:'Downhill inside zone with the back behind the QB.'},
+  {id:'iso',name:'Iso',type:'run',form:'iform',gap:1.2,lead:'F',desc:'Fullback isolates the linebacker, back follows him in.'},
+  {id:'trap',name:'Trap',type:'run',form:'single',gap:-1.2,desc:'Let the tackle in, kick him out, hit the hole.'},
+  {id:'pinpull',name:'Pin & Pull',type:'run',form:'single',gap:9,desc:'Linemen pull to the edge, back races outside.'},
+  {id:'pstretch',name:'Pistol Stretch',type:'run',form:'pistol',gap:-7,desc:'Stretch play from the pistol. Cut it back or bounce it.'},
+  {id:'qbdraw',name:'QB Draw',type:'run',form:'gunDoubles',gap:0.8,style:'qbdraw',desc:'QB shows pass, then takes off up the middle himself.'},
   {id:'sneak',name:'QB Sneak',type:'run',form:'iform',gap:0,style:'sneak',desc:'QB pushes behind the center. For inches.'},
   {id:'punt',name:'Punt',type:'punt',desc:'Kick it away.'},
   {id:'fg',name:'Field Goal',type:'fg',desc:''},
@@ -287,6 +308,10 @@ const DEFCALLS={
   'Cover 1 Man':{type:'man',cb:1.5,lb:4.5,saf:'one',deep:['FS'],robber:'LBM',pool:['SS','LBW','LBS','LBM'],desc:'Press man coverage with one deep safety helping over the top.'},
   'Cover 0 Blitz':{type:'man',cb:1.5,lb:3,saf:'one',pool:['FS','SS','LBW','LBS'],blitz:['LBM'],leftoverBlitz:true,desc:'Everyone in man, extra rushers, no safety help. High risk.'},
   'Run Blitz':{type:'man',cb:2,lb:3,saf:'one',deep:['FS'],pool:['SS','LBS'],blitz:['LBW','LBM'],leftoverBlitz:true,desc:'Linebackers shoot the gaps at the snap. Stops the run.'},
+  'Tampa 2':{type:'zone',cb:4.5,lb:4.5,saf:'two',zones:{CBL:[-16,5],CBR:[16,5],FS:[-12,18,1],SS:[12,18,1],LBM:[0,16,1],LBW:[-8,8],LBS:[8,8]},desc:'Cover 2 with the middle linebacker running deep down the middle.'},
+  'Cover 6':{type:'zone',cb:6,lb:4.5,saf:'two',zones:{CBL:[-18,16,1],FS:[-7,18,1],SS:[11,18,1],CBR:[16,5],LBW:[-9,8],LBM:[0,10],LBS:[9,8]},desc:'Quarters on one side, Cover 2 on the other.'},
+  '2-Man':{type:'man',cb:1.5,lb:4.5,saf:'two',pool:['SS','LBW','LBS','LBM'],deepZ:{FS:[0,18]},desc:'Man coverage underneath, safety help over the top.'},
+  'Fire Zone':{type:'zone',cb:7,lb:3.5,saf:'one',zones:{CBL:[-17,17,1],CBR:[17,17,1],FS:[0,20,1],LBM:[-4,9],LBS:[12,7]},blitz:['LBW','SS'],desc:'Six rushers, three deep and two underneath. Zone blitz.'},
   'Prevent':{type:'zone',cb:11,lb:7,saf:'two',saf2:20,zones:{CBL:[-18,24,1],CBR:[18,24,1],FS:[-8,30,1],SS:[8,30,1],LBW:[-12,12],LBM:[0,15],LBS:[12,12]},desc:'Everyone deep. Gives up short stuff, protects a late lead.'},
 };
 const BASESPD={QB:8.0,RB:9.1,FB:7.8,WR:9.4,TE:8.4,OL:6.2,DL:7.0,LB:8.3,CB:9.25,S:8.9};
@@ -576,22 +601,22 @@ function cpuOffCall(side){
   if((late&&lead<0)||(G.q===2&&G.clock<120))passP=0.88;
   if(sp>=96)passP=0.45;
   if(rnd()<passP){
-    let pool=['4verts','mesh','smash','slants','curlflat','stick','ycross','flood','papost','boot','screen'];
-    if(tg<=4)pool=['slants','stick','mesh','curlflat','flood','boot'];
-    if((late&&lead<0)||(G.q===2&&G.clock<120))pool=['outs','outs','4verts','smash','flood','curlflat'];
-    if(sp>=90)pool=['slants','stick','mesh','smash','flood','boot'];
+    let pool=['4verts','mesh','smash','slants','curlflat','stick','ycross','flood','papost','boot','screen','snag','dagger','drive','levels','texas','sluggo','deepouts','empty','bubble'];
+    if(tg<=4)pool=['slants','stick','mesh','curlflat','flood','boot','snag','texas','empty','bubble'];
+    if((late&&lead<0)||(G.q===2&&G.clock<120))pool=['outs','outs','4verts','smash','flood','curlflat','deepouts','dagger'];
+    if(sp>=90)pool=['slants','stick','mesh','smash','flood','boot','snag','texas'];
     return P_(pick(pool));
   }
   if(tg<=1&&rnd()<0.35)return P_('sneak');
-  return P_(pick(['iz','oz','power','dive','counter','draw','toss']));
+  return P_(pick(['iz','oz','power','dive','counter','draw','toss','pzone','iso','trap','pinpull','pstretch','qbdraw']));
 }
 function cpuDefCall(side){
   const off=1-side,tg=G.line-G.spot,lead=G.score[side]-G.score[off];
   if(G.spot>=95||G.twoPt)return weighted([['Run Blitz',30],['Cover 1 Man',35],['Cover 0 Blitz',20],['Cover 3',15]]);
   if(G.q>=4&&lead>0&&lead<=16&&G.clock<120)return weighted([['Prevent',55],['Cover 4',30],['Cover 3',15]]);
   if(tg<=2)return weighted([['Run Blitz',35],['Cover 1 Man',25],['Cover 0 Blitz',12],['Cover 3',28]]);
-  if(G.down===3&&tg>=7)return weighted([['Cover 2',25],['Cover 3',22],['Cover 4',25],['Cover 0 Blitz',10],['Cover 1 Man',18]]);
-  return weighted([['Cover 3',30],['Cover 2',20],['Cover 1 Man',20],['Cover 4',15],['Run Blitz',10],['Cover 0 Blitz',5]]);
+  if(G.down===3&&tg>=7)return weighted([['Cover 2',18],['Cover 3',18],['Cover 4',18],['Cover 0 Blitz',8],['Cover 1 Man',12],['Tampa 2',10],['Cover 6',8],['2-Man',10],['Fire Zone',8]]);
+  return weighted([['Cover 3',26],['Cover 2',15],['Cover 1 Man',16],['Cover 4',12],['Run Blitz',9],['Cover 0 Blitz',4],['Tampa 2',6],['Cover 6',6],['2-Man',4],['Fire Zone',6]]);
 }
 
 // ---------- kicks ----------
@@ -719,7 +744,7 @@ function setupDefense(add,call){
   for(const p of P.pl)if(p.team==='D'){p.d0x=p.x;p.d0z=p.z;}
   if(P.off.type==='kneel'||P.off.type==='spike'){for(const p of P.pl)if(p.team==='D'){p.job='hold';}return;}
   const zone=(p,lx,lz,deep)=>{p.job='zone';p.zone={x:clampX(bx+lx),z:los+lz,deep:!!deep};};
-  if(C.type==='zone'){for(const k in C.zones){const z=C.zones[k];zone(d[k],z[0],z[1],z[2]);}return;}
+  if(C.type==='zone'){for(const k in C.zones){const z=C.zones[k];zone(d[k],z[0],z[1],z[2]);}for(const k of C.blitz||[])d[k].job='rush';return;}
   // man coverage
   const lag=clamp(0.18-(P.defR-P.offR)*0.003,0.1,0.35);
   const man=(p,r)=>{p.job='man';p.man=r;p.lag=lag;p.x=clampX(r.x+(bx-r.x>0?0.7:-0.7));p.z=los+(p.role==='CB'?C.cb:(r.role==='RB'?4.5:4));p.d0x=p.x;p.d0z=p.z;};
@@ -729,6 +754,7 @@ function setupDefense(add,call){
   for(const r of rem){if(!pool.length)break;let best=null,bs=1e9;for(const p of pool){const s=Math.abs(p.x-r.x)+(r.role==='RB'&&p.slot==='LBM'?-6:0);if(s<bs){bs=s;best=p;}}man(best,r);pool=pool.filter(p=>p!==best);}
   for(const p of pool){if(C.leftoverBlitz)p.job='rush';else if(p.slot===C.robber)zone(p,0,9);else zone(p,p.x-bx,8);}
   for(const k of C.deep||[])zone(d[k],0,20,1);
+  for(const [k,z] of Object.entries(C.deepZ||{}))zone(d[k],z[0],z[1],1);
   for(const k of C.blitz||[])d[k].job='rush';
   if(!d.CBR.job)zone(d.CBR,16,16,1);
 }
@@ -776,6 +802,7 @@ function scriptEvents(){
   if(off.type==='spike'&&P.t>0.6)return endPlay({kind:'inc',spike:true,desc:`${abbr(P.O)} QB spikes the ball to stop the clock.`});
   if(off.type==='run'&&!P.handed&&P.ball.state==='held'&&P.ball.holder===qb){
     if(off.style==="toss"){if(P.t>0.15){startAir(qb,P.H,P.H.x+P.side*2.5,P.H.z+0.4,0.35,true);P.handed=true;}}
+    else if(off.style==='qbdraw'){if(P.t>0.8){P.handed=true;P.isRun=true;P.runSeen=P.t;G.st[P.O].ratt++;}}
     else{const rb=P.H;if(P.t>0.25&&dist(rb,qb)<1.3&&(off.style!=='draw'||P.t>0.9)){P.ball.holder=rb;P.handed=true;P.runSeen=P.t;P.isRun=true;G.st[P.O].ratt++;}}
   }
   if(off.type!=='run'&&!P.qbRan&&P.ball.state==='held'&&P.ball.holder===qb&&qb.z>P.los+0.3&&!P.thrown){P.qbRan=true;P.runSeen=P.t;P.isRun=true;G.st[P.O].ratt++;if(P.userOff)flash('QB scramble!');}
@@ -785,12 +812,12 @@ function offAI(p){
   const b=P.ball,h=b.state==='held'?b.holder:null,off=P.off;
   if(h===p)return carrierAI(p);
   if(h&&h.team==='D'){const t=pursue(p,h);p.tx=t.x;p.tz=t.z;p.arr=false;return;}
-  const runMode=off.type==='run'||P.caught||P.qbRan||(off.screen&&P.t>1.1);
+  const runMode=off.type==='run'||P.caught||P.qbRan||(off.screen&&P.t>(off.screenT||1.1));
   if(p.role==='QB'){p.sm=0.4;p.tx=off.type==='run'?p.x-P.side*1.5:p.x;p.tz=off.type==='run'?Math.min(p.z,P.los-3):p.z;return;}
   if(p.role==='OL')return blockAI(p,runMode?'run':'pass');
   if(b.state==="air"&&b.pitch&&b.target===p){p.tx=b.tx+P.side*3;p.tz=b.tz+1;p.arr=false;return;}
   if(off.type==='run'){
-    if(p===P.H&&!P.handed)return rbToMesh(p);
+    if(p===P.H&&!P.handed&&off.style!=='qbdraw')return rbToMesh(p);
     if(p.slot==='F'&&off.lead==='F'&&P.t<0.9&&!p.blk){p.tx=P.gapX;p.tz=P.los+0.5;p.arr=false;return;}
     return blockAI(p,'run');
   }
@@ -825,7 +852,7 @@ function rbToMesh(rb){
 }
 function carrierAI(p){
   const off=P.off;
-  if(p===P.qb&&off.type==='run'&&!P.handed){p.sm=0.7;if(off.style==='draw'){p.tx=P.bx;p.tz=P.los-6.5;}else if(off.style==='toss'){p.tx=p.x;p.tz=p.z-0.5;}else{p.tx=P.mesh.x;p.tz=P.mesh.z;}return;}
+  if(p===P.qb&&off.type==='run'&&!P.handed){p.sm=0.7;if(off.style==='draw'||off.style==='qbdraw'){p.tx=P.bx;p.tz=P.los-6.5;}else if(off.style==='toss'){p.tx=p.x;p.tz=p.z-0.5;}else{p.tx=P.mesh.x;p.tz=P.mesh.z;}return;}
   if(off.type==='kneel'||off.type==='spike'){p.tx=p.x;p.tz=p.z;return;}
   const inPocket=p===P.qb&&!P.qbRan&&off.type==='pass';
   if(P.userOff&&p.team==='O')return userMove(p,inPocket);
@@ -1392,7 +1419,8 @@ function drawDefDiagram(cv,name,lbb){
   const C=DEFCALLS[name];
   const mark=(px,pz,c)=>{x.strokeStyle=c;x.lineWidth=2.5;x.beginPath();x.moveTo(px-5,pz-5);x.lineTo(px+5,pz+5);x.moveTo(px+5,pz-5);x.lineTo(px-5,pz+5);x.stroke();};
   for(const dx of [-4.3,-1.3,1.3,4.3]){mark(X(dx),Y(1),'#ff8080');}
-  if(C.type==='zone'){for(const [k,z] of Object.entries(C.zones)){if(lbb&&k.startsWith('LB')){const p=[{LBW:-4.6,LBM:0,LBS:4.6}[k],C.lb];mark(X(p[0]),Y(p[1]),'#ff8080');x.strokeStyle='#ff8080';x.lineWidth=2;x.beginPath();x.moveTo(X(p[0]),Y(p[1]));x.lineTo(X(0),Y(-4));x.stroke();continue;}x.fillStyle=z[2]?'#4aa3ff40':'#ffcc3340';x.strokeStyle=z[2]?'#4aa3ff':'#ffcc33';x.lineWidth=1.5;x.beginPath();x.ellipse(X(z[0]),Y(z[1]),z[2]?40:28,z[2]?20:15,0,0,7);x.fill();x.stroke();mark(X(z[0]),Y(z[1]),'#fff');}}
+  if(C.type==='zone'){for(const [k,z] of Object.entries(C.zones)){if(lbb&&k.startsWith('LB')){const p=[{LBW:-4.6,LBM:0,LBS:4.6}[k],C.lb];mark(X(p[0]),Y(p[1]),'#ff8080');x.strokeStyle='#ff8080';x.lineWidth=2;x.beginPath();x.moveTo(X(p[0]),Y(p[1]));x.lineTo(X(0),Y(-4));x.stroke();continue;}x.fillStyle=z[2]?'#4aa3ff40':'#ffcc3340';x.strokeStyle=z[2]?'#4aa3ff':'#ffcc33';x.lineWidth=1.5;x.beginPath();x.ellipse(X(z[0]),Y(z[1]),z[2]?40:28,z[2]?20:15,0,0,7);x.fill();x.stroke();mark(X(z[0]),Y(z[1]),'#fff');}
+    const bpos={LBW:[-4.6,C.lb],SS:[6,7]};for(const k of C.blitz||[]){const p=bpos[k];mark(X(p[0]),Y(p[1]),'#ff8080');x.strokeStyle='#ff8080';x.lineWidth=2;x.beginPath();x.moveTo(X(p[0]),Y(p[1]));x.lineTo(X(0),Y(-4));x.stroke();}}
   else{
     const tgts={CBL:'X',CBR:'Z'};const pool=(C.pool||[]).slice();const rem=['S','Y','H'];rem.forEach((r,i)=>{if(pool[i])tgts[pool[i]]=r;});
     const dpos={CBL:[-19,C.cb],CBR:[18,C.cb],FS:[0,15],SS:[6,7],LBW:[-4.6,C.lb],LBM:[0,C.lb],LBS:[4.6,C.lb]};
@@ -1402,6 +1430,7 @@ function drawDefDiagram(cv,name,lbb){
       if(tgts[k]&&!blitz){const r=F[tgts[k]];x.setLineDash([4,4]);x.strokeStyle='#ffffffa0';x.lineWidth=1.5;x.beginPath();x.moveTo(X(p[0]),Y(p[1]));x.lineTo(X(r[0]),Y(r[1]));x.stroke();x.setLineDash([]);}
       else if(blitz){x.strokeStyle='#ff8080';x.lineWidth=2;x.beginPath();x.moveTo(X(p[0]),Y(p[1]));x.lineTo(X(0),Y(-4));x.stroke();}
     }
+    for(const [k,z] of Object.entries(C.deepZ||{})){x.fillStyle='#4aa3ff40';x.strokeStyle='#4aa3ff';x.beginPath();x.ellipse(X(z[0]),Y(z[1]),70,18,0,0,7);x.fill();x.stroke();}
     for(const k of C.deep||[]){x.fillStyle='#4aa3ff40';x.strokeStyle='#4aa3ff';x.beginPath();x.ellipse(X(0),Y(20),70,18,0,0,7);x.fill();x.stroke();}
   }
   x.fillStyle="#fffc";x.font="10px system-ui";x.textAlign="left";x.fillText("Blue = deep zone · yellow = short zone · dashed = man · red = rush",8,H-8);
