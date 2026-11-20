@@ -214,7 +214,7 @@ const UT={
  sup:{name:'Supply Truck',dom:'land',hp:90,spd:30,atk:{land:0,air:0,sea:0},rng:0,cost:150,time:8,desc:'Unarmed. Repairs your land units near it, so they can stay at the front.'},
  heli:{name:'Attack Helicopter',dom:'air',hp:90,spd:70,atk:{land:22,air:0,sea:10},rng:42,cost:340,time:14,fuel:24,turn:4,desc:'Hovers and hunts ground units – deadly to Armor. Anti-Air and Fighters shred it. Returns to base to refuel.'},
  sub:{name:'Submarine',dom:'sea',hp:130,spd:40,atk:{land:0,air:0,sea:34},rng:60,cost:380,time:18,desc:'Hidden from enemies unless their ships or cities are close, or it just fired. Torpedoes wreck big ships. Destroyers spot it from further away.'},
- trh:{name:'Transport Helicopter',dom:'air',hp:100,spd:60,atk:{land:0,air:0,sea:0},rng:0,cost:300,time:14,fuel:26,turn:3,carry:2,desc:'Unarmed. Carries 2 Armor by air. Select Armor and click the helicopter to board, then select the helicopter and click on land to fly there and drop them. Flies home to refuel afterwards – if it is shot down, the Armor aboard is lost.'},
+ trh:{name:'Transport Helicopter',dom:'air',hp:100,spd:60,atk:{land:0,air:0,sea:0},rng:0,cost:800,time:20,fuel:26,turn:3,carry:2,desc:'Unarmed. Comes with 2 Armor already aboard. Select the helicopter and click on land to fly there and drop them; to load Armor again, select it and click the helicopter, then send the helicopter out again. Flies home to refuel afterwards – if it is shot down, the Armor aboard is lost.'},
  cv:{name:'Carrier',dom:'sea',hp:360,spd:30,atk:{land:0,air:8,sea:0},rng:50,cost:700,time:30,hangar:4,desc:'Floating airbase for 4 aircraft – they refuel and rearm on it. Select aircraft and click the Carrier to base them here.'},
 };
 const JUMP_R=700,SUB_SPOT={dd:110,heli:50,sea:45,city:60},ALL_SEEN=63;
@@ -533,8 +533,9 @@ function updCities(dt){
   else c.capT=0;
   if(c.queue.length){const q=c.queue[0];q.t+=dt/buildMult(c.owner);if(q.t>=UT[q.type].time){c.queue.shift();
    if(q.type==='icbm'){const on=nations[c.owner];on.icbm=(on.icbm||0)+1;if(!testMode)log(`<b>ICBM ready</b> in the ${c.name} silo – press Launch in the side panel.`,'#f2c94c',c.owner);panelDirty=true;continue;}
-   const u=spawnAt(q.type,c.owner,c);nations[c.owner].built++;const bm=nations[c.owner].mem;bm.built[q.type]=(bm.built[q.type]||0)+1;
-   if(u&&isHuman(c.owner)&&!testMode)log(`${UT[q.type].name} ready at ${c.name}.`,'#7c9',c.owner);}}
+   const u=spawnAt(q.type,c.owner,c);nations[c.owner].built++;
+   if(u&&q.type==='trh')for(let k=0;k<UT.trh.carry&&!atLimit(c.owner,'tank');k++){const a=spawn('tank',c.owner,u.x,u.y);a.inside=u;u.cargo.push(a);}const bm=nations[c.owner].mem;bm.built[q.type]=(bm.built[q.type]||0)+1;
+   if(u&&isHuman(c.owner)&&!testMode)log(`${UT[q.type].name} ready at ${c.name}${u.cargo.length?` with ${u.cargo.length} Armor aboard`:''}.`,'#7c9',c.owner);}}
  }}
 function captureCity(c,n){const old=c.owner;c.owner=n;c.gar=c.garMax*.3;c.queue=[];c.capT=0;c.capN=-1;c.lastHit=time;mapDirty=true;
  for(const u of units)if(!u.dead&&u.nation===old&&u.state==='landed'&&u.base===c)kill(u);
