@@ -151,8 +151,8 @@ function blast(x,y,z,R,s){boom(x,y,z,R*1.6,1.1);if(Math.hypot(x-X,z-Z)<500)shake
 function weapons(dt){
  const sy=Math.sin(yaw),cy=Math.cos(yaw),sp=Math.sin(pitch),cp=Math.cos(pitch),dx=sy*cp,dy=sp,dz=cy*cp,rx=cy,rz=-sy;gT-=dt;rT-=dt;
  const gl=SAVE.up.gun|0,fire=(keys.f||gunBtn)&&!gOH;
- // Spread gun overheats after 10 s of firing, then must cool all the way down (cools 2x as fast as it heats)
- if(gl){if(fire){gH+=dt;if(gH>=10){gH=10;gOH=1;msg='GUN OVERHEATED! Let it cool down';msgT=2}}else{gH=Math.max(0,gH-2*dt);if(gOH&&!gH){gOH=0;msg='Gun cooled down';msgT=1}}}
+ // Spread gun overheats after GHMAX s of firing, then must cool all the way down (takes GHMAX/1.5 s)
+ if(gl){if(fire){gH+=dt;if(gH>=GHMAX){gH=GHMAX;gOH=1;msg='GUN OVERHEATED! Let it cool down';msgT=2}}else{gH=Math.max(0,gH-1.5*dt);if(gOH&&!gH){gOH=0;msg='Gun cooled down';msgT=1}}}
  if(fire&&gT<=0){gT=PL().gun;const v=speed+1100,dm=.25*(1+.4*gl);for(let i=0;i<(gl?3:1);i++){const a=Math.random()*6.283,s=gl?.02*Math.sqrt(Math.random()):0,ox=Math.cos(a)*s,oy=Math.sin(a)*s;// Spread gun: random point in a circular cone (right = rx,rz; up = -sp*sy,cp,-sp*cy)
   bullets.push({x:X+dx*20,y:alt+dy*20-5,z:Z+dz*20,vx:(dx+rx*ox-sp*sy*oy)*v,vy:(dy+cp*oy)*v,vz:(dz+rz*ox-sp*cy*oy)*v,l:1.3,dm})}shake=Math.max(shake,.05);}
  if(aamF){aamF=0;const q=aamT();if(!q){msg='AAM: no aircraft ahead';msgT=1.2}else if(aam>0){aam--;const v=speed+450;rockets.push({x:X+dx*20,y:alt+dy*20-14,z:Z+dz*20,vx:dx*v,vy:dy*v,vz:dz*v,l:8,lk:q,lk0:q,aam:1});msg='FOX 2! AAM away at '+NM[q.t].toLowerCase();msgT=1.5}}
@@ -258,7 +258,7 @@ function scen3(o){if(o.t==5&&P3)houseSmoke(o)}
 function af3(ty,bx,bz){const m=M3.A[ty];if(!P3)return;
  if(ty==3){const r=P3(bx,152*m.k,bz);if(r){const s=F/r[2]*m.k,on=Math.sin(t*4)>0;ctx.fillStyle=on?'#7dff7d':'#2a5a2a';ctx.beginPath();ctx.arc(r[0],r[1],Math.max(2.5,6*s),0,7);ctx.fill();if(on){ctx.fillStyle='rgba(125,255,125,.25)';ctx.beginPath();ctx.arc(r[0],r[1],Math.max(8,18*s),0,7);ctx.fill()}}}}
 // ---- gameplay: mission types, fighters, bosses (B-2 strike every 3 boss kills), mountain radar station, combos, hangar upgrades, runway service
-const UPG={armor:{n:'Armor plating',d:'+1 hull per level.',cost:[1000,2500]},flares:{n:'Flare pods',d:'+2 flares per level.',cost:[600,1500]},gun:{n:'Spread gun',d:'Sprays 3 rounds in a circle. +40% damage per level.',cost:[2000,4500]}};
+const UPG={armor:{n:'Armor plating',d:'+1 hull per level.',cost:[1000,2500]},flares:{n:'Flare pods',d:'+2 flares per level.',cost:[600,1500]},gun:{n:'Spread gun',d:'Sprays 3 rounds in a circle. +40% damage per level.',cost:[1500,2500]}},GHMAX=6;
 SAVE.up=Object.assign({armor:0,flares:0,gun:0},SAVE.up||{});if(SAVE.up.bomb){SAVE.pts+=1500;delete SAVE.up.bomb;svSave()}
 const MX=()=>PL().hull+(SAVE.up.armor|0),MF=()=>4+2*(SAVE.up.flares|0);
 var BASE=null,chainQ=[],cvHint=0,evM=0,combo=1,comboT=0,bossKills=0,b2=null,wm=null,wmCD=0,wbul=[],mType='strike',mTime=0,gbL=[],radarDown=false,svcT=0,svcOn=0,PAD=null,msgQ=[];
@@ -715,7 +715,7 @@ function cockpit(dy){
   if(state==1)for(const e of ebul){if(!e.m)continue;const ar=Math.atan2(e.x-X,e.z-Z)-yaw,d=Math.hypot(e.x-X,e.z-Z),rd=rr*.88*Math.min(1,d/2500),px=x+Math.sin(ar)*rd,py=y-Math.cos(ar)*rd;if(Math.sin(t*14)>0){ctx.fillStyle='#ff2a20';ctx.fillText('M',px,py)}}
   ctx.fillStyle='#8fff9f';ctx.beginPath();ctx.moveTo(x,y-5*u);ctx.lineTo(x-4*u,y+4*u);ctx.lineTo(x,y+2*u);ctx.lineTo(x+4*u,y+4*u);ctx.fill();ctx.textBaseline='alphabetic';ctx.restore();glass(x,y,rr);label(x,y+rr+9*u,'THREAT',5.5)}
  ctx.fillStyle='#ffd54a';ctx.font=`bold ${15*u}px Georgia`;ctx.textAlign='left';ctx.fillText('Score '+score(),cx+300*u,dy+36*u);
- {const hm=PL().hull,sp=hm>3?14:22;for(let i=0;i<hm;i++){ctx.fillStyle=i<hull?'#ff4a3d':'#401512';ctx.beginPath();ctx.arc(cx+310*u+i*sp*u,dy+52*u,(hm>3?5:6)*u,0,7);ctx.fill()}}ctx.fillStyle='#bbb';ctx.font=`${9*u}px Georgia`;ctx.fillText((onGround?'GND ':'AIR ')+'SPD '+(speed|0),cx+292*u,dy+109*u);ctx.fillText('RWY '+Math.round(Math.hypot(X,Z-600)/10)*10+' m',cx+292*u,dy+123*u);ctx.fillText('ROCKETS '+rk+'  FLARES '+fc+'  AAM '+aam+'  WING '+(wm?'ON':wmCD>0?(Math.ceil(wmCD)/60|0)+':'+String(Math.ceil(wmCD)%60).padStart(2,'0'):'RDY'),cx+292*u,dy+137*u);if(SAVE.up.gun){ctx.fillStyle=gOH?'#ff5a4a':gH>7?'#ffb347':'#bbb';ctx.fillText(gOH?'GUN OVERHEATED '+Math.round(gH*10)+'%':'GUN HEAT '+Math.round(gH*10)+'%',cx+292*u,dy+151*u)}
+ {const hm=PL().hull,sp=hm>3?14:22;for(let i=0;i<hm;i++){ctx.fillStyle=i<hull?'#ff4a3d':'#401512';ctx.beginPath();ctx.arc(cx+310*u+i*sp*u,dy+52*u,(hm>3?5:6)*u,0,7);ctx.fill()}}ctx.fillStyle='#bbb';ctx.font=`${9*u}px Georgia`;ctx.fillText((onGround?'GND ':'AIR ')+'SPD '+(speed|0),cx+292*u,dy+109*u);ctx.fillText('RWY '+Math.round(Math.hypot(X,Z-600)/10)*10+' m',cx+292*u,dy+123*u);ctx.fillText('ROCKETS '+rk+'  FLARES '+fc+'  AAM '+aam+'  WING '+(wm?'ON':wmCD>0?(Math.ceil(wmCD)/60|0)+':'+String(Math.ceil(wmCD)%60).padStart(2,'0'):'RDY'),cx+292*u,dy+137*u);if(SAVE.up.gun){ctx.fillStyle=gOH?'#ff5a4a':gH>GHMAX*.7?'#ffb347':'#bbb';ctx.fillText(gOH?'GUN OVERHEATED '+Math.round(gH/GHMAX*100)+'%':'GUN HEAT '+Math.round(gH/GHMAX*100)+'%',cx+292*u,dy+151*u)}
  const lx=cx-345*u,ty0=dy+34*u,ty1=dy+150*u,ky=ty1-thr*(ty1-ty0);
  ctx.strokeStyle='#222';ctx.lineWidth=9*u;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(lx,ty1+14*u);ctx.lineTo(lx,ky);ctx.stroke();ctx.fillStyle='#c62f2f';ctx.beginPath();ctx.arc(lx,ky-4*u,15*u,0,7);ctx.fill();ctx.fillStyle='rgba(255,255,255,.3)';ctx.beginPath();ctx.arc(lx-5*u,ky-9*u,5*u,0,7);ctx.fill();
  // stick: bellows boot, metal shaft, pistol grip with trigger, fire button, hat switch
