@@ -1,0 +1,1220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>High Command</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--panel:#1e2830;--panel2:#26323c;--line:#38464f;--text:#e6edf1;--muted:#93a4b0;--accent:#f2c94c;}
+html,body{margin:0;height:100%;overflow:hidden;background:#cfdfe7;font-family:system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:var(--text);user-select:none}
+#top{position:absolute;left:0;right:0;top:0;height:46px;background:var(--panel);display:flex;align-items:center;gap:20px;padding:0 14px;font-size:14px;border-bottom:1px solid var(--line);box-sizing:border-box;white-space:nowrap}
+#title{font-weight:800;letter-spacing:.18em;font-size:15px;color:var(--accent)}
+.stat b{font-variant-numeric:tabular-nums}
+.stat small{color:var(--muted)}
+#speed button{background:var(--panel2);color:var(--text);border:1px solid var(--line);padding:4px 9px;margin-right:2px;border-radius:4px;cursor:pointer;font-size:13px}
+#speed button.on{background:var(--accent);color:#222;border-color:var(--accent)}
+#auto{background:var(--accent);color:#222;border:1px solid var(--accent);padding:4px 9px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:700}
+#auto.off{background:var(--panel2);color:var(--muted);border-color:var(--line);font-weight:400}
+#standings{display:flex;gap:8px;margin-left:auto}
+.chip{display:flex;align-items:center;gap:6px;background:var(--panel2);padding:3px 9px;border-radius:12px;font-size:12px}
+.sw{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px}
+#game{position:absolute;left:0;top:46px;right:290px;bottom:0;cursor:crosshair}
+canvas{display:block}
+#side{position:absolute;top:46px;right:0;width:290px;bottom:0;background:var(--panel2);display:flex;flex-direction:column;border-left:1px solid var(--line)}
+#sel{padding:12px 14px;overflow:auto;flex:1 1 auto;font-size:13px}
+#logWrap{flex:0 0 34%;border-top:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+#logWrap h3{margin:0;padding:8px 14px;font-size:11px;letter-spacing:.15em;color:var(--muted);font-weight:700}
+#log{overflow:auto;padding:0 14px 10px;font-size:12px;line-height:1.45}
+#log div{border-bottom:1px solid rgba(255,255,255,.05);padding:3px 0}
+#log .t{color:var(--muted);margin-right:6px;font-variant-numeric:tabular-nums}
+.ph{font-size:17px;font-weight:700;margin-bottom:2px}
+.sub{color:var(--muted);margin-bottom:10px}
+.sec{font-size:11px;letter-spacing:.14em;color:var(--muted);margin:14px 0 6px;font-weight:700}
+.bar{height:6px;background:#11181d;border-radius:3px;overflow:hidden;margin:3px 0 8px}
+.bar i{display:block;height:100%;background:#6fcf7f}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.bb{background:#33424d;color:var(--text);border:1px solid #45555f;border-radius:5px;padding:6px 7px;text-align:left;cursor:pointer;font-size:12px}
+.bb:hover:not(:disabled){background:#3e4f5b;border-color:var(--accent)}
+.bb:disabled{opacity:.4;cursor:default}
+.bb b{display:block;font-size:12.5px}
+.bb span{color:var(--muted);font-size:11px}
+.q{display:flex;align-items:center;gap:8px;background:#1c252c;border-radius:4px;padding:4px 8px;margin-bottom:4px;cursor:pointer;font-size:12px}
+.q:hover{outline:1px solid #b55}
+.q .pb{flex:1;height:4px;background:#11181d;border-radius:2px;overflow:hidden}
+.q .pb i{display:block;height:100%;background:var(--accent)}
+.row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.act{background:#4a3434;border:1px solid #6b4545;color:var(--text);border-radius:5px;padding:6px 12px;cursor:pointer;margin-top:10px;margin-right:6px}
+.act.nuke{display:block;width:100%;margin:0 0 10px;background:#7a1f1f;border-color:#b03a3a;font-weight:700;color:#ffe9a8}
+.act:hover{background:#5d3f3f}
+.tip{color:var(--muted);font-size:12px;line-height:1.5;margin-top:10px}
+.tip kbd{background:#11181d;border:1px solid #3a4852;border-radius:3px;padding:0 4px;font-size:11px;color:var(--text)}
+#overlay{position:absolute;inset:0;background:rgba(20,28,34,.72);display:flex;align-items:center;justify-content:center;z-index:5}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:26px 30px;width:min(760px,92vw);box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.card h1{margin:0;letter-spacing:.25em;color:var(--accent);font-size:28px}
+.card p{color:var(--muted);margin:6px 0 18px}
+.nations{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.nbtn{border:2px solid transparent;border-radius:8px;padding:12px 14px;cursor:pointer;background:#26323c;text-align:left;color:var(--text)}
+.nbtn.on{border-color:var(--accent)}
+.nbtn b{font-size:16px}
+.nbtn div{font-size:12px;color:var(--muted);margin-top:4px}
+.perk,.nbtn .perk{color:#8fd19e;font-size:12px;margin-top:4px}
+.flaw,.nbtn .flaw{color:#ef9a9a;font-size:12px;margin-top:2px}
+.diff{margin:16px 0;display:flex;gap:8px;align-items:center;font-size:13px}
+.diff button{background:#26323c;color:var(--text);border:1px solid var(--line);border-radius:5px;padding:5px 12px;cursor:pointer}
+.diff button.on{background:var(--accent);color:#222}
+.go{background:var(--accent);color:#222;font-weight:800;letter-spacing:.15em;border:0;border-radius:6px;padding:11px 26px;cursor:pointer;font-size:14px}
+.help{font-size:12px;color:var(--muted);line-height:1.6;margin-top:16px;columns:2}
+.nbtn:disabled{opacity:.45;cursor:default}
+.nbtn .tag{float:right;font-size:11px;font-weight:700;background:var(--accent);color:#222;border-radius:4px;padding:1px 6px}
+.go:disabled{opacity:.45;cursor:default}
+.mp{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-size:13px}
+.mp .sec{margin-top:0}
+.mp-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.mp button.ghost{background:#26323c;color:var(--text);border:1px solid var(--line);border-radius:5px;padding:7px 14px;cursor:pointer;font-size:13px}
+.mp button.ghost:hover{border-color:var(--accent)}
+.mp input{background:#11181d;border:1px solid var(--line);color:var(--text);border-radius:5px;padding:7px 10px;font-size:14px;width:110px;letter-spacing:.2em;text-transform:uppercase}
+.code{font-size:22px;font-weight:800;letter-spacing:.3em;color:var(--accent);background:#11181d;border-radius:6px;padding:4px 12px}
+.mp .note{color:var(--muted);font-size:12px;margin-top:8px;line-height:1.5}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+</head>
+<body>
+<div id="top">
+  <div id="title">HIGH COMMAND</div>
+  <div class="stat" id="nat"></div>
+  <div class="stat">Treasury <b id="funds">0</b> <small id="inc"></small></div>
+  <div class="stat" id="date"></div>
+  <div id="speed"><button data-s="0">❚❚</button><button data-s="1">1×</button><button data-s="2">2×</button><button data-s="4">4×</button></div>
+  <button id="auto" title="When on, your cities automatically build units whenever their queue is empty">Auto-build: ON</button>
+  <div id="standings"></div>
+</div>
+<div id="game"><canvas id="cv"></canvas></div>
+<div id="side"><div id="sel"></div><div id="logWrap"><h3>DISPATCHES</h3><div id="log"></div></div></div>
+<div id="overlay"></div>
+<pre id="testout" style="display:none"></pre>
+<script>
+'use strict';
+window.__errors=[];
+window.addEventListener('error',e=>{window.__errors.push(e.message+' @'+e.lineno);});
+
+// ================= WORLD DATA =================
+// The world is 1.5x the original continent. Polygons are written with straight edges here and
+// roughened into natural coastlines/borders at load (see roughen) – deterministically, so host and guest match.
+const W=2400,H=1590,CS=10,GW=240,GH=159,SC=1.5;// SC: how much bigger than the original map (scales AI distances)
+const NATIONS=[
+ {id:0,name:'Demeris',color:'#3d7a58',light:'#dbe9df',poly:[[646.5,52.5],[1908,52.5],[2169,216],[1995,772.5],[1297.5,732],[775.5,648]],label:[1140,190],
+  blurb:'Capital Riverbend. Largest but poorest nation – mountains, forests and the source of both rivers. Borders everyone except Aurelia.',
+  perk:'Forest fighters: land units hit 20% harder from forests & mountains.',flaw:'Poor highland country: cities earn 1/h instead of 3, and builds take 20% longer.',
+  good:['inf','aa'],limit:{bmb:0,bb:0,ftr:2}},
+ {id:1,name:'Aurelia',color:'#c2852a',light:'#f4e7cd',poly:[[189,750],[429,648],[775.5,648],[450,996],[558,1429.5],[277.5,1470],[124.5,1203]],label:[300,820],
+  blurb:'Capital Aurora. Tech & a busy sea port, but relies on imported food, fuel and metal. One land neighbour – a strong naval start.',
+  perk:'Research: builds 25% faster.',flaw:'Sea imports: income −40% while enemy warships blockade your ports.',
+  good:['dd','bb','ftr'],limit:{tank:4}},
+ {id:2,name:'Bellador',color:'#b3473e',light:'#f2dad6',poly:[[775.5,648],[1297.5,732],[1210.5,1078.5],[1362,1429.5],[558,1429.5],[450,996]],label:[860,1090],
+  blurb:'Capital Harveston. Farmland that feeds the region, watered by the Luma River. Surrounded on all sides – the hardest position.',
+  perk:'Breadbasket: farm cities you hold give +3 income each.',flaw:'Luma River: farms give half unless you also hold Lumaford upstream.',
+  good:['inf','tank'],limit:{bb:0,bmb:1}},
+ {id:3,name:'Corinthia',color:'#6e5a8a',light:'#e7e0f0',poly:[[1297.5,732],[1995,772.5],[2235,936],[2235,1404],[1362,1429.5],[1210.5,1078.5]],label:[1590,820],
+  blurb:'Capital Forge City. Industrial east – mines, factories, power plants. Ironridge factories boost income.',
+  perk:'Heavy industry: Armor & Artillery cost 20% less.',flaw:'Old power plants: lose Ironridge and builds take 50% longer.',
+  good:['tank','art'],limit:{bb:1,ftr:3}},
+ // late nations: dormant (neutral land) until the player conquers everyone before them
+ {id:4,name:'Valdren',late:1,color:'#2f5d9e',light:'#c4d3ee',poly:[[1908,52.5],[2400,52.5],[2400,1404],[2235,1404],[2235,936],[1995,772.5],[2169,216]],label:[2250,610],
+  blurb:'Iron kingdom of the Eastern Lands.',perk:'',flaw:'',good:['tank','aa'],limit:{}},
+ {id:5,name:'Kestria',late:1,color:'#2a8c8c',light:'#d6eeee',poly:[[165,255],[255,180],[390,168],[483,232.5],[502.5,352.5],[438,450],[300,483],[177,438],[123,348]],label:[310,215],
+  blurb:'Island fortress in the Western Sea.',perk:'',flaw:'',good:['dd','bb','bmb'],limit:{}},
+];
+const isActive=id=>nations.length?!nations[id].dormant:!NATIONS[id].late;
+const NEUTRAL=[[622.5,0],[2400,0],[2400,1404],[2235,1404],[2235,936],[1995,772.5],[2169,216],[1908,52.5],[646.5,52.5],[622.5,52.5]];
+const CITY_DEFS=[
+ {name:'Riverbend',x:1237,y:421,n:0,cap:1,hl:1},{name:'Cliffhaven',x:727,y:393,n:0,port:1,hl:1},{name:'Lumaford',x:937,y:592,n:0,hl:1},
+ {name:'Greenhollow',x:1515,y:502,n:0,hl:1},{name:'Highcrest',x:1950,y:330,n:0,hl:1},
+ {name:'Aurora',x:358,y:948,n:1,cap:1},{name:'Seagate',x:307,y:1395,n:1,port:1},{name:'Northwatch',x:495,y:717,n:1},{name:'Westfield',x:225,y:1110,n:1},
+ {name:'Harveston',x:1033,y:1203,n:2,cap:1,farm:1},{name:'Southmere',x:915,y:1398,n:2,port:1,farm:1},{name:'Goldfield',x:667,y:1200,n:2,farm:1},
+ {name:'Marrowgate',x:1080,y:900,n:2,farm:1},{name:'Easthold',x:1200,y:1320,n:2,farm:1},
+ {name:'Forge City',x:1746,y:1309,n:3,cap:1},{name:'Ironridge',x:1950,y:1177,n:3,ind:1},{name:'Seramouth',x:2092,y:1387,n:3,port:1},
+ {name:'Corin',x:1440,y:975,n:3},{name:'Ashford',x:1725,y:870,n:3},
+ // added with the bigger world
+ {name:'Pinemoor',x:1420,y:240,n:0,hl:1},{name:'Stonebrook',x:1090,y:640,n:0,hl:1},
+ {name:'Brightwater',x:420,y:1200,n:1},
+ {name:'Thornfield',x:850,y:1060,n:2,farm:1},{name:'Cresthollow',x:900,y:770,n:2},
+ {name:'Coldharbor',x:1550,y:1385,n:3,port:1},{name:'Highmoor',x:2100,y:1010,n:3},
+ // late nations last: city ids must stay contiguous (cities[] is indexed by id)
+ {name:'Valdhold',x:2220,y:495,n:4,cap:1},{name:'Frostmere',x:2205,y:165,n:4},{name:'Stonegate',x:2145,y:720,n:4},{name:'Rask',x:2265,y:1320,n:4,port:1},{name:'Ironwatch',x:2330,y:1010,n:4},
+ {name:'Port Kestra',x:307,y:322,n:5,cap:1,port:1},{name:'Gullrock',x:195,y:375,n:5,port:1},{name:'Saltmere',x:427,y:262,n:5,port:1},
+];
+const RIVERS=[
+ {name:'Luma River',pts:[[921,364.5],[1020,499.5],[1045.5,660],[972,787.5],[886.5,897],[732,955.5],[555,1003.5],[415.5,1092],[310.5,1203],[105,1203]],label:[1150,590]},
+ {name:'Sera River',pts:[[1603.5,357],[1699.5,483],[1791,642],[1819.5,766.5],[1899,862.5],[2034,969],[2127,1114.5],[2169,1407],[2172,1432.5]],label:[1878,531]},
+];
+const ROAD_NAMES=[['Aurora','Seagate'],['Aurora','Harveston'],['Harveston','Forge City'],['Riverbend','Forge City'],['Riverbend','Lumaford'],
+ ['Lumaford','Cliffhaven'],['Riverbend','Greenhollow'],['Harveston','Southmere'],['Forge City','Seramouth'],['Aurora','Northwatch'],['Forge City','Ironridge'],
+ ['Aurora','Brightwater'],['Harveston','Thornfield'],['Marrowgate','Cresthollow'],['Forge City','Coldharbor'],['Ironridge','Highmoor'],
+ ['Highcrest','Pinemoor'],['Riverbend','Stonebrook'],['Valdhold','Stonegate'],['Valdhold','Frostmere'],['Rask','Ironwatch'],['Port Kestra','Saltmere']];
+// terrain types: 0 grassland, 1 open plains, 2 forest, 3 mountains, 4 hills, 5 swamp, 6 desert.  lake:1 = water inside the land.
+// Each feature is an irregular blob around an ellipse (see inBlob), so edges look natural.
+const T_NAMES=['Grassland','Open plains','Forest','Mountains','Hills','Swamp','Desert'];
+const TERRAIN=[
+ {x:885,y:322,rx:150,ry:72,t:3,name:'Cloudpeak Mountains',lx:860,ly:432},
+ {x:1600,y:150,rx:150,ry:55,t:3,name:'Northfell Peaks',lx:1600,ly:225},
+ {x:2310,y:640,rx:62,ry:190,t:3,name:'Eastern Spine',lx:2310,ly:850},
+ {x:1898,y:1068,rx:135,ry:66,t:4,name:'Ironridge Hills',lx:1898,ly:1002},
+ {x:300,y:830,rx:90,ry:60,t:4,name:'Aurelian Downs',lx:290,ly:775},
+ {x:990,y:820,rx:85,ry:45,t:4,name:'Marrow Hills',lx:960,ly:850},
+ {x:1560,y:382,rx:200,ry:90,t:2,name:'Greenwood Forest',lx:1538,ly:300},
+ {x:190,y:1300,rx:75,ry:85,t:2,name:'Westwood',lx:190,ly:1240},
+ {x:1110,y:1290,rx:70,ry:45,t:2,name:'Easthold Woods',lx:1080,ly:1360},
+ {x:340,y:390,rx:65,ry:40,t:2,name:'Kestrian Pines',lx:340,ly:440},
+ {x:717,y:1278,rx:158,ry:72,t:1,name:'Golden Plains',lx:717,ly:1368},
+ {x:600,y:1035,rx:95,ry:45,t:5,name:'Luma Marshes',lx:600,ly:1100},
+ {x:2075,y:1280,rx:65,ry:45,t:5,name:'Sera Fens',lx:2000,ly:1270},
+ {x:1640,y:1035,rx:140,ry:60,t:6,name:'Ashen Waste',lx:1640,ly:1035},
+ {x:2330,y:1170,rx:55,ry:110,t:6,name:'Red Barrens',lx:2330,ly:1170},
+ {x:1495,y:640,rx:62,ry:36,lake:1,name:'Lake Mirren',lx:1495,ly:644},
+ {x:1560,y:1185,rx:60,ry:34,lake:1,name:'Silverlake',lx:1560,ly:1189},
+ {x:2318,y:330,rx:44,ry:30,lake:1,name:'Frost Lake',lx:2318,ly:334},
+];
+// ---- deterministic randomness for the map (Math.random would make host and guest maps differ) ----
+function mulberry(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+// wiggly blob edge: radius multiplier at a given angle, fixed per feature
+function blobR(e,a){const s=e.x*.37+e.y*.71;return 1+.16*Math.sin(3*a+s)+.09*Math.sin(5*a+s*1.7)+.05*Math.sin(9*a+s*2.3);}
+function inBlob(x,y,e){const dx=(x-e.x)/e.rx,dy=(y-e.y)/e.ry;return Math.hypot(dx,dy)<=blobR(e,Math.atan2(dy,dx));}
+function blobPts(e){const p=[];for(let k=0;k<72;k++){const a=k/72*Math.PI*2,r=blobR(e,a);p.push([e.x+Math.cos(a)*r*e.rx,e.y+Math.sin(a)*r*e.ry]);}return p;}
+// Natural coastlines: midpoint displacement on every edge. Each edge is generated in a canonical direction from
+// a seed based on its endpoints, so a border shared by two nations wiggles identically for both of them.
+// Wiggles are damped near cities so no town ends up in the sea, and map-edge lines stay straight.
+function roughen(poly,amp=.2){const out=[];
+ const nearCity=(x,y)=>CITY_DEFS.some(c=>Math.hypot(c.x-x,c.y-y)<85);
+ const edge=(x,v)=>v===0||(x?v===W:v===H);
+ function disp(P,Q,rng,acc){const dx=Q[0]-P[0],dy=Q[1]-P[1],L=Math.hypot(dx,dy);if(L<14)return;
+  let o=(rng()*2-1)*L*amp;o=clamp(o,-45,45);const mx=(P[0]+Q[0])/2,my=(P[1]+Q[1])/2;if(nearCity(mx,my))o*=.12;
+  const M=[mx-dy/L*o,my+dx/L*o];disp(P,M,rng,acc);acc.push(M);disp(M,Q,rng,acc);}
+ for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length];out.push(a);
+  if((a[0]===b[0]&&(edge(1,a[0])))||(a[1]===b[1]&&edge(0,a[1])))continue;
+  const fwd=a[0]<b[0]||(a[0]===b[0]&&a[1]<b[1]),P=fwd?a:b,Q=fwd?b:a;
+  const rng=mulberry((Math.imul(P[0]*10|0,73856093)^Math.imul(P[1]*10|0,19349663)^Math.imul(Q[0]*10|0,83492791)^Math.imul(Q[1]*10|0,2654435))>>>0);
+  const seg=[];disp(P,Q,rng,seg);if(!fwd)seg.reverse();out.push(...seg);}
+ return out;}
+function meander(pts){const out=[pts[0]];// rivers: same idea, smaller wiggles
+ for(let i=1;i<pts.length;i++){const P=pts[i-1],Q=pts[i],rng=mulberry((P[0]*131+Q[1]*977)|0),seg=[];
+  (function d(A,B){const dx=B[0]-A[0],dy=B[1]-A[1],L=Math.hypot(dx,dy);if(L<16)return;const o=(rng()*2-1)*L*.18,M=[(A[0]+B[0])/2-dy/L*o,(A[1]+B[1])/2+dx/L*o];d(A,M);seg.push(M);d(M,B);})(P,Q);
+  out.push(...seg,Q);}return out;}
+const UT={
+ inf:{name:'Infantry',dom:'land',hp:100,spd:20,atk:{land:9,air:2,sea:0},rng:28,cost:100,time:8,cap:1,desc:'Cheap. Captures cities. Strong in forests, mountains, hills & cities.'},
+ tank:{name:'Armor',dom:'land',hp:170,spd:38,atk:{land:18,air:0,sea:0},rng:30,cost:260,time:14,cap:1,desc:'Fast and hard-hitting. Slowed & weakened in forest, mountains & swamp.'},
+ art:{name:'Artillery',dom:'land',hp:80,spd:18,atk:{land:21,air:0,sea:6},rng:85,cost:200,time:12,desc:'Long range. Great for breaking city garrisons. Weak up close.'},
+ aa:{name:'Anti-Air',dom:'land',hp:90,spd:25,atk:{land:3,air:24,sea:0},rng:72,cost:180,time:10,desc:'Shoots down enemy aircraft.'},
+ ftr:{name:'Fighter',dom:'air',hp:70,spd:130,atk:{land:3,air:20,sea:2},rng:45,cost:320,time:14,fuel:20,turn:3.2,desc:'Air superiority. Patrols a point, intercepts enemy planes. Returns to base to refuel.'},
+ bmb:{name:'Bomber',dom:'air',hp:110,spd:85,atk:{land:38,air:0,sea:32},rng:26,cost:480,time:18,fuel:28,ammo:4,turn:1.8,desc:'Bombs units & city garrisons, then returns to base to rearm.'},
+ dd:{name:'Destroyer',dom:'sea',hp:160,spd:52,atk:{land:5,air:12,sea:18},rng:70,cost:320,time:16,small:1,desc:'Fast warship. Hunts ships, some anti-air. Can sail up rivers.'},
+ bb:{name:'Battleship',dom:'sea',hp:380,spd:32,atk:{land:26,air:6,sea:30},rng:130,cost:750,time:30,desc:'Huge guns. Bombards coastal cities from long range. Sea only.'},
+ tr:{name:'Transport',dom:'sea',hp:110,spd:58,atk:{land:0,air:0,sea:0},rng:0,cost:220,time:12,small:1,carry:3,desc:'Carries 3 land units. Can sail up rivers.'},
+ para:{name:'Paratroopers',dom:'land',hp:85,spd:20,atk:{land:8,air:2,sea:0},rng:28,cost:180,time:10,cap:1,desc:'Infantry that can jump: while in one of your cities, click a spot on land up to 700 away and a plane drops them there. Captures cities.'},
+ rkt:{name:'Rocket Artillery',dom:'land',hp:80,spd:24,atk:{land:60,air:0,sea:20},rng:110,cost:300,time:14,desc:'Fires a rocket salvo that hits everything near the target, then takes a while to reload. Weak up close.'},
+ sup:{name:'Supply Truck',dom:'land',hp:90,spd:30,atk:{land:0,air:0,sea:0},rng:0,cost:150,time:8,desc:'Unarmed. Repairs your land units near it, so they can stay at the front.'},
+ heli:{name:'Attack Helicopter',dom:'air',hp:90,spd:70,atk:{land:22,air:0,sea:10},rng:42,cost:340,time:14,fuel:24,turn:4,desc:'Hovers and hunts ground units – deadly to Armor. Anti-Air and Fighters shred it. Returns to base to refuel.'},
+ sub:{name:'Submarine',dom:'sea',hp:130,spd:40,atk:{land:0,air:0,sea:34},rng:60,cost:380,time:18,desc:'Hidden from enemies unless their ships or cities are close, or it just fired. Torpedoes wreck big ships. Destroyers spot it from further away.'},
+ cv:{name:'Carrier',dom:'sea',hp:360,spd:30,atk:{land:0,air:8,sea:0},rng:50,cost:700,time:30,hangar:4,desc:'Floating airbase for 4 aircraft – they refuel and rearm on it. Select aircraft and click the Carrier to base them here.'},
+};
+const JUMP_R=700,SUB_SPOT={dd:110,heli:50,sea:45,city:60},ALL_SEEN=63;
+const foot=k=>k==='inf'||k==='para', wheeled=k=>k==='tank'||k==='rkt'||k==='sup';
+// can nation n see and shoot unit e? (planes on the ground, paratroopers mid-jump and unspotted subs can't be hit)
+const targetable=(e,n)=>!e.dead&&!e.inside&&e.state!=='landed'&&!e.jump&&(e.type!=='sub'||((e.seen>>n)&1)===1);
+const hangarFree=cv=>units.filter(p=>!p.dead&&p.base===cv).length<UT.cv.hangar;
+const baseOk=u=>u.base&&(u.base.isCity?u.base.owner===u.nation:!u.base.dead);
+const LUMAFORD=CITY_DEFS.findIndex(c=>c.name==='Lumaford'),IRONRIDGE=CITY_DEFS.findIndex(c=>c.name==='Ironridge');
+// ICBM: not a map unit – finished missiles go into the nation's silo stockpile (n.icbm) and are launched from the panel
+UT.icbm={name:'ICBM',dom:'silo',hp:1,cost:2000,time:36,desc:'Nuclear missile. Unlocks once the first rival nation falls. Destroys everything nearby, and the fallout makes the area uninhabitable for a minute: units there take radiation damage and cities can\'t produce, earn or be captured.'};
+const NUKE_R=85,NUKE_FLIGHT=3,FALLOUT_T=60,FALLOUT_DPS=30;// fallout lasts 60 game-hours = 1 minute at 1x speed
+let fallout=[];// {x,y,n,until}: irradiated ground – uninhabitable until it clears
+const inFallout=(x,y,pad=0)=>fallout.some(z=>Math.hypot(x-z.x,y-z.y)<NUKE_R+pad);
+const radCost=i=>fallout.length&&inFallout(cellX(i),cellY(i))?12:0;
+const BUILD_ORDER=['inf','para','tank','art','rkt','aa','sup','ftr','heli','bmb','dd','sub','bb','cv','tr','icbm'];
+// ICBMs unlock for the player as soon as the first rival nation is knocked out
+const icbmOn=n=>isHuman(n)&&!!nations[n]&&!!nations[n].icbmTech;
+let nukeAim=false;
+const DIFFS={easy:{mult:.75,aggro:0,label:'Easy'},normal:{mult:1,aggro:40,label:'Normal'},hard:{mult:1.35,aggro:120,label:'Hard'}};
+
+// ================= HELPERS =================
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+// shape the world once at load (deterministic): natural coasts/borders, meandering rivers
+for(const n of NATIONS)n.poly=roughen(n.poly);
+NEUTRAL.splice(0,NEUTRAL.length,...roughen(NEUTRAL));
+for(const r of RIVERS)r.pts=meander(r.pts);
+const LAKES=TERRAIN.filter(e=>e.lake),LAND_T=TERRAIN.filter(e=>!e.lake);
+const rnd=r=>(Math.random()*2-1)*r;
+function pip(x,y,p){let c=false;for(let i=0,j=p.length-1;i<p.length;j=i++){const xi=p[i][0],yi=p[i][1],xj=p[j][0],yj=p[j][1];if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))c=!c;}return c;}
+function distSeg(px,py,ax,ay,bx,by){const dx=bx-ax,dy=by-ay,l=dx*dx+dy*dy;let t=l?((px-ax)*dx+(py-ay)*dy)/l:0;t=clamp(t,0,1);return Math.hypot(ax+t*dx-px,ay+t*dy-py);}
+function distLine(px,py,pts){let m=1e9;for(let i=0;i<pts.length-1;i++)m=Math.min(m,distSeg(px,py,pts[i][0],pts[i][1],pts[i+1][0],pts[i+1][1]));return m;}
+function inEll(x,y,e){const dx=(x-e.x)/e.rx,dy=(y-e.y)/e.ry;return dx*dx+dy*dy<=1;}
+function angDiff(a,b){let d=a-b;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return d;}
+function hexA(h,a){const n=parseInt(h.slice(1),16);return `rgba(${n>>16},${(n>>8)&255},${n&255},${a})`;}
+function clipHalf(poly,a,b){const mx=(a.x+b.x)/2,my=(a.y+b.y)/2,nx=b.x-a.x,ny=b.y-a.y;const f=p=>(p[0]-mx)*nx+(p[1]-my)*ny;const out=[];
+ for(let i=0;i<poly.length;i++){const P=poly[i],Q=poly[(i+1)%poly.length],fp=f(P),fq=f(Q);if(fp<=0)out.push(P);if((fp<=0)!==(fq<=0)){const t=fp/(fp-fq);out.push([P[0]+(Q[0]-P[0])*t,P[1]+(Q[1]-P[1])*t]);}}return out;}
+
+// ================= GRID & PATHFINDING =================
+const gType=new Uint8Array(GW*GH),gNat=new Int8Array(GW*GH).fill(-1),gTerr=new Uint8Array(GW*GH),gRiver=new Uint8Array(GW*GH),gRoad=new Uint8Array(GW*GH);
+let ROADS=[];
+function buildGrid(){
+ ROADS=ROAD_NAMES.map(([a,b])=>{const A=CITY_DEFS.find(c=>c.name===a),B=CITY_DEFS.find(c=>c.name===b);const r=[[A.x,A.y],[B.x,B.y]];r.on=()=>isActive(A.n)&&isActive(B.n);return r;});
+ for(let gy=0;gy<GH;gy++)for(let gx=0;gx<GW;gx++){
+  const i=gy*GW+gx,x=gx*CS+CS/2,y=gy*CS+CS/2;
+  let nat=-1;for(const n of NATIONS)if(isActive(n.id)&&pip(x,y,n.poly)){nat=n.id;break;}
+  gNat[i]=-1;
+  if(nat>=0){gType[i]=1;gNat[i]=nat;}else if(pip(x,y,NEUTRAL)||NATIONS.some(n=>!isActive(n.id)&&pip(x,y,n.poly)))gType[i]=2;else gType[i]=0;
+  gTerr[i]=0;gRiver[i]=0;gRoad[i]=0;
+  if(gType[i]!==1)continue;
+  if(LAKES.some(e=>inBlob(x,y,e))){gType[i]=0;gNat[i]=-1;continue;}// lakes: water nobody can march through
+  for(const e of LAND_T)if(inBlob(x,y,e)){gTerr[i]=e.t;break;}
+  for(const r of RIVERS)if(distLine(x,y,r.pts)<8)gRiver[i]=1;
+  for(const r of ROADS)if(r.on()&&distLine(x,y,r)<7)gRoad[i]=1;
+ }
+}
+const cellOf=(x,y)=>clamp((y/CS)|0,0,GH-1)*GW+clamp((x/CS)|0,0,GW-1);
+const cellX=c=>(c%GW)*CS+CS/2, cellY=c=>((c/GW)|0)*CS+CS/2;
+// movement cost per terrain type (grass, plains, forest, mountains, hills, swamp, desert)
+const TERR_COST=[1,.85,1.7,2.6,1.35,2.3,1.2];
+const ROUGH=t=>t===2||t===3||t===5;// bad ground for armor
+function landCost(i,tank){if(gType[i]!==1)return Infinity;if(gRoad[i])return .6;let c=TERR_COST[gTerr[i]];if(tank&&ROUGH(gTerr[i]))c*=1.5;if(gRiver[i])c+=1.6;return c;}
+// damage taken by land units standing on each terrain type: [infantry, everything else]
+const TERR_DEF=[[1,1],[1,1],[.7,.85],[.55,.75],[.8,.9],[.9,1],[1.1,1.1]];
+function seaCost(i,small){if(gType[i]===0)return 1;if(small&&gRiver[i]&&gType[i]===1)return 1.3;return Infinity;}
+const CF={land:i=>landCost(i,false),tank:i=>landCost(i,true),sea:i=>seaCost(i,false),small:i=>seaCost(i,true)};
+function cfFor(u){const t=UT[u.type];if(t.dom==='land')return wheeled(u.type)?CF.tank:CF.land;return t.small?CF.small:CF.sea;}
+class Heap{constructor(){this.a=[];this.f=[];}get size(){return this.a.length}
+ push(v,f){const a=this.a,F=this.f;a.push(v);F.push(f);let i=a.length-1;while(i>0){const p=(i-1)>>1;if(F[p]<=F[i])break;[a[p],a[i]]=[a[i],a[p]];[F[p],F[i]]=[F[i],F[p]];i=p;}}
+ pop(){const a=this.a,F=this.f,top=a[0],lv=a.pop(),lf=F.pop();if(a.length){a[0]=lv;F[0]=lf;let i=0;for(;;){const l=2*i+1,r=l+1;let m=i;if(l<a.length&&F[l]<F[m])m=l;if(r<a.length&&F[r]<F[m])m=r;if(m===i)break;[a[m],a[i]]=[a[i],a[m]];[F[m],F[i]]=[F[i],F[m]];i=m;}}return top;}}
+const gS=new Float32Array(GW*GH),came=new Int32Array(GW*GH),seen=new Uint32Array(GW*GH),closed=new Uint32Array(GW*GH);let stampN=0;
+const DX=[1,-1,0,0,1,1,-1,-1],DY=[0,0,1,-1,1,-1,1,-1];
+function nearestPass(c,cf,maxR=45){if(cf(c)!==Infinity)return c;const cx=c%GW,cy=(c/GW)|0;
+ for(let r=1;r<=maxR;r++){let best=-1,bd=1e9;for(let y=cy-r;y<=cy+r;y++)for(let x=cx-r;x<=cx+r;x++){if(Math.max(Math.abs(x-cx),Math.abs(y-cy))!==r)continue;if(x<0||y<0||x>=GW||y>=GH)continue;const i=y*GW+x;if(cf(i)===Infinity)continue;const d=(x-cx)**2+(y-cy)**2;if(d<bd){bd=d;best=i;}}if(best>=0)return best;}return -1;}
+function los(a,b,cf){const ax=a%GW,ay=(a/GW)|0,bx=b%GW,by=(b/GW)|0;const lim=Math.max(cf(a),cf(b))*1.12;const n=Math.max(Math.abs(bx-ax),Math.abs(by-ay))*2;
+ for(let k=1;k<n;k++){const x=Math.round(ax+(bx-ax)*k/n),y=Math.round(ay+(by-ay)*k/n);if(cf(y*GW+x)>lim)return false;}return true;}
+function astar(sx,sy,tx,ty,cf){
+ let s=nearestPass(cellOf(sx,sy),cf),t=cellOf(tx,ty);if(s<0)return null;
+ const exact=cf(t)!==Infinity;if(!exact){t=nearestPass(t,cf);if(t<0)return null;}
+ stampN++;const hp=new Heap();const tx_=t%GW,ty_=(t/GW)|0;
+ const heur=(x,y)=>{const dx=Math.abs(x-tx_),dy=Math.abs(y-ty_);return (Math.max(dx,dy)+.4142*Math.min(dx,dy))*.6;};
+ gS[s]=0;seen[s]=stampN;came[s]=-1;hp.push(s,0);let found=false,it=0;
+ while(hp.size){const c=hp.pop();if(c===t){found=true;break;}if(closed[c]===stampN)continue;closed[c]=stampN;if(++it>60000)break;
+  const cx=c%GW,cy=(c/GW)|0,cc0=cf(c);
+  for(let k=0;k<8;k++){const nx=cx+DX[k],ny=cy+DY[k];if(nx<0||ny<0||nx>=GW||ny>=GH)continue;const n=ny*GW+nx;if(closed[n]===stampN)continue;const cc0n=cf(n);if(cc0n===Infinity)continue;const cc=cc0n+radCost(n);
+   if(k>=4&&(cf(cy*GW+nx)===Infinity||cf(ny*GW+cx)===Infinity))continue;
+   const ng=gS[c]+(k>=4?1.4142:1)*(cc+(cc0===Infinity?cc:cc0))*.5;
+   if(seen[n]!==stampN||ng<gS[n]){seen[n]=stampN;gS[n]=ng;came[n]=c;hp.push(n,ng+heur(nx,ny));}}}
+ if(!found)return null;
+ const cells=[];for(let c=t;c!==-1;c=came[c])cells.push(c);cells.reverse();
+ const sm=[cells[0]];let i=0;while(i<cells.length-1){let j=Math.min(cells.length-1,i+16);for(;j>i+1;j--)if(los(cells[i],cells[j],cf))break;sm.push(cells[j]);i=j;}
+ const pts=sm.slice(1).map(c=>[cellX(c)+rnd(2),cellY(c)+rnd(2)]);
+ if(exact){if(pts.length)pts[pts.length-1]=[tx,ty];else pts.push([tx,ty]);}
+ else if(!pts.length)pts.push([cellX(t),cellY(t)]);
+ return pts;
+}
+
+// ================= STATE =================
+let nations=[],cities=[],units=[],fx=[],time=0,player=3,diff=DIFFS.normal,speed=0,started=false,gameOver=false,uid=1;
+let selection=new Set(),selCity=null,mapDirty=true,aiClock=0,endClock=0,testMode=false;
+let profile=null;// what the player tended to build in past games (localStorage), see saveProfile
+// humans: the nations controlled by people. `player` is the nation of whoever sits at THIS screen.
+// Multiplayer (mp): 'host' runs the real simulation; 'guest' only mirrors snapshots and sends orders.
+let humans=[],mp=null,peer=null,conn=null,guestNation=-1,winner=-1,lostShown=new Set();
+const isHuman=n=>humans.includes(n);
+// peace: nobody can fire or capture until peaceUntil (start of game, and briefly when a new nation rises)
+let peaceUntil=0,peaceOver=true;const atPeace=()=>time<peaceUntil;
+function borderCheck(){// marching into enemy territory during the peace starts the war
+ for(const u of units){if(!isHuman(u.nation)||u.dead||u.inside||u.state==='landed')continue;
+  for(const c of cities)if(c.owner!==u.nation&&nations[c.owner].alive&&pip(u.x,u.y,c.region)){peaceUntil=time;peaceOver=true;
+   logFor(u.nation,`<b>Your forces crossed into ${nations[c.owner].name}'s territory – war has begun!</b>`,`<b>${nations[u.nation].name}'s forces crossed into ${nations[c.owner].name}'s territory – war has begun!</b>`,'#e66');return;}}}
+function initState(){
+ nations=NATIONS.map(n=>({...n,funds:500,income:0,alive:!n.late,dormant:!!n.late,capital:null,target:null,targetT:-999,lost:0,built:0,blockade:false,mem:newMem(),wave:null,auto:true}));
+ profile=mp?null:loadProfile();winner=-1;lostShown=new Set();
+ buildGrid();
+ cities=[];CITY_DEFS.forEach((d,i)=>{if(!NATIONS[d.n].late)cities[i]=makeCity(d,i);});
+ for(const n of nations)n.capital=cities.find(c=>c.owner===n.id&&CITY_DEFS[c.id].cap)||null;
+ for(const c of cities)cityGeo(c);
+ units=[];fx=[];fallout=[];time=0;uid=1;nukeAim=false;peaceUntil=72;peaceOver=false;
+ for(const n of nations){if(n.dormant)continue;const cap=n.capital;
+  for(let k=0;k<3;k++)spawnAt('inf',n.id,cap);spawnAt('tank',n.id,cap);spawnAt('art',n.id,cap);spawnAt('aa',n.id,cap);spawnAt('ftr',n.id,cap);
+  for(const c of cities)if(c.owner===n.id&&c!==cap)spawnAt('inf',n.id,c);
+  const port=cities.find(c=>c.owner===n.id&&c.port);if(port)spawnAt('dd',n.id,port);
+ }
+}
+function makeCity(d,i){const g=NATIONS[d.n].late?(d.cap?320:200):d.cap?240:d.farm?90:140;
+ return {id:i,name:d.name,x:d.x,y:d.y,isCity:true,owner:d.n,orig:d.n,port:!!d.port,industry:!!d.ind,farm:!!d.farm,highland:!!d.hl,
+  garMax:g,gar:g,queue:[],cd:Math.random(),lastHit:-99,capN:-1,capT:0,region:null,seaPt:null,seaD:1e9};}
+function cityGeo(c){// region = voronoi cell within its original nation; seaPt = nearest water for ships
+ let p=NATIONS[c.orig].poly.slice();for(const d of cities)if(d!==c&&d.orig===c.orig)p=clipHalf(p,c,d);c.region=p;
+ const s=nearestPass(cellOf(c.x,c.y),CF.sea,14);if(s>=0){c.seaPt={x:cellX(s),y:cellY(s)};c.seaD=dist(c,c.seaPt);}}
+const LATE_FORCES={4:{cap:['inf','inf','inf','inf','inf','tank','tank','tank','art','art','aa','aa','ftr','ftr','bmb'],city:['inf','inf','tank'],port:['dd']},
+ 5:{cap:['inf','inf','inf','inf','art','art','aa','aa','ftr','ftr','bmb','bb','dd'],city:['inf','inf','aa'],port:['dd']}};
+function activateGeo(id){// map side of a nation rising: land, cities, regions (also run by the guest's mirror)
+ const n=nations[id];n.dormant=false;n.alive=true;buildGrid();
+ const fresh=[];CITY_DEFS.forEach((d,i)=>{if(d.n===id){cities[i]=makeCity(d,i);fresh.push(cities[i]);}});
+ for(const c of fresh)cityGeo(c);
+ n.capital=fresh.find(c=>CITY_DEFS[c.id].cap);mapDirty=true;return fresh;}
+function activateNation(id){const n=nations[id];n.funds=1500;peaceUntil=time+48;peaceOver=false;
+ const fresh=activateGeo(id);
+ const F=LATE_FORCES[id];
+ for(const c of fresh){for(const k of (c===n.capital?F.cap:F.city))spawnAt(k,id,c);if(c.port&&c!==n.capital)for(const k of F.port)spawnAt(k,id,c);}
+ mapDirty=true;
+ log(`<b style="color:${n.color}">${n.name}</b> has declared war! You have 2 days to prepare before fighting starts.`,n.color);
+ if(id===5)log('Kestria is an island – build Transports at a port, load troops, and sail across the Western Sea.',n.color);}
+function spawn(type,nation,x,y){const t=UT[type];const u={id:uid++,type,nation,x,y,hp:t.hp,path:[],order:null,cd:Math.random(),retgt:Math.random()*.3,tgt:null,ang:Math.random()*6.28,
+ fuel:t.fuel||0,ammo:t.ammo||0,state:t.dom==='air'?'landed':null,base:null,cargo:[],inside:null,repath:0,role:null,orb:Math.random()*6};units.push(u);return u;}
+function spawnAt(type,nation,c){const t=UT[type];
+ if(t.dom==='air'){const u=spawn(type,nation,c.x,c.y);u.base=c;return u;}
+ if(t.dom==='sea'){if(!c.seaPt)return null;return spawn(type,nation,c.seaPt.x+rnd(6),c.seaPt.y+rnd(6));}
+ let x=c.x+rnd(16),y=c.y+rnd(16);const cf=wheeled(type)?CF.tank:CF.land;const cell=nearestPass(cellOf(x,y),cf);if(cell<0)return null;
+ if(cf(cellOf(x,y))===Infinity){x=cellX(cell);y=cellY(cell);}return spawn(type,nation,x,y);}
+function cityIncome(c){if(fallout.length&&inFallout(c.x,c.y,12))return 0;return (c.highland?1:3)+(nations[c.owner].capital===c?5:0)+(c.port?1:0)+(c.industry?3:0)+(c.farm&&isHuman(c.owner)?(cities[LUMAFORD].owner===c.owner?3:1.5):0);}
+// national traits (see NATIONS perk/flaw)
+// strengths (perks, "best at") only help the human player; weaknesses & limits apply to everyone
+function costOf(n,k){return Math.round(UT[k].cost*(n===3&&isHuman(n)&&(k==='tank'||k==='art')?.8:1));}
+function buildMult(n){return n===0?1.2:n===1&&isHuman(n)?.75:n===3&&cities[IRONRIDGE].owner!==3?1.5:1;}
+const isGood=(n,k)=>isHuman(n)&&NATIONS[n].good.includes(k);
+function unitCount(n,k){let s=0;for(const u of units)if(!u.dead&&u.nation===n&&u.type===k)s++;for(const c of cities)if(c.owner===n)for(const q of c.queue)if(q.type===k)s++;return s;}
+const atLimit=(n,k)=>{const m=NATIONS[n].limit[k];return m!=null&&unitCount(n,k)>=m;};
+function specText(N){const nm=k=>UT[k].name+(['ftr','bmb','dd','bb','tr'].includes(k)?'s':'');
+ const no=[],max=[];for(const k in N.limit)(N.limit[k]?max.push(`max ${N.limit[k]} ${N.limit[k]>1?nm(k):UT[k].name}`):no.push(nm(k)));
+ return [`Best at ${N.good.map(nm).join(', ')} (+25% damage, −20% damage taken).`,'Limits: '+[no.length?'no '+no.join(' or '):'',...max].filter(Boolean).join(', ')+'.'];}
+function isBlockaded(n){const ports=cities.filter(c=>c.owner===n&&c.seaPt);
+ for(const e of units){if(e.dead||e.nation===n||UT[e.type].dom!=='sea'||e.type==='tr')continue;for(const c of ports)if(dist(e,c.seaPt)<110)return true;}return false;}
+const farmTown=c=>c.farm&&nations[c.owner].capital!==c;// farm towns are not military bases: infantry only
+const canBuild=(c,k)=>k==='icbm'?icbmOn(c.owner)&&nations[c.owner].capital===c:farmTown(c)?k==='inf':UT[k].dom==='sea'?c.port&&!!c.seaPt:true;
+function showLog(msg,col,ds){const el=document.getElementById('log');const d=document.createElement('div');d.innerHTML=`<span class="t">${ds||dateStr(true)}</span>`+(col?`<span style="color:${col}">●</span> `:'')+msg;el.prepend(d);while(el.children.length>80)el.lastChild.remove();}
+// log(msg,col)  -> everyone;  log(msg,col,n) -> only the human commanding nation n
+function log(msg,col,to){if(mp==='guest')return;// the guest only shows dispatches the host sends
+ if(to==null||to===player)showLog(msg,col);
+ if(mp==='host'&&(to==null||to===guestNation))send({t:'log',m:msg,c:col,d:dateStr(true)});}
+function logFor(n,you,other,col){log(you,col,n);if(other)for(const h of humans)if(h!==n)log(other,col,h);}
+function dateStr(short){const h=Math.floor(time),d=Math.floor(h/24)+1;return short?`D${d} ${String(h%24).padStart(2,'0')}h`:`Day ${d}, ${String(h%24).padStart(2,'0')}:00`;}
+
+// ================= ORDERS =================
+function orderMove(u,x,y,force){const p=astar(u.x,u.y,x,y,cfFor(u));if(!p)return false;u.path=p;u.order={type:'move',x,y,force:!!force};return true;}
+function orderAttack(u,tg){u.order={type:'attack',target:tg};u.repath=0;if(UT[u.type].dom!=='air'){const p=astar(u.x,u.y,tg.x,tg.y,cfFor(u));u.path=p||[];}}
+function aliveTgt(tg,n){return tg.isCity?true:targetable(tg,n);}
+function domOf(tg){return tg.isCity?'land':UT[tg.type].dom;}
+function tgtR(tg){return tg.isCity?12:UT[tg.type].dom==='sea'?10:7;}
+function canHit(u,tg){const a=UT[u.type].atk[domOf(tg)];return a>0;}
+function validTgt(u,tg){if(tg.isCity)return tg.owner!==u.nation&&tg.gar>0&&dist(u,tg)<=UT[u.type].rng+tgtR(tg)+4;
+ return tg.nation!==u.nation&&targetable(tg,u.nation)&&dist(u,tg)<=UT[u.type].rng+tgtR(tg)+4;}
+function findTarget(u){if(atPeace())return null;const t=UT[u.type];let best=null,bs=1e9;
+ for(const e of units){if(e.nation===u.nation||!targetable(e,u.nation))continue;const ed=UT[e.type].dom;if(!t.atk[ed])continue;
+  const d=dist(u,e);if(d>t.rng+tgtR(e))continue;const s=d-(ed===t.dom?1000:0)-(ed==='air'&&t.atk.air>=12?1500:0);if(s<bs){bs=s;best=e;}}
+ if(!best&&t.atk.land>0)for(const c of cities){if(c.owner===u.nation||c.gar<=0)continue;if(dist(u,c)<=t.rng+tgtR(c)){best=c;break;}}
+ return best;}
+function inDefCity(u){for(const c of cities)if(c.owner===u.nation&&dist(u,c)<30)return true;return false;}
+function terrAt(u){return gTerr[cellOf(u.x,u.y)];}
+function fire(u,tg){if(atPeace())return;const t=UT[u.type];const dom=domOf(tg);let dmg=t.atk[dom];const d=dist(u,tg);
+ if((u.type==='art'&&d<35)||(u.type==='rkt'&&d<40))dmg*=.5;
+ if(u.type==='heli'&&tg.type==='tank')dmg*=1.5;
+ if(u.type==='sub'){u.revealT=time+4;u.seen=ALL_SEEN;}// firing torpedoes gives the sub away
+ if(u.type==='tank'&&ROUGH(terrAt(u)))dmg*=.65;
+ if(u.nation===0&&isHuman(0)&&t.dom==='land'&&(terrAt(u)===2||terrAt(u)===3))dmg*=1.2;
+ if(isGood(u.nation,u.type))dmg*=1.25;
+ if(!tg.isCity&&dom==='land'){dmg*=TERR_DEF[terrAt(tg)][foot(tg.type)?0:1];if(inDefCity(tg))dmg*=.75;}
+ dmg*=(.55+.45*u.hp/t.hp)*(.85+Math.random()*.3);
+ damage(tg,dmg,u.nation,u.type);u.cd=.9+Math.random()*.2;
+ if(u.type==='rkt'){u.cd=5+Math.random();// salvo: splashes everything around the target, then a long reload
+  for(const e of units)if(e!==tg&&e.nation!==u.nation&&targetable(e,u.nation)&&UT[e.type].dom!=='air'&&dist(e,tg)<26)damage(e,dmg*.6,u.nation,u.type);
+  for(let k=0;k<6;k++){const x=tg.x+rnd(18),y=tg.y+rnd(18);fx.push({k:'shot',x1:u.x+rnd(3),y1:u.y+rnd(3),x2:x,y2:y,t:.25,m:.25,c:'#ffb35c'},{k:'boom',x,y,t:.45,m:.45,r:9});}
+  return;}
+ fx.push({k:'shot',x1:u.x,y1:u.y,x2:tg.x+rnd(3),y2:tg.y+rnd(3),t:.14,m:.14,c:t.dom==='air'?'#fff3b0':u.type==='sub'?'#9fe0ff':'#ffcf6a'});}
+function damage(tg,dmg,by,st){if(tg.isCity){if(st)recDealt(by,st,Math.min(dmg,tg.gar));tg.gar=Math.max(0,tg.gar-dmg);tg.lastHit=time;return;}if(isGood(tg.nation,tg.type))dmg*=.8;if(st)recDealt(by,st,Math.min(dmg,Math.max(0,tg.hp)));tg.hp-=dmg;if(tg.hp<=0&&!tg.dead)kill(tg,by);}
+function recDealt(n,st,d){const m=nations[n].mem;m.dealt[st]=(m.dealt[st]||0)+d;}
+function kill(u,by){u.dead=true;selection.delete(u);for(const c of u.cargo)kill(c);u.cargo=[];
+ if(u.type==='cv')for(const p of units)if(!p.dead&&p.base===u&&p.state==='landed')kill(p,by);// aircraft parked on the deck go down with the ship
+ const lm=nations[u.nation].mem;lm.lost[u.type]=(lm.lost[u.type]||0)+1;
+ const big=UT[u.type].dom==='sea'?18:12;if(!u.inside)fx.push({k:'boom',x:u.x,y:u.y,t:.6,m:.6,r:big});
+ nations[u.nation].lost++;}
+function bombDrop(u,aim){if(atPeace())return;const t=UT[u.type];u.ammo--;u.cd=.9;fx.push({k:'boom',x:aim.x,y:aim.y,t:.5,m:.5,r:16});
+ for(const e of units){if(e.nation===u.nation||!targetable(e,u.nation)||UT[e.type].dom==='air')continue;const d=dist(e,aim);if(d>28)continue;
+  let dmg=t.atk[UT[e.type].dom]*(e===aim?1:.6);if(UT[e.type].dom==='land'&&inDefCity(e))dmg*=.8;damage(e,dmg,u.nation,u.type);}
+ for(const c of cities)if(c.owner!==u.nation&&dist(c,aim)<30)damage(c,t.atk.land,u.nation,u.type);}
+function nearestOwnCity(n,x,y){let b=null,bd=1e9;for(const c of cities)if(c.owner===n){const d=Math.hypot(c.x-x,c.y-y);if(d<bd){bd=d;b=c;}}return b;}
+function nearestEnemyAir(n,x,y,r,px,py,leash){let b=null,bd=r;for(const e of units){if(e.nation===n||e.dead||e.state==='landed'||UT[e.type].dom!=='air')continue;
+ const d=Math.hypot(e.x-x,e.y-y);if(d>bd)continue;if(leash&&Math.hypot(e.x-px,e.y-py)>leash)continue;bd=d;b=e;}return b;}
+function bomberAuto(u,px,py){let b=null,bd=90;for(const e of units){if(e.nation===u.nation||!targetable(e,u.nation)||UT[e.type].dom==='air')continue;const d=Math.hypot(e.x-px,e.y-py);if(d<bd){bd=d;b=e;}}
+ if(b)return b;for(const c of cities)if(c.owner!==u.nation&&c.gar>0&&Math.hypot(c.x-px,c.y-py)<60)return c;return null;}
+function airOrderValid(u){const o=u.order;if(!o)return false;if(o.type==='attack'){const tg=o.target;if(tg.isCity)return tg.owner!==u.nation;return targetable(tg,u.nation);}return true;}
+function doUnload(tr){const x=tr.order&&tr.order.x,y=tr.order&&tr.order.y;tr.order=null;if(!tr.cargo.length)return;
+ const lc=nearestPass(cellOf(tr.x,tr.y),CF.land,6);if(lc<0){if(isHuman(tr.nation))log('Transport too far from the coast to unload.',null,tr.nation);return;}
+ for(const c of tr.cargo){c.inside=null;c.x=cellX(lc)+rnd(4);c.y=cellY(lc)+rnd(4);c.path=[];c.order=null;if(x!=null)orderMove(c,x+rnd(10),y+rnd(10));}
+ tr.cargo=[];}
+
+// ================= UPDATE =================
+function updSurface(u,dt){const t=UT[u.type];
+ if(u.jump){// paratroopers in the air: fly straight to the drop zone, then land on the nearest open ground
+  const j=u.jump,d=Math.hypot(j.x-u.x,j.y-u.y),step=150*dt;u.ang=Math.atan2(j.y-u.y,j.x-u.x);
+  if(d>step){u.x+=(j.x-u.x)/d*step;u.y+=(j.y-u.y)/d*step;return;}
+  const c=nearestPass(cellOf(j.x,j.y),CF.land);if(c>=0){u.x=cellX(c);u.y=cellY(c);}else{u.x=j.x;u.y=j.y;}
+  u.jump=null;u.path=[];u.order=null;fx.push({k:'mark',x:u.x,y:u.y,t:.6,m:.6,c:'#fff'});return;}
+ const o=u.order;
+ u.retgt-=dt;if(u.retgt<=0||(u.tgt&&!validTgt(u,u.tgt))){u.retgt=.35;u.tgt=t.rng?findTarget(u):null;}
+ if(o&&o.type==='attack'){const tg=o.target;
+  if(!aliveTgt(tg,u.nation)||(tg.isCity&&(tg.owner===u.nation))){u.order=null;u.path=[];}
+  else if(dist(u,tg)<=t.rng+tgtR(tg)&&canHit(u,tg)){u.tgt=tg;u.path=[];}
+  else{u.repath-=dt;if(u.repath<=0){u.repath=1.5;const p=astar(u.x,u.y,tg.x,tg.y,cfFor(u));if(p)u.path=p;}}}
+ if(o&&o.type==='board'){const tr=o.target;
+  if(tr.dead){u.order=null;u.path=[];}
+  else if(dist(u,tr)<38&&tr.cargo.length<UT.tr.carry){u.inside=tr;tr.cargo.push(u);u.order=null;u.path=[];selection.delete(u);return;}
+  else{u.repath-=dt;if(u.repath<=0){u.repath=2;const p=astar(u.x,u.y,tr.x,tr.y,cfFor(u));if(p)u.path=p;}}}
+ let halt=false;
+ if(u.tgt){if(u.cd<=0)fire(u,u.tgt);const td=domOf(u.tgt);
+  if(!(o&&(o.force||o.type==='board'))&&(td===t.dom||u.tgt.isCity))halt=true;}
+ // repairs
+ if(!u.tgt){if(t.dom==='land'&&inDefCity(u))u.hp=Math.min(t.hp,u.hp+2*dt);
+  if(t.dom==='sea'){for(const c of cities)if(c.owner===u.nation&&c.seaPt&&dist(u,c.seaPt)<50){u.hp=Math.min(t.hp,u.hp+3*dt);break;}}}
+ for(const c of u.cargo){c.x=u.x;c.y=u.y;}
+ if(halt)return;
+ if(!u.path.length){if(o&&o.type==='move')u.order=null;else if(o&&o.type==='unload')doUnload(u);return;}
+ const p=u.path[0],dx=p[0]-u.x,dy=p[1]-u.y,d=Math.hypot(dx,dy);let sp=t.spd;
+ if(t.dom==='land'){const c=cfFor(u)(cellOf(u.x,u.y));sp/=(c===Infinity?1:c);}else if(gType[cellOf(u.x,u.y)]===1)sp*=.75;
+ const step=sp*dt;u.ang=Math.atan2(dy,dx);
+ if(u.wpP!==p){u.wpP=p;u.wpD=1e9;u.stall=0;}// new waypoint: reset the jam detector
+ if(d<=step){u.x=p[0];u.y=p[1];u.path.shift();}
+ else{u.x+=dx/d*step;u.y+=dy/d*step;
+  // traffic jam: units crowding a shared waypoint (river crossings, roads) keep shoving each other off it.
+  // If we make no headway for 1.5s, skip to the next waypoint (or call the trip done when nearly there).
+  if(d<u.wpD-step*.25){u.wpD=d;u.stall=0;}else if((u.stall+=dt)>1.5){u.stall=0;u.wpD=1e9;if(u.path.length>1||d<30)u.path.shift();}}}
+function updAir(u,dt){const t=UT[u.type];
+ if(!baseOk(u))u.base=nearestOwnCity(u.nation,u.x,u.y);
+ if(u.state==='landed'){if(!u.base){kill(u);return;}
+  u.fuel=Math.min(t.fuel,u.fuel+dt*t.fuel/6);if(u.fuel>=t.fuel){u.ammo=t.ammo||0;u.hp=Math.min(t.hp,u.hp+dt*6);}
+  if(u.fuel>=t.fuel*.99){if(u.order&&!airOrderValid(u))u.order=null;
+   if(!u.order&&u.type==='ftr'){const e=nearestEnemyAir(u.nation,u.base.x,u.base.y,230*SC);if(e)u.order={type:'attack',target:e,auto:true};}
+   if(u.order){u.state='fly';const g=u.order.type==='attack'?u.order.target:u.order;u.ang=Math.atan2(g.y-u.y,g.x-u.x);}}
+  return;}
+ u.fuel-=dt;if(u.fuel<=0){kill(u);if(isHuman(u.nation))log(`${t.name} ran out of fuel and crashed.`,'#e66',u.nation);return;}
+ if(u.order&&!airOrderValid(u))u.order=(u.order.auto||u.type==='bmb')?null:{type:'move',x:u.x,y:u.y};
+ const home=u.base;
+ if(u.state!=='rtb'){const need=home?dist(u,home)/t.spd+1:0;if(!u.order||u.fuel<need||(u.type==='bmb'&&u.ammo<=0))u.state='rtb';}
+ let gx,gy,aim=null;
+ if(u.state==='rtb'){
+  if(home){gx=home.x;gy=home.y;if(dist(u,home)<12){u.state='landed';if(u.order&&u.order.auto)u.order=null;return;}}
+  else{gx=u.x+Math.cos(u.ang)*50;gy=u.y+Math.sin(u.ang)*50;}
+  if(u.type==='ftr')aim=nearestEnemyAir(u.nation,u.x,u.y,t.rng);
+ }else{const o=u.order;
+  if(o.type==='attack'){aim=o.target;gx=aim.x;gy=aim.y;}
+  else{aim=u.type==='ftr'?nearestEnemyAir(u.nation,u.x,u.y,170,o.x,o.y,280):bomberAuto(u,o.x,o.y);
+   if(aim&&u.type==='heli'&&!canHit(u,aim))aim=null;
+   if(aim){gx=aim.x;gy=aim.y;}else if(u.type==='heli'){gx=o.x;gy=o.y;}else{u.orb+=dt*t.spd/45;gx=o.x+Math.cos(u.orb)*45;gy=o.y+Math.sin(u.orb)*45;}}}
+ if(aim&&u.cd<=0&&canHit(u,aim)&&dist(u,aim)<=t.rng+tgtR(aim)){if(u.type==='bmb'){if(u.ammo>0)bombDrop(u,aim);}else fire(u,aim);}
+ if(u.type==='heli'&&u.state!=='rtb'){// helicopters hover: stop once in firing range (or on the patrol spot)
+  const hold=aim?dist(u,aim)<=t.rng*.8:Math.hypot(gx-u.x,gy-u.y)<6;u.ang+=clamp(angDiff(Math.atan2(gy-u.y,gx-u.x),u.ang),-t.turn*dt,t.turn*dt);
+  const dg=Math.hypot(gx-u.x,gy-u.y);if(hold||dg<.5)return;const st=Math.min(t.spd*dt,dg);u.x+=(gx-u.x)/dg*st;u.y+=(gy-u.y)/dg*st;return;}
+ const dg=Math.hypot(gx-u.x,gy-u.y);let tr=t.turn*dt*(u.state==='rtb'&&dg<70?5:1);
+ u.ang+=clamp(angDiff(Math.atan2(gy-u.y,gx-u.x),u.ang),-tr,tr);
+ u.x=clamp(u.x+Math.cos(u.ang)*t.spd*dt,0,W);u.y=clamp(u.y+Math.sin(u.ang)*t.spd*dt,0,H);}
+function separation(){const L=units.filter(u=>!u.dead&&!u.inside&&!u.jump&&UT[u.type].dom!=='air');
+ for(let i=0;i<L.length;i++)for(let j=i+1;j<L.length;j++){const a=L[i],b=L[j];const da=UT[a.type].dom,db=UT[b.type].dom;if(da!==db)continue;
+  const R=da==='sea'?16:11;const dx=b.x-a.x,dy=b.y-a.y;const d2=dx*dx+dy*dy;if(d2>=R*R)continue;const d=Math.sqrt(d2)||.01,push=(R-d)*.25,nx=dx/d,ny=dy/d;
+  const cfa=cfFor(a),cfb=cfFor(b);
+  if(cfa(cellOf(a.x-nx*push,a.y-ny*push))!==Infinity){a.x-=nx*push;a.y-=ny*push;}
+  if(cfb(cellOf(b.x+nx*push,b.y+ny*push))!==Infinity){b.x+=nx*push;b.y+=ny*push;}}}
+function updCities(dt){
+ for(const c of cities){
+  c.cd-=dt;
+  if(c.cd<=0){c.cd=1;let best=null,bd=1e9;
+   for(const e of units){if(e.nation===c.owner||!targetable(e,c.owner))continue;const dom=UT[e.type].dom;const r=dom==='air'?60:dom==='sea'?60:46;const d=dist(e,c);if(d<r&&d<bd){bd=d;best=e;}}
+   if(best&&c.gar>0&&!atPeace()){damage(best,(UT[best.type].dom==='air'?9:8)*(.4+.6*c.gar/c.garMax),c.owner);fx.push({k:'shot',x1:c.x,y1:c.y,x2:best.x,y2:best.y,t:.12,m:.12,c:'#ffe9a8'});}}
+  const hot=fallout.length&&inFallout(c.x,c.y,12);
+  if(hot){c.capT=0;continue;}// irradiated: no one can live here – no regen, capture or production
+  if(time-c.lastHit>6)c.gar=Math.min(c.garMax,c.gar+4*dt);
+  if(c.gar<=0){let capN=-1,def=false;
+   for(const e of units){if(e.dead||e.inside||e.jump||UT[e.type].dom!=='land')continue;const d=dist(e,c);
+    if(e.nation===c.owner&&d<40)def=true;else if(e.nation!==c.owner&&UT[e.type].cap&&d<26&&capN<0)capN=e.nation;}
+   if(capN>=0&&!def){if(c.capN!==capN){c.capN=capN;c.capT=0;}c.capT+=dt;if(c.capT>=3)captureCity(c,capN);}else{c.capT=Math.max(0,c.capT-dt);}}
+  else c.capT=0;
+  if(c.queue.length){const q=c.queue[0];q.t+=dt/buildMult(c.owner);if(q.t>=UT[q.type].time){c.queue.shift();
+   if(q.type==='icbm'){const on=nations[c.owner];on.icbm=(on.icbm||0)+1;if(!testMode)log(`<b>ICBM ready</b> in the ${c.name} silo – press Launch in the side panel.`,'#f2c94c',c.owner);panelDirty=true;continue;}
+   const u=spawnAt(q.type,c.owner,c);nations[c.owner].built++;const bm=nations[c.owner].mem;bm.built[q.type]=(bm.built[q.type]||0)+1;
+   if(u&&isHuman(c.owner)&&!testMode)log(`${UT[q.type].name} ready at ${c.name}.`,'#7c9',c.owner);}}
+ }}
+function captureCity(c,n){const old=c.owner;c.owner=n;c.gar=c.garMax*.3;c.queue=[];c.capT=0;c.capN=-1;c.lastHit=time;mapDirty=true;
+ for(const u of units)if(!u.dead&&u.nation===old&&u.state==='landed'&&u.base===c)kill(u);
+ if(selCity===c&&n!==player)selCity=null;
+ const on=nations[old],nn=nations[n];
+ log(`<b style="color:${nn.color}">${nn.name}</b> captured <b>${c.name}</b> from ${on.name}!`,nn.color);
+ if(c.id===IRONRIDGE&&old===3)log('Corinthia\'s power plants are offline – its builds are slowed.',on.color);
+ if(c.id===IRONRIDGE&&n===3)log('Corinthia\'s power plants are back online.',nn.color);
+ if(c.id===LUMAFORD)log(`${nn.name} now controls the Luma headwaters.`,nn.color);
+ if(on.capital===c){const rest=cities.filter(x=>x.owner===old);on.capital=rest.sort((a,b)=>b.garMax-a.garMax)[0]||null;
+  if(on.capital){on.capital.garMax=Math.max(on.capital.garMax,200);log(`${on.name}'s capital has fallen! The government flees to ${on.capital.name}.`,on.color);}}
+ if(!cities.some(x=>x.owner===old)){on.alive=false;for(const u of units)if(u.nation===old&&!u.dead)kill(u);
+  log(`<b>${on.name} has surrendered</b> and is eliminated.`,on.color);
+  for(const h of humans){const pn=nations[h];if(old!==h&&pn.alive&&!pn.icbmTech){pn.icbmTech=true;
+   log(`<b>☢ ICBMs unlocked!</b> With ${on.name} gone, your scientists have cracked the bomb. Build ICBMs at your capital ($${UT.icbm.cost}).`,'#f2c94c',h);panelDirty=true;}}}}
+function launchNuke(n,x,y){const N=nations[n],from=N.capital;if(!from||!(N.icbm>0))return false;N.icbm--;
+ if(atPeace()){peaceUntil=time;peaceOver=true;}
+ fx.push({k:'icbm',n,x0:from.x,y0:from.y,x,y,t:NUKE_FLIGHT,m:NUKE_FLIGHT});
+ log(`<b>☢ ICBM launched</b> from ${from.name}!`,'#ef5b5b');return true;}
+function detonate(f){fx.push({k:'nuke',x:f.x,y:f.y,t:2.5,m:2.5});
+ fallout.push({x:f.x,y:f.y,n:f.n,until:time+FALLOUT_T});
+ for(const u of units){if(u.dead||u.inside||u.state==='landed')continue;const d=Math.hypot(u.x-f.x,u.y-f.y);if(d<NUKE_R)damage(u,600*(1-d/NUKE_R*.6),f.n);}
+ for(const c of cities){const d=Math.hypot(c.x-f.x,c.y-f.y);if(d>=NUKE_R+12)continue;damage(c,c.owner===f.n?c.gar*.5:c.garMax,f.n);
+  for(const u of units)if(!u.dead&&u.state==='landed'&&u.base===c)kill(u,f.n);}
+ const hit=cities.filter(c=>Math.hypot(c.x-f.x,c.y-f.y)<NUKE_R+12);
+ log(`<b>☢ Nuclear strike</b>${hit.length?' on '+hit.map(c=>c.name).join(', '):''}! The area is uninhabitable for ${FALLOUT_T} hours.`,'#ef5b5b');}
+function updFallout(dt){const before=fallout.length;fallout=fallout.filter(z=>z.until>time);
+ if(fallout.length<before&&!testMode)log('Radiation has cleared – the blast zone can be resettled.','#9c6');
+ if(!fallout.length)return;
+ for(const u of units){if(u.dead||u.inside||u.state==='landed')continue;const z=fallout.find(z=>Math.hypot(u.x-z.x,u.y-z.y)<NUKE_R);if(z)damage(u,FALLOUT_DPS*dt,z.n);}}
+// which nations can see each submarine (bit n of u.seen): its owner, anyone it just fired on, and anyone with a ship, helicopter or city close by
+function updSeen(){for(const s of units){if(s.dead||s.type!=='sub')continue;if(s.revealT>time){s.seen=ALL_SEEN;continue;}let m=1<<s.nation;
+ for(const e of units){if(e.dead||e.inside||e.nation===s.nation||(m>>e.nation)&1)continue;const r=SUB_SPOT[e.type]||(UT[e.type].dom==='sea'?SUB_SPOT.sea:0);if(r&&dist(e,s)<r)m|=1<<e.nation;}
+ for(const c of cities)if(c.owner!==s.nation&&dist(c,s)<SUB_SPOT.city)m|=1<<c.owner;s.seen=m;}}
+// supply trucks repair friendly land units close by (each unit is repaired once per tick, however many trucks)
+function updSupply(dt){const done=new Set();for(const s of units){if(s.dead||s.inside||s.type!=='sup')continue;
+ for(const u of units){if(u.nation!==s.nation||u.dead||u.inside||u.jump||done.has(u)||UT[u.type].dom!=='land'||u.hp>=UT[u.type].hp||dist(u,s)>55)continue;done.add(u);u.hp=Math.min(UT[u.type].hp,u.hp+3*dt);}}}
+function update(dt){
+ time+=dt;
+ for(const n of nations){if(!n.alive)continue;let inc=0;for(const c of cities)if(c.owner===n.id)inc+=cityIncome(c);n.income=inc*(isHuman(n.id)?1.15:diff.mult)*(n.blockade?.6:1);n.funds+=n.income*dt;}
+ updSeen();
+ for(const u of units){if(u.dead||u.inside)continue;u.cd-=dt;if(UT[u.type].dom==='air')updAir(u,dt);else updSurface(u,dt);}
+ separation();updFallout(dt);updCities(dt);updSupply(dt);
+ // landed plane layout: a ring round a city airfield, or lined up along a carrier's deck
+ const slots=new Map();for(const u of units){if(u.dead||u.state!=='landed'||!u.base)continue;const b=u.base,k=slots.get(b)||0;slots.set(b,k+1);
+  if(b.isCity){const a=-2.2+k*.75,r=20+Math.floor(k/8)*9;u.x=b.x+Math.cos(a)*r;u.y=b.y+Math.sin(a)*r;u.ang=-Math.PI/2;}
+  else{const o=9-k*6;u.x=b.x+Math.cos(b.ang)*o;u.y=b.y+Math.sin(b.ang)*o;u.ang=b.ang;}}
+ units=units.filter(u=>!u.dead);
+ for(const f of fx)f.t-=dt;for(const f of fx)if(f.k==='icbm'&&f.t<=0)detonate(f);fx=fx.filter(f=>f.t>0);
+ aiClock+=dt;if(aiClock>=.8){aiClock=0;for(const n of nations){if(!n.alive||isHuman(n.id))continue;if(((time/.8|0)+n.id)%3===0)aiThink(n);}
+  for(const h of humans){const pn=nations[h];if(pn.auto&&pn.alive){const my=cities.filter(c=>c.owner===h);if(my.length)aiProduce(pn,my,units.filter(u=>u.nation===h&&!u.dead&&!u.inside));}}}
+ endClock+=dt;if(endClock>1){endClock=0;checkEnd();
+  if(atPeace()&&!testMode)borderCheck();
+  if(!peaceOver&&!atPeace()){peaceOver=true;if(!testMode)log('<b>The peace is over – war has begun!</b>','#e66');}
+  const au=nations[1];if(au.alive){const b=isBlockaded(1);if(b!==au.blockade){au.blockade=b;if(isHuman(au.id))log(b?'Enemy warships are blockading our ports – income down 40%!':'The blockade is broken – imports flowing again.',b?'#e66':'#7c9',au.id);}}}}
+
+// ================= AI =================
+// The AI adapts within a game (counters the enemy units it sees, favours unit types that have
+// performed well, remembers failed assaults) and learns across games (a saved profile of what
+// the player tends to build, used to prepare counters before the player's army is even seen).
+const BASE_MIX={inf:.27,para:.04,tank:.18,art:.1,rkt:.06,aa:.08,sup:.04,ftr:.09,heli:.06,bmb:.07,dd:.06,sub:.04,bb:.04,cv:.02};
+const COUNTER={inf:{art:.4,tank:.4,rkt:.2},para:{tank:.5,inf:.5},tank:{art:.4,tank:.25,bmb:.15,heli:.2},art:{tank:.7,bmb:.3},rkt:{tank:.6,heli:.4},aa:{tank:.5,art:.5},sup:{tank:1},
+ ftr:{ftr:.6,aa:.4},heli:{aa:.6,ftr:.4},bmb:{aa:.6,ftr:.4},dd:{bmb:.4,dd:.3,sub:.3},sub:{dd:.8,heli:.2},bb:{bmb:.4,bb:.2,sub:.4},cv:{sub:.5,bmb:.5},tr:{dd:.7,sub:.3}};
+function newMem(){return {dealt:{},lost:{},built:{},fails:{},waveAdd:0};}
+const PKEY='highCommand.playerProfile';
+function loadProfile(){try{const p=JSON.parse(localStorage.getItem(PKEY));if(p&&p.mix)return p;}catch(e){}return null;}
+function saveProfile(){// blends this game's build mix into the profile loaded at game start, so repeat saves are safe
+ if(testMode||mp||!started||!nations[player])return;const b=nations[player].mem.built;let tot=0;for(const k in b)tot+=b[k];if(tot<5)return;
+ const old=profile?profile.mix:{},w=profile?.6:0,mix={};for(const k in UT)mix[k]=(old[k]||0)*w+(b[k]||0)/tot*(1-w);
+ try{localStorage.setItem(PKEY,JSON.stringify({mix,games:(profile?profile.games:0)+1}));}catch(e){}}
+function enemyMix(n,my){// cost-weighted share of each enemy unit type; units near our cities count double
+ const mix={};let tot=0;
+ for(const e of units){if(e.nation===n.id||e.dead)continue;let w=UT[e.type].cost;for(const c of my)if(dist(e,c)<500*SC){w*=2;break;}mix[e.type]=(mix[e.type]||0)+w;tot+=w;}
+ for(const k in mix)mix[k]/=tot;
+ const f=profile&&!testMode&&n.id!==player&&nations[player].alive?(tot?Math.max(0,.5-time/480):1):0;
+ if(f)for(const k in UT)mix[k]=(mix[k]||0)*(1-f)+(profile.mix[k]||0)*f;
+ return mix;}
+function effFactor(m){// damage dealt per cost invested, relative to the average type; needs 3+ built to judge
+ const v={};let s=0,k=0;for(const t in BASE_MIX){const b=m.built[t]||0;if(b<3)continue;v[t]=(m.dealt[t]||0)/(UT[t].cost*b);s+=v[t];k++;}
+ const f={};for(const t in v)f[t]=s>0?clamp(Math.sqrt(v[t]/(s/k)),.6,1.6):1;return f;}
+function landHPNear(n,x,y,r){let s=0;for(const e of units)if(e.nation!==n&&!e.dead&&!e.inside&&UT[e.type].dom==='land'&&Math.hypot(e.x-x,e.y-y)<r)s+=e.hp;return s;}
+function pickTarget(n,my){let best=null,bs=1e9;for(const c of cities){if(c.owner===n.id)continue;let md=1e9;for(const m of my)md=Math.min(md,dist(m,c));
+ const s=md+c.gar*.8+(nations[c.owner].capital===c?60:0)-(isHuman(c.owner)?diff.aggro:0)-(n.id===2&&c.id===LUMAFORD?80:0)
+  +landHPNear(n.id,c.x,c.y,200*SC)*.15+(n.mem.fails[c.id]||0)*70;if(s<bs){bs=s;best=c;}}return best;}
+function aiProduce(n,my,mine){const em=enemyMix(n,my),ef=effFactor(n.mem),dem={},want={};let wt=0;
+ for(const k in BASE_MIX)dem[k]=0;for(const t in em)for(const k in COUNTER[t]||{})dem[k]+=em[t]*COUNTER[t][k];
+ for(const k in BASE_MIX){want[k]=(BASE_MIX[k]+dem[k])*.5*(ef[k]||1);wt+=want[k];}for(const k in want)want[k]/=wt;
+ const ftrCap=2+Math.round(dem.ftr*10),bmbCap=1+Math.round(dem.bmb*8);
+ const cnt={};let tot=1;for(const k in want)cnt[k]=0;for(const u of mine)if(cnt[u.type]!=null){cnt[u.type]++;tot++;}
+ for(const c of my)for(const q of c.queue)if(cnt[q.type]!=null){cnt[q.type]++;tot++;}
+ for(const c of my.slice().sort(()=>Math.random()-.5)){if(c.queue.length||(farmTown(c)&&cnt.inf/tot>=.45))continue;let best=null,bv=-1e9;
+  for(const k in want){if(!canBuild(c,k)||(k==='ftr'&&cnt.ftr>=ftrCap)||(k==='bmb'&&cnt.bmb>=bmbCap)||(k==='cv'&&cnt.cv>=1)||(k==='sup'&&cnt.sup>=3)||atLimit(n.id,k))continue;const v=want[k]-cnt[k]/tot+Math.random()*.05;if(v>bv){bv=v;best=k;}}
+  const cost=best&&costOf(n.id,best);if(best&&n.funds>=cost){n.funds-=cost;c.queue.push({type:best,t:0,cost});cnt[best]++;tot++;}}}
+function aiThink(n){
+ const my=cities.filter(c=>c.owner===n.id);if(!my.length)return;
+ const mine=units.filter(u=>u.nation===n.id&&!u.dead&&!u.inside);
+ aiProduce(n,my,mine);
+ if(atPeace())return;
+ const threats=[];
+ for(const c of my){let s=0,near=null,nd=1e9;for(const e of units){if(e.nation===n.id||e.dead||e.inside||UT[e.type].dom==='air')continue;const d=dist(e,c);if(d<180*SC){s+=e.hp;if(d<nd){nd=d;near=e;}}}if(s>0)threats.push({c,s,near});}
+ threats.sort((a,b)=>b.s-a.s);
+ const m=n.mem;
+ if(n.wave&&n.wave.owner===n.id){m.waveAdd=Math.max(0,m.waveAdd-1);m.fails[n.wave.id]=0;n.wave=null;}// assault succeeded
+ if(!n.target||n.target.owner===n.id||time-n.targetT>90){n.target=pickTarget(n,my);n.targetT=time;}
+ const tgt=n.target;const land=mine.filter(u=>UT[u.type].dom==='land');
+ for(const u of land)if(u.role==='def'&&!threats.some(t=>t.c===u.defCity))u.role=null;
+ for(const th of threats){let have=0;for(const u of land)if(u.role==='def'&&u.defCity===th.c)have+=u.hp;
+  const cand=land.filter(u=>u.role!=='def'&&u.role!=='home').sort((a,b)=>dist(a,th.c)-dist(b,th.c));
+  for(const u of cand){if(have>=th.s*1.2||dist(u,th.c)>420*SC)break;u.role='def';u.defCity=th.c;orderMove(u,th.c.x+rnd(15),th.c.y+rnd(15));have+=u.hp;}}
+ if(n.capital&&!land.some(u=>u.role==='home')){const g=land.filter(u=>!u.role&&u.type==='inf').sort((a,b)=>dist(a,n.capital)-dist(b,n.capital))[0];if(g){g.role='home';orderMove(g,n.capital.x+rnd(10),n.capital.y+rnd(10));}}
+ for(const u of land)if(u.role==='home'&&!u.order&&n.capital&&dist(u,n.capital)>30)orderMove(u,n.capital.x+rnd(10),n.capital.y+rnd(10));
+ // badly damaged attackers fall back to the nearest friendly city to heal
+ for(const u of land){const mx=UT[u.type].hp;
+  if(u.role==='atk'&&u.hp<mx*.3){const c=nearestOwnCity(n.id,u.x,u.y);if(c){u.role='rest';orderMove(u,c.x+rnd(12),c.y+rnd(12));}}
+  else if(u.role==='rest'){if(u.hp>=mx*.9)u.role=null;else if(!u.order){const c=nearestOwnCity(n.id,u.x,u.y);if(c&&dist(u,c)>30)orderMove(u,c.x+rnd(12),c.y+rnd(12));}}}
+ let marching=0;
+ if(tgt){const stage=my.slice().sort((a,b)=>dist(a,tgt)-dist(b,tgt))[0];
+  const wave=Math.min(14,4+Math.floor(time/240)+m.waveAdd);
+  for(const u of land)if(u.role==='atk'){marching++;if(u.tgtCity!==tgt||(!u.order&&dist(u,tgt)>40)){u.tgtCity=tgt;orderMove(u,tgt.x+rnd(18),tgt.y+rnd(18));}}
+  if(marching)n.wave=tgt;
+  else if(n.wave&&n.wave.owner!==n.id){// assault wiped out or driven off: remember it and come back stronger
+   m.fails[n.wave.id]=(m.fails[n.wave.id]||0)+1;m.waveAdd=Math.min(6,m.waveAdd+2);
+   if(isHuman(n.wave.owner))log(`${n.name}'s assault on ${n.wave.name} was repulsed – expect them back in greater strength.`,n.color,n.wave.owner);
+   n.wave=null;n.targetT=-999;}
+  const ready=land.filter(u=>!u.role&&dist(u,stage)<150*SC),rhp=ready.reduce((s,u)=>s+u.hp,0);
+  const need=landHPNear(n.id,tgt.x,tgt.y,200*SC)+tgt.gar*.5;// don't march into a stronger army unless massively ready
+  if((ready.length>=wave&&rhp>=need)||ready.length>=wave*2||(marching>=3&&ready.length)){for(const u of ready){u.role='atk';u.tgtCity=tgt;orderMove(u,tgt.x+rnd(18),tgt.y+rnd(18));marching++;}if(ready.length)n.wave=tgt;}
+  else for(const u of land)if(!u.role&&!u.order&&dist(u,stage)>=150*SC)orderMove(u,stage.x+rnd(50),stage.y+rnd(50));
+  // paratroopers waiting in a city drop in behind an assault that's already under way
+  if(marching>=3)for(const u of land)if(u.type==='para'&&!u.jump&&u.role!=='def'&&u.role!=='home'&&inDefCity(u)){const d=dist(u,tgt);
+   if(d>150&&d<JUMP_R){u.role='atk';u.tgtCity=tgt;const a=Math.random()*6.28;u.jump={x:tgt.x+Math.cos(a)*45,y:tgt.y+Math.sin(a)*45};}}}
+ // navy
+ for(const u of mine){const t=UT[u.type];if(t.dom!=='sea'||u.type==='tr')continue;
+  if(u.order&&u.order.type==='attack'&&!aliveTgt(u.order.target,n.id))u.order=null;
+  if(u.order&&u.order.type==='attack')continue;
+  if(u.type==='cv'){// carriers stay back at the home port nearest the front, as a forward airbase
+   const p=my.filter(c=>c.seaPt).sort((a,b)=>dist(a,tgt||a)-dist(b,tgt||b))[0];if(p&&!u.order&&dist(u,p.seaPt)>60)orderMove(u,p.seaPt.x+rnd(20),p.seaPt.y+rnd(20));continue;}
+  let e=null,ed=(u.type==='dd'||u.type==='sub'?600:250)*SC;for(const x of units){if(x.nation===n.id||!targetable(x,n.id)||UT[x.type].dom!=='sea')continue;const d=dist(u,x);if(d<ed){ed=d;e=x;}}
+  if(e){orderAttack(u,e);continue;}
+  if(u.order)continue;
+  let c=null,cd=1e9;for(const x of cities){if(x.owner===n.id||!x.seaPt||x.seaD>110)continue;const d=dist(u,x);if(d<cd){cd=d;c=x;}}
+  if(c&&dist(u,c.seaPt)>40)orderMove(u,c.seaPt.x+rnd(10),c.seaPt.y+rnd(10));}
+ // air
+ const cvs=mine.filter(u=>u.type==='cv');
+ for(const u of mine){const t=UT[u.type];if(t.dom!=='air')continue;const reach=t.fuel*t.spd*.4;
+  const deck=p=>cvs.find(c=>dist(c,p)<reach&&(c===u.base||hangarFree(c)));
+  const ok=p=>{const b=nearestOwnCity(n.id,p.x,p.y);return (b&&dist(b,p)<reach)||!!deck(p);};
+  if(u.state==='fly'&&u.order&&u.base&&u.base.isCity){const c=deck(u);if(c&&dist(c,u)<dist(u.base,u))u.base=c;}// land on a nearer carrier
+  if(u.type==='ftr'){let p=threats.length?threats[0].c:(tgt&&marching>=2?tgt:n.capital);if(p&&!ok(p))p=n.capital;
+   if(p&&(!u.order||u.order.auto||u.order.x!==p.x||u.order.y!==p.y))u.order={type:'move',x:p.x,y:p.y};}
+  else{let tg=null;if(threats.length&&threats[0].near)tg=threats[0].near;else if(tgt&&tgt.gar>0)tg=tgt;
+   if(tg&&ok(tg)){if(!u.order||u.order.target!==tg)u.order={type:'attack',target:tg};}else if(u.state==='landed')u.order=null;}}
+}
+// Every nation is at war with every other, humans included. When only one nation is left and it is human,
+// the late nations rise one by one; beat the last of them to win. A human knocked out early can keep watching.
+function checkEnd(){if(gameOver||testMode||!started)return;
+ for(const h of humans)if(!nations[h].alive&&!lostShown.has(h)){lostShown.add(h);
+  if(humans.some(o=>nations[o].alive)){log(`<b>${nations[h].name}'s commander has been defeated.</b>`,nations[h].color);
+   if(h===player)showOut();else if(h===guestNation)send({t:'ev',k:'out'});}}
+ const alive=nations.filter(n=>n.alive);
+ if(!humans.some(h=>nations[h].alive))endGame(-1);
+ else if(alive.length===1&&isHuman(alive[0].id)){const next=nations.find(n=>n.dormant);
+  if(next){activateNation(next.id);setSpeed(0);showPhase(next);send({t:'ev',k:'phase',id:next.id});}else endGame(alive[0].id);}}
+function endGame(w){gameOver=true;winner=w;setSpeed(0);showEnd(w===player);send({t:'ev',k:'end',w});}
+
+// ================= RENDER =================
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),gameEl=document.getElementById('game');
+const mapCv=document.createElement('canvas'),terrCv=document.createElement('canvas'),MS=1.5;
+let terrBuilt=false;
+const cam={x:0,y:0,z:1};let vw=800,vh=600;
+function polyPath(m,p){m.beginPath();m.moveTo(p[0][0],p[0][1]);for(let i=1;i<p.length;i++)m.lineTo(p[i][0],p[i][1]);m.closePath();}
+function polyAdd(m,p){m.moveTo(p[0][0],p[0][1]);for(let i=1;i<p.length;i++)m.lineTo(p[i][0],p[i][1]);m.closePath();}
+const LAND_POLYS=()=>[NEUTRAL,...NATIONS.map(n=>n.poly)];
+// ---- static terrain layer: sea, coasts, ground, forests, mountains, lakes, rivers. Painted once. ----
+function buildTerrain(){terrCv.width=W*MS;terrCv.height=H*MS;const m=terrCv.getContext('2d');m.setTransform(MS,0,0,MS,0,0);
+ const R=mulberry(20261117);
+ // sea
+ const g=m.createLinearGradient(0,0,W*.3,H);g.addColorStop(0,'#9ccbe0');g.addColorStop(1,'#7fb3cf');m.fillStyle=g;m.fillRect(0,0,W,H);
+ m.strokeStyle='rgba(255,255,255,.16)';m.lineWidth=1.2;for(let k=0;k<700;k++){const x=R()*W,y=R()*H,w=8+R()*10;m.beginPath();m.arc(x,y,w,Math.PI*1.2,Math.PI*1.8);m.stroke();}
+ // shallow water & beaches along every coast
+ m.lineJoin='round';m.lineCap='round';
+ for(const [w,c] of [[70,'rgba(170,215,232,.35)'],[42,'rgba(185,225,238,.5)'],[20,'rgba(205,236,244,.7)'],[7,'#eadfb5']]){m.strokeStyle=c;m.lineWidth=w;for(const P of LAND_POLYS()){polyPath(m,P);m.stroke();}}
+ // land base
+ m.fillStyle='#d9e2bd';m.beginPath();for(const P of LAND_POLYS())polyAdd(m,P);m.fill();
+ m.save();m.beginPath();for(const P of LAND_POLYS())polyAdd(m,P);m.clip();
+ // gentle colour variation so the ground isn't flat
+ // painted small and stretched up: soft blotches for free (a canvas blur per blotch is far too slow)
+ {const v=document.createElement('canvas'),q=12;v.width=Math.ceil(W/q);v.height=Math.ceil(H/q);const vc=v.getContext('2d');
+  for(let k=0;k<1400;k++){const x=R()*W/q,y=R()*H/q,r=(20+R()*50)/q;vc.fillStyle=R()<.5?'rgba(120,150,80,.09)':'rgba(240,230,180,.1)';vc.beginPath();vc.arc(x,y,r,0,7);vc.fill();}
+  m.imageSmoothingEnabled=true;m.imageSmoothingQuality='high';m.drawImage(v,0,0,W,H);}
+ // terrain areas, soft-edged
+ const FILL={1:'#e9d8a1',2:'#a9c48d',3:'#c8c1b0',4:'#cfcb9b',5:'#b3c6a4',6:'#ecd7a2'};
+ m.filter='blur(7px)';for(const e of LAND_T){m.fillStyle=FILL[e.t];polyPath(m,blobPts(e));m.fill();}m.filter='none';
+ const inside=e=>{for(let t=0;t<40;t++){const x=e.x+(R()*2-1)*e.rx*1.2,y=e.y+(R()*2-1)*e.ry*1.2;if(inBlob(x,y,{...e,rx:e.rx*.92,ry:e.ry*.92})&&gType[cellOf(x,y)]!==0)return[x,y];}return null;};
+ for(const e of LAND_T){const area=Math.PI*e.rx*e.ry,pts=[];
+  const N=e.t===2?area/170:e.t===3?area/900:e.t===4?area/650:e.t===5?area/500:e.t===6?area/700:area/600;
+  for(let k=0;k<N;k++){const p=inside(e);if(p)pts.push(p);}pts.sort((a,b)=>a[1]-b[1]);// back to front
+  for(const [x,y] of pts){
+   if(e.t===2){const r=4+R()*3.5;m.fillStyle='rgba(40,60,30,.22)';m.beginPath();m.ellipse(x+2,y+3,r,r*.7,0,0,7);m.fill();
+    m.fillStyle=R()<.5?'#5d8a4f':'#6b9858';m.beginPath();m.arc(x,y,r,0,7);m.fill();m.fillStyle='rgba(170,210,130,.55)';m.beginPath();m.arc(x-r*.3,y-r*.35,r*.45,0,7);m.fill();}
+   else if(e.t===3){const s=14+R()*12,w=s*(.8+R()*.3);
+    m.fillStyle='#a9a291';m.beginPath();m.moveTo(x,y-s);m.lineTo(x-w,y+s*.45);m.lineTo(x,y+s*.45);m.closePath();m.fill();
+    m.fillStyle='#857e70';m.beginPath();m.moveTo(x,y-s);m.lineTo(x+w,y+s*.45);m.lineTo(x,y+s*.45);m.closePath();m.fill();
+    m.fillStyle='#f7f6f1';m.beginPath();m.moveTo(x,y-s);m.lineTo(x-w*.32,y-s*.58);m.lineTo(x-w*.05,y-s*.66);m.lineTo(x+w*.28,y-s*.58);m.closePath();m.fill();}
+   else if(e.t===4){const w=10+R()*8;m.fillStyle='rgba(160,150,95,.35)';m.beginPath();m.ellipse(x+2,y+1,w,w*.45,0,Math.PI,0);m.fill();
+    m.strokeStyle='#9c925e';m.lineWidth=1.4;m.beginPath();m.ellipse(x,y,w,w*.45,0,Math.PI*1.05,Math.PI*1.95);m.stroke();}
+   else if(e.t===5){if(R()<.45){m.fillStyle='rgba(120,175,190,.75)';m.beginPath();m.ellipse(x,y,5+R()*8,2.5+R()*3,R()*3,0,7);m.fill();}
+    else{m.strokeStyle='#5f7f4d';m.lineWidth=1.1;m.beginPath();for(const dx of [-2.5,0,2.5]){m.moveTo(x+dx,y);m.lineTo(x+dx*1.6,y-6-R()*3);}m.stroke();}}
+   else if(e.t===6){const w=12+R()*12;m.strokeStyle='rgba(185,145,80,.55)';m.lineWidth=1.3;m.beginPath();m.moveTo(x-w,y);m.quadraticCurveTo(x,y-w*.45,x+w,y);m.stroke();}
+   else if(e.t===1){m.strokeStyle='rgba(170,140,70,.6)';m.lineWidth=1.2;m.beginPath();m.moveTo(x-7,y+4);m.lineTo(x+7,y-4);m.stroke();}}}
+ // lakes
+ for(const e of LAKES){const P=blobPts(e);m.lineJoin='round';
+  m.strokeStyle='#eadfb5';m.lineWidth=6;polyPath(m,P);m.stroke();m.fillStyle='#86bcd6';polyPath(m,P);m.fill();
+  m.strokeStyle='rgba(205,236,244,.8)';m.lineWidth=5;m.save();polyPath(m,P);m.clip();polyPath(m,P);m.stroke();m.restore();}
+ // rivers: thin at the source, wide at the mouth
+ for(const r of RIVERS){const n=r.pts.length;
+  for(let i=1;i<n;i++){const a=r.pts[i-1],b=r.pts[i],w=2.5+5*i/n;
+   m.strokeStyle='#eadfb5';m.lineWidth=w+3;m.beginPath();m.moveTo(a[0],a[1]);m.lineTo(b[0],b[1]);m.stroke();}
+  for(let i=1;i<n;i++){const a=r.pts[i-1],b=r.pts[i],w=2.5+5*i/n;
+   m.strokeStyle='#5b98c2';m.lineWidth=w;m.beginPath();m.moveTo(a[0],a[1]);m.lineTo(b[0],b[1]);m.stroke();}}
+ m.restore();terrBuilt=true;}
+function label(m,txt,x,y,font,col,halo){m.font=font;m.textAlign='center';m.lineJoin='round';
+ if(halo){m.strokeStyle=halo;m.lineWidth=4;m.strokeText(txt,x,y);}m.fillStyle=col;m.fillText(txt,x,y);}
+// ---- overlay layer: roads, names, greyed-out lands. Only changes when a nation rises, so it is cached. ----
+const overCv=document.createElement('canvas');let overKey='';
+function buildOverlay(){overCv.width=W*MS;overCv.height=H*MS;const m=overCv.getContext('2d');m.setTransform(MS,0,0,MS,0,0);
+ for(const P of [NEUTRAL,...NATIONS.filter(n=>!isActive(n.id)).map(n=>n.poly)]){m.fillStyle='rgba(170,160,140,.45)';polyPath(m,P);m.fill();
+  m.save();polyPath(m,P);m.clip();m.strokeStyle='rgba(110,100,80,.18)';m.lineWidth=1;m.beginPath();for(let k=-H;k<W;k+=14){m.moveTo(k,0);m.lineTo(k+H,H);}m.stroke();m.restore();}
+ m.lineJoin='round';m.lineCap='round';
+ m.strokeStyle='rgba(70,80,86,.75)';m.lineWidth=1.8;m.setLineDash([10,5,2,5]);for(const n of NATIONS)if(isActive(n.id)){polyPath(m,n.poly);m.stroke();}m.setLineDash([]);
+ m.strokeStyle='rgba(250,246,232,.9)';m.lineWidth=5;m.beginPath();for(const r of ROADS)if(r.on()){m.moveTo(r[0][0],r[0][1]);m.lineTo(r[1][0],r[1][1]);}m.stroke();
+ m.strokeStyle='#8c7f69';m.lineWidth=2.2;m.beginPath();for(const r of ROADS)if(r.on()){m.moveTo(r[0][0],r[0][1]);m.lineTo(r[1][0],r[1][1]);}m.stroke();
+ for(const e of TERRAIN)label(m,e.name,e.lx,e.ly,`italic ${e.lake?13:14}px Georgia,serif`,e.lake?'#2c5f7d':'#3c4a42','rgba(255,255,255,.6)');
+ for(const r of RIVERS)label(m,r.name,r.label[0],r.label[1],'italic 14px Georgia,serif','#2c5f7d','rgba(255,255,255,.6)');
+ m.save();m.letterSpacing='6px';for(const n of NATIONS)if(isActive(n.id))label(m,n.name.toUpperCase(),n.label[0],n.label[1],'bold 40px Georgia,serif','rgba(40,52,60,.72)','rgba(255,255,255,.35)');
+ m.letterSpacing='8px';for(const [t,x,y] of [['WESTERN SEA',150,600],['SOUTHERN SEA',1150,1540],['EASTERN STRAIT',2330,1500]])label(m,t,x,y,'italic 22px Georgia,serif','rgba(40,80,110,.6)');m.restore();
+ label(m,'NORTHERN HIGHLANDS (neutral – impassable)',1290,34,'bold 17px system-ui,sans-serif','#6f6655','rgba(255,255,255,.5)');
+ if(!isActive(4)){m.save();m.translate(2320,700);m.rotate(Math.PI/2);label(m,'EASTERN LANDS',0,0,'bold 26px Georgia,serif','#6f6655','rgba(255,255,255,.5)');m.restore();}
+ if(!isActive(5))label(m,'UNCHARTED ISLE',312,320,'bold 20px Georgia,serif','#6f6655','rgba(255,255,255,.5)');}
+// ---- ownership: rebuilt whenever a city changes hands, so kept cheap ----
+function buildMap(){if(!terrBuilt)buildTerrain();const key=NATIONS.map(n=>isActive(n.id)?1:0).join('');if(key!==overKey){buildOverlay();overKey=key;}
+ mapCv.width=W*MS;mapCv.height=H*MS;const m=mapCv.getContext('2d');m.drawImage(terrCv,0,0);m.setTransform(MS,0,0,MS,0,0);m.lineJoin='round';
+ for(const c of cities){m.fillStyle=hexA(nations[c.owner].color,.2);polyPath(m,c.region);m.fill();}
+ for(const c of cities)if(c.owner===c.orig){m.strokeStyle=hexA(nations[c.owner].color,.35);m.lineWidth=1.5;polyPath(m,c.region);m.stroke();}
+ for(const c of cities)if(c.owner!==c.orig){m.save();polyPath(m,c.region);m.clip();m.strokeStyle=hexA(nations[c.owner].color,.9);m.lineWidth=6;polyPath(m,c.region);m.stroke();m.restore();}// conquered land: thick inner edge
+ const mine=player>=0?cities.filter(c=>c.owner===player):[];
+ if(mine.length){m.save();m.beginPath();for(const c of mine)polyAdd(m,c.region);m.clip();m.strokeStyle=hexA(nations[player].color,.85);m.lineWidth=8;m.beginPath();for(const n of NATIONS)if(isActive(n.id))polyAdd(m,n.poly);m.stroke();m.restore();}
+ m.setTransform(1,0,0,1,0,0);m.drawImage(overCv,0,0);
+ mapDirty=false;}
+function focusOn(x,y,z){cam.z=z;cam.x=x-vw/z/2;cam.y=y-vh/z/2;clampCam();}
+function fitCam(){const z=Math.min(vw/W,vh/H);cam.z=z;cam.x=-(vw/z-W)/2;cam.y=-(vh/z-H)/2;}
+function resize(){const r=gameEl.getBoundingClientRect();vw=r.width;vh=r.height;const dpr=window.devicePixelRatio||1;cv.width=vw*dpr;cv.height=vh*dpr;cv.style.width=vw+'px';cv.style.height=vh+'px';
+ const first=!resize.done;resize.done=1;if(first)fitCam();else clampCam();}
+function clampCam(){const minZ=Math.min(vw/W,vh/H)*.9;cam.z=clamp(cam.z,minZ,4);const mw=vw/cam.z,mh=vh/cam.z;
+ cam.x=mw>=W?-(mw-W)/2:clamp(cam.x,0,W-mw);cam.y=mh>=H?-(mh-H)/2:clamp(cam.y,0,H-mh);}
+const toWorld=(sx,sy)=>({x:sx/cam.z+cam.x,y:sy/cam.z+cam.y});
+const iconS=()=>clamp(1/cam.z,.45,1.45);
+const subHidden=u=>u.type==='sub'&&u.nation!==player&&!((u.seen>>player)&1);
+function drawUnit(u,s,sel){const t=UT[u.type],col=nations[u.nation].color;if(subHidden(u))return;ctx.save();ctx.translate(u.x,u.y);
+ if(sel){ctx.strokeStyle='#ffe066';ctx.lineWidth=2*s;ctx.beginPath();ctx.arc(0,0,(t.dom==="sea"?15:13)*s,0,7);ctx.stroke();}
+ if(u.jump){ctx.rotate(u.ang);ctx.scale(s*1.2,s*1.2);// paratroopers' plane
+  ctx.fillStyle='rgba(0,0,0,.18)';ctx.save();ctx.translate(4,6);planePath('bmb');ctx.fill();ctx.restore();
+  ctx.fillStyle=col;ctx.strokeStyle='#fff';ctx.lineWidth=1.1;planePath('bmb');ctx.fill();ctx.stroke();
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(-3,0,2.2,Math.PI/2,Math.PI*1.5);ctx.fill();}
+ else if(t.dom==='land'){ctx.scale(s,s);drawLandUnit(u,col);}
+ else if(u.type==='sub'){ctx.rotate(u.ang);ctx.scale(s,s);// low hull and a conning tower; your own subs look faded while submerged
+  ctx.globalAlpha=(u.seen&~(1<<u.nation))?1:.6;ctx.fillStyle=col;ctx.strokeStyle='#fff';ctx.lineWidth=1.1;
+  ctx.beginPath();ctx.ellipse(0,0,12,3,0,0,7);ctx.fill();ctx.stroke();ctx.fillStyle='#262d33';ctx.fillRect(-1,-1.6,5,3.2);ctx.globalAlpha=1;}
+ else if(u.type==='cv'){ctx.rotate(u.ang);ctx.scale(s,s);// flat deck, angled bow, island on the side
+  ctx.fillStyle=col;ctx.strokeStyle='#fff';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(17,0);ctx.lineTo(12,-6);ctx.lineTo(-16,-6);ctx.lineTo(-16,6);ctx.lineTo(12,6);ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.strokeStyle='rgba(255,255,255,.7)';ctx.setLineDash([2.5,2]);ctx.beginPath();ctx.moveTo(-14,0);ctx.lineTo(13,0);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#262d33';ctx.fillRect(-2,3.5,6,3);}
+ else if(t.dom==='sea'){ctx.rotate(u.ang);const L=(u.type==='bb'?30:u.type==='tr'?20:22)*s,B=(u.type==='bb'?9:u.type==='tr'?9:6)*s;
+  ctx.fillStyle=col;ctx.strokeStyle='#fff';ctx.lineWidth=1.2*s;ctx.beginPath();
+  if(u.type==='tr'){ctx.moveTo(L/2,0);ctx.lineTo(L/3,-B/2);ctx.lineTo(-L/2,-B/2);ctx.lineTo(-L/2,B/2);ctx.lineTo(L/3,B/2);}
+  else{ctx.moveTo(L/2,0);ctx.lineTo(L/5,-B/2);ctx.lineTo(-L/2,-B/2.4);ctx.lineTo(-L/2,B/2.4);ctx.lineTo(L/5,B/2);}
+  ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle='#fff';
+  if(u.type==='bb'){for(const x of [-.25,0,.22]){ctx.beginPath();ctx.arc(x*L,0,1.8*s,0,7);ctx.fill();}}
+  else if(u.type==='dd'){ctx.beginPath();ctx.arc(L*.12,0,1.5*s,0,7);ctx.fill();}
+  else{for(let k=0;k<u.cargo.length;k++)ctx.fillRect(-L/2+3*s+k*5*s,-2*s,3.5*s,4*s);}}
+ else{const sc=s*(u.state==='landed'?.75:1)*(u.type==='bmb'?1.35:1);ctx.rotate(u.ang);ctx.scale(sc,sc);
+  if(u.state!=='landed'){ctx.fillStyle='rgba(0,0,0,.18)';ctx.save();ctx.translate(4,6);planePath(u.type);ctx.fill();ctx.restore();}
+  ctx.fillStyle=col;ctx.strokeStyle='#fff';ctx.lineWidth=1.1;planePath(u.type);ctx.fill();ctx.stroke();
+  if(u.type==='heli'){const r=u.state==='landed'?0:performance.now()/60;ctx.strokeStyle='rgba(38,45,51,.85)';ctx.lineWidth=1.4;ctx.beginPath();
+   for(let k=0;k<2;k++){const a=r+k*Math.PI/2;ctx.moveTo(2+Math.cos(a)*10,Math.sin(a)*10);ctx.lineTo(2-Math.cos(a)*10,-Math.sin(a)*10);}ctx.stroke();}}
+ ctx.restore();
+ const mh=t.hp;if(u.hp<mh){const w=16*s;ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(u.x-w/2,u.y-12*s,w,2.6*s);ctx.fillStyle=u.hp/mh>.5?'#5fd47a':u.hp/mh>.25?'#f2c94c':'#ef5b5b';ctx.fillRect(u.x-w/2,u.y-12*s,w*u.hp/mh,2.6*s);}}
+// top-down land unit silhouettes, drawn facing +x in unit space (caller has scaled by icon size)
+function drawLandUnit(u,col){const hd=u.ang||0,dark='#262d33';
+ const aim=(u.tgt&&!u.tgt.dead?Math.atan2(u.tgt.y-u.y,u.tgt.x-u.x):hd)-hd;
+ const box=(x,y,w,h,f)=>{ctx.fillStyle=f;ctx.fillRect(x,y,w,h);ctx.strokeRect(x,y,w,h);};
+ const disc=(x,y,r,f)=>{ctx.fillStyle=f;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();ctx.stroke();};
+ ctx.rotate(hd);ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.lineJoin='round';
+ if(foot(u.type)){// fire team of three soldiers: shoulders, helmet, rifle
+  for(const [x,y] of [[4,0],[-4,-5.5],[-4,5.5]]){
+   ctx.strokeStyle=dark;ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(x,y+2.4);ctx.lineTo(x+6.5,y+2.4);ctx.stroke();
+   ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.fillStyle=col;ctx.beginPath();ctx.ellipse(x,y,2.6,4.4,0,0,7);ctx.fill();ctx.stroke();
+   ctx.strokeStyle=dark;ctx.lineWidth=.9;disc(x+.4,y,2.1,col);}
+  if(u.type==='para'){ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.fillStyle='#f4f4f4';ctx.beginPath();ctx.arc(-11,0,4,Math.PI/2,Math.PI*1.5);ctx.closePath();ctx.fill();ctx.strokeStyle=dark;ctx.stroke();}}// packed chute
+ else if(u.type==='rkt'){// truck carrying a tilting box of rocket tubes
+  for(const x of [-6,0,6])for(const y of [-6.5,4]){box(x-2,y,4,2.5,dark);}
+  box(-10,-4.5,20,9,col);box(6,-3.5,4,7,dark);
+  ctx.save();ctx.translate(-2,0);ctx.rotate(aim);box(-5,-4,11,8,col);ctx.fillStyle=dark;for(const yy of [-2.5,0,2.5])ctx.fillRect(3,yy-.8,3,1.6);ctx.restore();}
+ else if(u.type==='sup'){// supply truck: cab and cargo box with a white cross
+  for(const x of [-6,0,6])for(const y of [-6.5,4]){box(x-2,y,4,2.5,dark);}
+  box(5,-4,5,8,col);box(-11,-5,15,10,col);ctx.fillStyle='#fff';ctx.fillRect(-5.5,-3.5,2.4,7);ctx.fillRect(-7.8,-1.2,7,2.4);}
+ else if(u.type==='tank'){// tracks, hull, turret + gun
+  box(-10,-7,20,3.5,dark);box(-10,3.5,20,3.5,dark);box(-9,-4.5,18,9,col);
+  ctx.save();ctx.rotate(aim);box(3,-1,11,2,dark);disc(-.5,0,4.3,col);ctx.restore();}
+ else if(u.type==='art'){// towed gun: split trail, wheels, shield, long barrel
+  ctx.strokeStyle=dark;ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(0,-2);ctx.lineTo(-10,-5);ctx.moveTo(0,2);ctx.lineTo(-10,5);ctx.stroke();
+  ctx.strokeStyle='#fff';ctx.lineWidth=1;box(-2.5,-8,5,3,dark);box(-2.5,5,5,3,dark);
+  ctx.save();ctx.rotate(aim);box(0,-1.2,15,2.4,dark);box(-4,-3,6,6,col);box(1.5,-6,3,12,col);ctx.restore();}
+ else if(u.type==='aa'){// wheeled truck with radar and twin-barrel mount
+  for(const x of [-6,0,6])for(const y of [-6.5,4]){box(x-2,y,4,2.5,dark);}
+  box(-10,-4.5,20,9,col);box(-9,-2.5,3.5,5,dark);
+  ctx.save();ctx.translate(2,0);ctx.rotate(aim);box(1,-3,9,1.6,dark);box(1,1.4,9,1.6,dark);disc(0,0,3.6,col);ctx.restore();}}
+function planePath(tp){ctx.beginPath();
+ if(tp==='heli'){ctx.ellipse(2,0,5,3.2,0,0,7);ctx.moveTo(-3,-1);ctx.lineTo(-12,-.8);ctx.lineTo(-13,-3.5);ctx.lineTo(-14.5,-3.5);ctx.lineTo(-14,3.5);ctx.lineTo(-13,3.5);ctx.lineTo(-12,.8);ctx.lineTo(-3,1);ctx.closePath();return;}
+ if(tp==='ftr'){ctx.moveTo(9,0);ctx.lineTo(1,-2);ctx.lineTo(-2,-8);ctx.lineTo(-4,-8);ctx.lineTo(-3,-2);ctx.lineTo(-7,-2);ctx.lineTo(-9,-5);ctx.lineTo(-10,-5);ctx.lineTo(-9,0);ctx.lineTo(-10,5);ctx.lineTo(-9,5);ctx.lineTo(-7,2);ctx.lineTo(-3,2);ctx.lineTo(-4,8);ctx.lineTo(-2,8);ctx.lineTo(1,2);}
+ else{ctx.moveTo(9,0);ctx.lineTo(4,-1.5);ctx.lineTo(1,-11);ctx.lineTo(-2,-11);ctx.lineTo(-1,-1.5);ctx.lineTo(-7,-1.5);ctx.lineTo(-9,-5);ctx.lineTo(-10,-5);ctx.lineTo(-9,0);ctx.lineTo(-10,5);ctx.lineTo(-9,5);ctx.lineTo(-7,1.5);ctx.lineTo(-1,1.5);ctx.lineTo(-2,11);ctx.lineTo(1,11);ctx.lineTo(4,1.5);}ctx.closePath();}
+function drawCity(c,s){const n=nations[c.owner],cap=n.capital===c;ctx.save();ctx.translate(c.x,c.y);
+ if(c===selCity){ctx.strokeStyle='#ffe066';ctx.lineWidth=2.5*s;ctx.beginPath();ctx.arc(0,0,14*s,0,7);ctx.stroke();}
+ if(c.port){ctx.fillStyle='#2b3a46';ctx.fillRect(-6*s,-6*s,12*s,12*s);ctx.strokeStyle=n.color;ctx.lineWidth=2.5*s;ctx.strokeRect(-6*s,-6*s,12*s,12*s);}
+ else{ctx.fillStyle='#2b3a46';ctx.beginPath();ctx.arc(0,0,6*s,0,7);ctx.fill();ctx.strokeStyle=n.color;ctx.lineWidth=2.5*s;ctx.stroke();}
+ if(cap){ctx.fillStyle='#f2c94c';ctx.beginPath();for(let k=0;k<10;k++){const r=(k%2?3.2:7.5)*s,a=-Math.PI/2+k*Math.PI/5;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r-14*s);}ctx.closePath();ctx.fill();ctx.strokeStyle='#5b4a12';ctx.lineWidth=.8*s;ctx.stroke();}
+ ctx.font=`bold ${14*s}px system-ui,sans-serif`;ctx.textAlign='left';ctx.lineWidth=3*s;ctx.strokeStyle='rgba(255,255,255,.75)';ctx.strokeText(c.name,10*s,5*s);ctx.fillStyle='#24323c';ctx.fillText(c.name,10*s,5*s);
+ if(c.gar<c.garMax-1){const w=34*s;ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(10*s,9*s,w,3*s);ctx.fillStyle=c.gar/c.garMax>.4?'#7fb8e8':'#ef5b5b';ctx.fillRect(10*s,9*s,w*c.gar/c.garMax,3*s);}
+ if(c.capT>0&&c.capN>=0){ctx.strokeStyle=nations[c.capN].color;ctx.lineWidth=3.5*s;ctx.beginPath();ctx.arc(0,0,10*s,-Math.PI/2,-Math.PI/2+Math.PI*2*c.capT/3);ctx.stroke();}
+ if(c.queue.length&&c.owner===player){ctx.fillStyle='#f2c94c';ctx.beginPath();ctx.arc(-9*s,-8*s,2.6*s,0,7);ctx.fill();}
+ ctx.restore();}
+function draw(){const dpr=window.devicePixelRatio||1;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#cfdfe7';ctx.fillRect(0,0,vw,vh);
+ if(mapDirty)buildMap();
+ ctx.save();ctx.scale(cam.z,cam.z);ctx.translate(-cam.x,-cam.y);ctx.drawImage(mapCv,0,0,W,H);
+ const s=iconS();
+ // orders of selected
+ ctx.lineWidth=1.3*s;ctx.setLineDash([5*s,4*s]);
+ for(const u of selection){if(u.dead)continue;const o=u.order;if(!o)continue;
+  if(o.type==='attack'){ctx.strokeStyle='rgba(230,70,70,.85)';ctx.beginPath();ctx.moveTo(u.x,u.y);ctx.lineTo(o.target.x,o.target.y);ctx.stroke();}
+  else if(UT[u.type].dom==='air'&&o.type==='move'){ctx.strokeStyle='rgba(140,200,255,.8)';ctx.beginPath();ctx.arc(o.x,o.y,45,0,7);ctx.stroke();}
+  else if(u.path.length){ctx.strokeStyle=o.type==='board'?'rgba(120,200,255,.9)':'rgba(90,200,120,.9)';ctx.beginPath();ctx.moveTo(u.x,u.y);for(const p of u.path)ctx.lineTo(p[0],p[1]);ctx.stroke();}}
+ ctx.setLineDash([]);
+ for(const z of fallout){const left=(z.until-time)/FALLOUT_T,pulse=.5+.5*Math.sin(performance.now()/300);
+  ctx.fillStyle=`rgba(150,200,40,${(.16+.08*pulse)*Math.min(1,left*4)})`;ctx.beginPath();ctx.arc(z.x,z.y,NUKE_R,0,7);ctx.fill();
+  ctx.strokeStyle=`rgba(190,230,60,${.75*Math.min(1,left*4)})`;ctx.lineWidth=2*s;ctx.setLineDash([6*s,4*s]);ctx.beginPath();ctx.arc(z.x,z.y,NUKE_R,0,7);ctx.stroke();ctx.setLineDash([]);
+  ctx.strokeStyle='rgba(190,230,60,.9)';ctx.lineWidth=3*s;ctx.beginPath();ctx.arc(z.x,z.y,NUKE_R+5*s,-Math.PI/2,-Math.PI/2+Math.PI*2*left);ctx.stroke();
+  ctx.fillStyle='#e8ff9a';ctx.font=`bold ${12*s}px system-ui`;ctx.textAlign='center';ctx.fillText(`☢ ${Math.ceil(z.until-time)}h`,z.x,z.y-NUKE_R-9*s);}
+ for(const c of cities)drawCity(c,s);
+ const order=['sea','land'];for(const d of order)for(const u of units)if(!u.inside&&!u.jump&&UT[u.type].dom===d)drawUnit(u,s,selection.has(u));
+ for(const u of units)if(u.state==='landed')drawUnit(u,s,selection.has(u));
+ for(const u of units)if(u.jump||(UT[u.type].dom==='air'&&u.state!=='landed'))drawUnit(u,s,selection.has(u));
+ for(const f of fx){const a=f.t/f.m;
+  if(f.k==='shot'){ctx.strokeStyle=f.c;ctx.globalAlpha=a;ctx.lineWidth=1.4*s;ctx.beginPath();ctx.moveTo(f.x1,f.y1);ctx.lineTo(f.x2,f.y2);ctx.stroke();ctx.globalAlpha=1;}
+  else if(f.k==='boom'){ctx.fillStyle=`rgba(255,${120+100*a|0},40,${a*.85})`;ctx.beginPath();ctx.arc(f.x,f.y,f.r*s*(1.2-a*.6),0,7);ctx.fill();}
+  else if(f.k==='icbm'){const p=1-a,hgt=Math.hypot(f.x-f.x0,f.y-f.y0)*.35,pos=q=>[f.x0+(f.x-f.x0)*q,f.y0+(f.y-f.y0)*q-Math.sin(Math.PI*q)*hgt];
+   ctx.strokeStyle='rgba(239,91,91,.8)';ctx.lineWidth=2*s;ctx.setLineDash([4*s,3*s]);ctx.beginPath();ctx.arc(f.x,f.y,NUKE_R,0,7);ctx.stroke();ctx.setLineDash([]);
+   ctx.strokeStyle='rgba(255,255,255,.75)';ctx.lineWidth=2.2*s;ctx.beginPath();for(let q=0;q<=p;q+=.02)ctx.lineTo(...pos(q));ctx.lineTo(...pos(p));ctx.stroke();
+   const [mx,my]=pos(p);ctx.fillStyle='#fff';ctx.strokeStyle='#ef5b5b';ctx.lineWidth=1.5*s;ctx.beginPath();ctx.arc(mx,my,3.5*s,0,7);ctx.fill();ctx.stroke();}
+  else if(f.k==='nuke'){const p=1-a;
+   ctx.fillStyle=`rgba(255,${200-120*p|0},60,${a*.7})`;ctx.beginPath();ctx.arc(f.x,f.y,NUKE_R*(.4+.8*Math.min(1,p*4)),0,7);ctx.fill();
+   ctx.strokeStyle=`rgba(255,255,255,${a})`;ctx.lineWidth=4*s;ctx.beginPath();ctx.arc(f.x,f.y,NUKE_R*(.3+1.4*p),0,7);ctx.stroke();
+   ctx.fillStyle=`rgba(255,255,230,${Math.max(0,a-.5)*1.8})`;ctx.beginPath();ctx.arc(f.x,f.y,NUKE_R*.45,0,7);ctx.fill();}
+  else if(f.k==='mark'){ctx.strokeStyle=f.c;ctx.globalAlpha=a;ctx.lineWidth=2*s;ctx.beginPath();ctx.arc(f.x,f.y,(1-a)*16*s+4*s,0,7);ctx.stroke();ctx.globalAlpha=1;}}
+ if(nukeAim&&mouseW){ctx.strokeStyle='#ef5b5b';ctx.fillStyle='rgba(239,91,91,.15)';ctx.lineWidth=2*s;ctx.beginPath();ctx.arc(mouseW.x,mouseW.y,NUKE_R,0,7);ctx.fill();ctx.stroke();}
+ ctx.restore();
+ if(drag&&drag.box){ctx.strokeStyle='#ffe066';ctx.fillStyle='rgba(255,224,102,.1)';ctx.lineWidth=1;const x=Math.min(drag.sx,drag.cx),y=Math.min(drag.sy,drag.cy),w=Math.abs(drag.cx-drag.sx),h=Math.abs(drag.cy-drag.sy);ctx.fillRect(x,y,w,h);ctx.strokeRect(x,y,w,h);}
+ if(nukeAim){ctx.fillStyle='rgba(120,20,20,.85)';ctx.fillRect(vw/2-150,44,300,26);ctx.fillStyle='#fff';ctx.font='bold 13px system-ui';ctx.textAlign='center';ctx.fillText('☢ Click a target for the ICBM  ·  Esc to cancel',vw/2,62);}
+ if(speed===0&&started&&!gameOver){ctx.fillStyle='rgba(30,40,48,.75)';ctx.fillRect(vw/2-60,10,120,28);ctx.fillStyle='#f2c94c';ctx.font='bold 13px system-ui';ctx.textAlign='center';ctx.fillText('PAUSED',vw/2,29);}}
+
+// ================= INPUT =================
+let drag=null,panDrag=null,keys={},lastClick={t:0,u:null};
+function unitAt(wx,wy,ownOnly){const s=iconS();let best=null,bd=1e9;
+ for(const u of units){if(u.dead||u.inside||subHidden(u))continue;if(ownOnly&&u.nation!==player)continue;const r=(UT[u.type].dom==='sea'?13:10)*s;const d=Math.hypot(u.x-wx,u.y-wy);if(d<r&&d<bd){bd=d;best=u;}}return best;}
+function cityAt(wx,wy){const s=iconS();for(const c of cities)if(Math.hypot(c.x-wx,c.y-wy)<11*s)return c;return null;}
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+cv.addEventListener('mousedown',e=>{if(!started)return;const r=cv.getBoundingClientRect(),sx=e.clientX-r.left,sy=e.clientY-r.top;
+ if(nukeAim&&(e.button===0||e.button===2)){nukeAim=false;if(e.button===0){const w=toWorld(sx,sy);command({c:'nuke',x:w.x,y:w.y});}panelDirty=true;return;}
+ if(e.button===0)drag={sx,sy,cx:sx,cy:sy,box:false,shift:e.shiftKey,force:e.ctrlKey||e.altKey||e.metaKey};
+ else if(e.button===1){e.preventDefault();panDrag={sx,sy,cx:cam.x,cy:cam.y};}
+ else if(e.button===2){const w=toWorld(sx,sy);rightClick(w.x,w.y,e.ctrlKey||e.altKey||e.metaKey);}});
+let mouseW=null;
+window.addEventListener('mousemove',e=>{const r=cv.getBoundingClientRect(),sx=e.clientX-r.left,sy=e.clientY-r.top;mouseW=toWorld(sx,sy);
+ if(drag){drag.cx=sx;drag.cy=sy;if(Math.abs(sx-drag.sx)+Math.abs(sy-drag.sy)>6)drag.box=true;}
+ if(panDrag){cam.x=panDrag.cx-(sx-panDrag.sx)/cam.z;cam.y=panDrag.cy-(sy-panDrag.sy)/cam.z;clampCam();}});
+window.addEventListener('mouseup',e=>{if(e.button===1)panDrag=null;if(e.button!==0||!drag)return;const d=drag;drag=null;
+ // click with units selected: order them (attack an enemy / move to ground), unless clicking one of your own units or cities
+ if(!d.box&&!d.shift&&[...selection].some(u=>!u.dead&&u.nation===player)){const w=toWorld(d.sx,d.sy),c=cityAt(w.x,w.y);
+  const own=unitAt(w.x,w.y,true);
+  const boarding=own&&!selection.has(own)&&((own.type==='tr'&&[...selection].some(u=>UT[u.type].dom==='land'))||(own.type==='cv'&&[...selection].some(u=>UT[u.type].dom==='air')));
+  if(boarding||(!own&&!(c&&c.owner===player))){rightClick(w.x,w.y,d.force);panelDirty=true;return;}}
+ if(!d.shift){selection.clear();}
+ if(d.box){const a=toWorld(Math.min(d.sx,d.cx),Math.min(d.sy,d.cy)),b=toWorld(Math.max(d.sx,d.cx),Math.max(d.sy,d.cy));
+  for(const u of units)if(u.nation===player&&!u.dead&&!u.inside&&u.x>=a.x&&u.x<=b.x&&u.y>=a.y&&u.y<=b.y)selection.add(u);
+  if(selection.size)selCity=null;}
+ else{const w=toWorld(d.sx,d.sy);const u=unitAt(w.x,w.y,true);
+  if(u){const now=performance.now();if(now-lastClick.t<350&&lastClick.u&&lastClick.u.type===u.type){const a=toWorld(0,0),b=toWorld(vw,vh);for(const x of units)if(x.nation===player&&x.type===u.type&&!x.inside&&x.x>=a.x&&x.x<=b.x&&x.y>=a.y&&x.y<=b.y)selection.add(x);}
+   else{if(d.shift&&selection.has(u))selection.delete(u);else selection.add(u);}lastClick={t:now,u};selCity=null;}
+  else{const c=cityAt(w.x,w.y);selCity=c||null;if(c)selection.clear();}}
+ panelDirty=true;});
+cv.addEventListener('wheel',e=>{e.preventDefault();const r=cv.getBoundingClientRect(),sx=e.clientX-r.left,sy=e.clientY-r.top;const w=toWorld(sx,sy);
+ cam.z*=Math.exp(-e.deltaY*.0015);clampCam();cam.x=w.x-sx/cam.z;cam.y=w.y-sy/cam.z;clampCam();},{passive:false});
+window.addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(!started||gameOver)return;
+ if(e.target&&e.target.tagName==='INPUT')return;
+ if(e.key===' '){e.preventDefault();askSpeed(speed===0?(setSpeed.last||1):0);}
+ else if(e.key==='1')askSpeed(1);else if(e.key==='2')askSpeed(2);else if(e.key==='3')askSpeed(4);
+ else if(e.key==='Escape'){if(nukeAim)nukeAim=false;else{selection.clear();selCity=null;}panelDirty=true;}
+ else if(e.key.toLowerCase()==='x'){stopSelected();}
+ else if(e.key.toLowerCase()==='f'){fitCam();}});
+window.addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
+function stopSelected(){const ids=[...selection].filter(u=>u.nation===player).map(u=>u.id);if(ids.length)command({c:'stop',ids});}
+function rightClick(wx,wy,force){const sel=[...selection].filter(u=>!u.dead&&!u.inside&&u.nation===player);if(!sel.length)return;
+ const hu=unitAt(wx,wy,false),hc=cityAt(wx,wy);
+ // click marker colour, worked out here so the guest sees it instantly
+ const mc=hu&&hu.nation!==player&&hu.state!=='landed'&&sel.some(u=>canHit(u,hu))?'#ef5b5b':hu&&hu.nation===player&&hu.type==='tr'?'#7fc4ff':
+  hc&&hc.owner!==player&&sel.some(u=>u.type==='bmb')?'#ef5b5b':'#7fd48f';
+ command({c:'ord',ids:sel.map(u=>u.id),x:wx,y:wy,force:!!force,hu:hu?hu.id:null,hc:hc?hc.id:null});
+ fx.push({k:'mark',x:wx,y:wy,t:.5,m:.5,c:mc});}
+// The actual order logic. Runs on the host (or in solo) for nation `me`, whatever screen the click came from.
+function issueOrders(me,sel,wx,wy,force,hu,hc){
+ const groundSel=sel.filter(u=>UT[u.type].dom!=='air');
+ const cols=Math.ceil(Math.sqrt(groundSel.length));let gi=0;
+ for(const u of sel){const t=UT[u.type];if(u.jump)continue;
+  if(u.type==='para'&&inDefCity(u)){const d=Math.hypot(wx-u.x,wy-u.y);// from one of our cities: jump instead of walking
+   if(d>150&&d<=JUMP_R&&gType[cellOf(wx,wy)]===1){u.jump={x:wx+rnd(12),y:wy+rnd(12)};u.order=null;u.path=[];continue;}}
+  if(hu&&hu.nation!==me&&canHit(u,hu)&&hu.state!=='landed'){orderAttack(u,hu);continue;}
+  if(hu&&hu.nation===me&&hu.type==='tr'&&t.dom==='land'){u.order={type:'board',target:hu};u.repath=0;continue;}
+  if(t.dom==='air'){
+   if(hu&&hu.nation===me&&hu.type==='cv'){if(u.base!==hu&&!hangarFree(hu)){log('That Carrier is full (4 aircraft).',null,me);continue;}
+    u.base=hu;u.order=null;u.state='rtb';continue;}// take off (if parked) and fly straight to the carrier
+   if(hc&&hc.owner===me&&!hu){u.base=hc;u.order=null;if(u.state==='fly')u.state='rtb';else if(u.state==='landed'){u.order={type:'move',x:hc.x,y:hc.y,auto:true};}continue;}
+   if(hc&&hc.owner!==me&&u.type==='bmb'){u.order={type:'attack',target:hc};continue;}
+   u.order={type:'move',x:wx,y:wy};if(u.state==='rtb'&&u.fuel>UT[u.type].fuel*.5)u.state='fly';continue;}
+  const k=gi++,ox=((k%cols)-(cols-1)/2)*13,oy=(Math.floor(k/cols)-(cols-1)/2)*13;
+  if(u.type==='tr'&&gType[cellOf(wx,wy)]===1&&!gRiver[cellOf(wx,wy)]){if(orderMove(u,wx,wy,true)){u.order={type:'unload',x:wx,y:wy};}continue;}
+  // a plain click marches there without stopping (still shooting on the move); Ctrl+click is attack-move
+  orderMove(u,wx+(groundSel.length>1?ox:0),wy+(groundSel.length>1?oy:0),!force);}}
+// Every player action goes through command(): the guest sends it to the host, everyone else runs it directly.
+function command(cmd){if(mp==='guest'){send({t:'cmd',...cmd});return;}runCmd(player,cmd);}
+function runCmd(me,cmd){const n=nations[me];if(!n||!n.alive||gameOver)return;
+ const mine=ids=>(ids||[]).map(id=>units.find(u=>u.id===id)).filter(u=>u&&!u.dead&&!u.inside&&u.nation===me);
+ const city=id=>cities.find(c=>c&&c.id===id);
+ switch(cmd.c){
+  case 'ord':{const sel=mine(cmd.ids);if(!sel.length)return;const hu=cmd.hu!=null?units.find(u=>u.id===cmd.hu&&!u.dead&&!u.inside)||null:null;
+   issueOrders(me,sel,+cmd.x,+cmd.y,!!cmd.force,hu,cmd.hc!=null?city(cmd.hc)||null:null);break;}
+  case 'stop':for(const u of mine(cmd.ids)){u.order=null;u.path=[];if(u.state==='fly')u.state='rtb';}break;
+  case 'build':{const c=city(cmd.city),k=cmd.k;if(!c||c.owner!==me||!UT[k]||!canBuild(c,k)||n.limit[k]===0)return;const cost=costOf(me,k);
+   if(n.funds>=cost&&c.queue.length<5&&!atLimit(me,k)){n.funds-=cost;c.queue.push({type:k,t:0,cost});}break;}
+  case 'cancel':{const c=city(cmd.city);if(!c||c.owner!==me)return;const i=+cmd.i,it=c.queue[i];if(it){n.funds+=it.cost*(i===0?.5:1);c.queue.splice(i,1);}break;}
+  case 'nuke':launchNuke(me,+cmd.x,+cmd.y);break;
+  case 'auto':n.auto=!!cmd.on;break;
+  case 'speed':if([0,1,2,4].includes(cmd.s))setSpeed(cmd.s);break;}
+ panelDirty=true;}
+function askSpeed(s){if(mp==='guest')send({t:'cmd',c:'speed',s});else setSpeed(s);}
+
+// ================= UI =================
+const selEl=document.getElementById('sel');let panelDirty=true,panelClock=0;
+function bar(lbl,v,m,col){return `<div class="row"><span>${lbl}</span><span>${Math.round(v)} / ${m}</span></div><div class="bar"><i style="width:${clamp(v/m*100,0,100)}%;${col?'background:'+col:''}"></i></div>`;}
+function renderPanel(){const n=nations[player];let h='';const sel=[...selection].filter(u=>!u.dead&&!u.inside);
+ if(n.icbm>0)h+=`<button class="act nuke" data-act="nuke">${nukeAim?'☢ Pick a target… (Esc cancels)':`☢ Launch ICBM (${n.icbm} ready)`}</button>`;
+ if(selCity){const c=selCity,own=c.owner===player,on=nations[c.owner];
+  h+=`<div class="ph"><span class="sw" style="background:${on.color}"></span> ${c.name}${on.capital===c?' ★':''}</div>`;
+  h+=`<div class="sub">${on.name}${on.capital===c?' · Capital':''}${c.port?' · Port':''}${c.industry?' · Industry':''}${c.highland?' · Highlands (poor land)':''}${c.farm?' · Farmland':''}${c.id===LUMAFORD?' · Luma headwaters':''} · +${cityIncome(c)}/h</div>`;
+  h+=bar('Garrison',c.gar,c.garMax,c.gar/c.garMax>.4?'#7fb8e8':'#ef5b5b');
+  const planes=units.filter(u=>u.state==='landed'&&u.base===c&&!u.dead).length;if(planes)h+=`<div class="row"><span>Aircraft on airfield</span><span>${planes}</span></div>`;
+  if(own){h+='<div class="sec">BUILD</div><div class="grid">';
+   for(const k of BUILD_ORDER){if(!canBuild(c,k)||n.limit[k]===0)continue;const t=UT[k],cost=costOf(player,k),full=atLimit(player,k);const ok=n.funds>=cost&&c.queue.length<5&&!full;
+    h+=`<button class="bb" data-build="${k}" ${ok?'':'disabled'} title="${t.desc}"><b>${isGood(player,k)?'★ ':''}${t.name}</b><span>${full?`Max ${n.limit[k]} reached`:`$${cost} · ${Math.round(t.time*buildMult(player))}h`}</span></button>`;}
+   h+='</div>';if(farmTown(c))h+='<div class="tip">Farm town – not a military base. It can only train Infantry.</div>';else if(!c.port)h+='<div class="tip">Ships can only be built at port cities (■).</div>';
+   if(c.queue.length){h+='<div class="sec">QUEUE (click to cancel)</div>';c.queue.forEach((q,i)=>{h+=`<div class="q" data-cancel="${i}"><span>${UT[q.type].name}</span><span class="pb"><i style="width:${i?0:q.t/UT[q.type].time*100}%"></i></span><span>✕</span></div>`;});}}
+  else h+=`<div class="tip">Enemy city. Bring its garrison to 0 with artillery, bombers, battleships or troops, then move Infantry or Armor in to capture it.</div>`;}
+ else if(sel.length){const g={};for(const u of sel){(g[u.type]=g[u.type]||[]).push(u);}
+  h+=`<div class="ph">${sel.length} unit${sel.length>1?'s':''} selected</div><div class="sub">Click: march there (shooting on the move) · Ctrl+click: attack-move · Esc to deselect</div>`;
+  for(const k in g){const L=g[k],t=UT[k],hp=L.reduce((a,u)=>a+u.hp,0)/L.length;h+=`<div class="row"><span>${L.length}× ${t.name}</span><span>${Math.round(hp/t.hp*100)}% hp</span></div>`;}
+  if(sel.length===1){const u=sel[0],t=UT[u.type];h+=`<div class="tip">${t.desc}</div>`;h+=bar('Strength',u.hp,t.hp);
+   if(t.dom==='land'){const tt=terrAt(u),d=TERR_DEF[tt][foot(u.type)?0:1];h+=`<div class="row"><span>Ground</span><span>${gRoad[cellOf(u.x,u.y)]?'Road · ':''}${T_NAMES[tt]}${d<1?` · ${Math.round((1-d)*100)}% cover`:d>1?' · exposed':''}</span></div>`;}
+   if(t.dom==='air'){h+=bar('Fuel',u.fuel,t.fuel,'#f2c94c');if(t.ammo)h+=`<div class="row"><span>Bombs</span><span>${u.ammo}/${t.ammo}</span></div>`;
+    h+=`<div class="row"><span>Status</span><span>${u.state==='landed'?(u.base&&!u.base.isCity?'On a Carrier':'On airfield at '+(u.base?u.base.name:'?')):u.state==='rtb'?'Returning to base':'Airborne'}</span></div>`;}
+   if(u.type==='tr')h+=`<div class="row"><span>Cargo</span><span>${u.cargo.length}/${t.carry}</span></div>`;
+   if(u.type==='cv')h+=`<div class="row"><span>Aircraft based here</span><span>${units.filter(p=>!p.dead&&p.base===u).length}/${t.hangar}</span></div>`;
+   if(u.type==='sub')h+=`<div class="row"><span>Status</span><span>${u.seen&~(1<<u.nation)?'Spotted by the enemy':'Hidden'}</span></div>`;
+   if(u.jump)h+=`<div class="row"><span>Status</span><span>Jumping…</span></div>`;}
+  h+=`<button class="act" data-act="stop">Stop (X)</button>`;
+  if(sel.some(u=>u.type==='tr'))h+=`<div class="tip">Transport: select land units, then click the transport to board (keep it close to the shore). Then select the transport and click on land to sail there and unload.</div>`;
+  if(sel.some(u=>UT[u.type].dom==='air'))h+=`<div class="tip">Aircraft: right-click a spot to patrol it, an enemy to attack it. Bombers: right-click an enemy city to bomb it. Right-click one of your cities or Carriers to change home base.</div>`;
+  if(sel.some(u=>u.type==='para'))h+=`<div class="tip">Paratroopers: while they're in one of your cities, click a spot on land 150–${JUMP_R} away and they jump there. Anywhere else they walk like Infantry.</div>`;}
+ else{const mine=units.filter(u=>u.nation===player);const g={};for(const u of mine)g[u.type]=(g[u.type]||0)+1;
+  h+=`<div class="ph"><span class="sw" style="background:${n.color}"></span> ${n.name}</div><div class="sub">Office of the President · ${cities.filter(c=>c.owner===player).length} cities</div>`;
+  const sp=specText(n);h+=`<div class="sec">NATIONAL TRAITS</div><div class="perk">▲ ${n.perk}</div><div class="flaw">▼ ${n.flaw}</div><div class="perk">★ ${sp[0]}</div><div class="flaw">✖ ${sp[1]}</div>`;
+  const st=player===1?(n.blockade?['Ports BLOCKADED','#ef5b5b']:['Ports clear','#7fd48f']):player===2?(cities[LUMAFORD].owner===2?['Lumaford held – farms full','#7fd48f']:['Lumaford not held – farms at half','#f2c94c']):player===3?(cities[IRONRIDGE].owner===3?['Ironridge power online','#7fd48f']:['Ironridge LOST – builds slowed','#ef5b5b']):null;
+  if(st)h+=`<div class="row"><span>Status</span><span style="color:${st[1]}">${st[0]}</span></div>`;
+  h+='<div class="sec">ARMED FORCES</div>';for(const k of BUILD_ORDER)if(g[k])h+=`<div class="row"><span>${UT[k].name}</span><span>${g[k]}</span></div>`;
+  h+=`<div class="row"><span>Units lost</span><span>${n.lost}</span></div>`;
+  h+=`<div class="tip"><b>Orders</b><br>Left-click / drag: select units · double-click: all of that type<br>With units selected, click (or right-click): move / attack<br><kbd>Esc</kbd>: deselect · <kbd>Ctrl</kbd>+click: attack-move (stop to fight anything on the way)<br>Click a city you own to build units<br><kbd>Space</kbd> pause · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> speed · <kbd>X</kbd> stop · <kbd>F</kbd> fit map<br>Wheel: zoom · <kbd>WASD</kbd>/arrows or middle-drag: pan<br><br><b>Terrain</b><br>Roads: fast · Plains/desert: open ground<br>Forest, mountains, hills: slow, but give cover (best for infantry)<br>Swamp: very slow, bad for armor · Lakes: impassable<br><br><b>To capture a city</b>, knock its garrison to 0 then move Infantry or Armor onto it. Lose all your cities and your nation falls.</div>`;}
+ selEl.innerHTML=h;panelDirty=false;}
+selEl.addEventListener('pointerdown',e=>{const b=e.target.closest('[data-build]');const n=nations[player];
+ if(b&&selCity&&selCity.owner===player){command({c:'build',city:selCity.id,k:b.dataset.build});panelDirty=true;return;}
+ const q=e.target.closest('[data-cancel]');if(q&&selCity&&selCity.owner===player){command({c:'cancel',city:selCity.id,i:+q.dataset.cancel});panelDirty=true;return;}
+ const a=e.target.closest('[data-act]');if(a&&a.dataset.act==='stop'){stopSelected();panelDirty=true;}
+ if(a&&a.dataset.act==='nuke'&&n.icbm>0){nukeAim=!nukeAim;panelDirty=true;}});
+function setSpeed(s){if(s>0)setSpeed.last=s;speed=s;for(const b of document.querySelectorAll('#speed button'))b.classList.toggle('on',+b.dataset.s===s);}
+document.getElementById('speed').addEventListener('click',e=>{const b=e.target.closest('button');if(b&&started&&!gameOver)askSpeed(+b.dataset.s);});
+const autoBtn=document.getElementById('auto');function showAuto(on){autoBtn.textContent='Auto-build: '+(on?'ON':'OFF');autoBtn.classList.toggle('off',!on);}
+autoBtn.addEventListener('click',()=>{const n=nations[player];if(started&&!gameOver&&n&&n.alive){const on=!n.auto;n.auto=on;command({c:'auto',on});showAuto(on);
+ showLog(on?'Auto-build ON – your cities will keep building units.':'Auto-build OFF – you choose what to build.');}});
+function renderTop(){const n=nations[player];showAuto(n.auto!==false);document.getElementById('nat').innerHTML=`<span class="sw" style="background:${n.color}"></span> <b>${n.name}</b>`;
+ document.getElementById('funds').textContent='$'+Math.floor(n.funds);document.getElementById('inc').textContent=`+${n.income.toFixed(0)}/h`;
+ document.getElementById('date').textContent=dateStr()+(atPeace()?` · Peace: ${Math.ceil(peaceUntil-time)}h left`:'');
+ document.getElementById('standings').innerHTML=nations.filter(x=>x.alive).map(x=>`<span class="chip"><span class="sw" style="background:${x.color}"></span>${x.name} ${cities.filter(c=>c.owner===x.id).length}</span>`).join('');}
+const overlay=document.getElementById('overlay');
+// ---- start screen & online lobby ----
+// lob: null (solo) | {role:'host',code,status,gpick} | {role:'guest',code,status,hn,ok}
+let lob=null,sPick=3,sDk='normal',lobRender=()=>{};
+function showStart(){sPick=3;sDk='normal';lob=null;
+ const render=()=>{if(started)return;
+  const friend=!lob?-1:lob.role==='host'?lob.gpick:lob.hn,guest=lob&&lob.role==='guest';
+  const goOn=!lob||(lob.role==='host'&&lob.gpick>=0&&lob.gpick!==sPick);
+  const goTxt=!lob?'TAKE COMMAND':lob.role==='host'?(lob.gpick>=0?'START GAME':'WAITING FOR FRIEND…'):(lob.ok?'WAITING FOR HOST TO START…':'CONNECTING…');
+  const mpH=!lob?`<div class="sec">PLAY WITH A FRIEND · ONLINE</div><div class="mp-row"><button class="ghost" data-mp="host">Host a game</button><span style="color:var(--muted)">or join with a code:</span><input id="joinCode" maxlength="5" placeholder="12345" inputmode="numeric" pattern="[0-9]*" autocomplete="off"><button class="ghost" data-mp="join">Join</button></div>
+    <div class="note">One of you hosts and the other joins with the 5-digit code. You each command a different nation and the computer runs the rest. Every nation is at war with every other, so your friend is an enemy too.</div>`
+   :lob.role==='host'?`<div class="sec">HOSTING AN ONLINE GAME</div><div class="mp-row">Your code: <span class="code">${lob.code||'…'}</span><button class="ghost" data-mp="leave">Cancel</button></div><div class="note">${lob.status}</div>`
+   :`<div class="sec">JOINING GAME ${lob.code}</div><div class="mp-row"><button class="ghost" data-mp="leave">Leave</button></div><div class="note">${lob.status}</div>`;
+  overlay.innerHTML=`<div class="card"><h1>HIGH COMMAND</h1><p>Four nations. One continent. You hold the office of supreme commander — choose your country. Your country's strengths (▲ ★) only work for human commanders – computer-run countries keep their weaknesses and limits, but not their strengths.</p>
+ <div class="nations">${NATIONS.filter(n=>!n.late).map(n=>`<button class="nbtn ${n.id===sPick?'on':''}" data-n="${n.id}" ${n.id===friend?'disabled':''} style="background:linear-gradient(90deg,${hexA(n.color,.35)},#26323c 70%)">${n.id===friend?'<span class="tag">YOUR FRIEND</span>':''}<b>${n.name}</b><div>${n.blurb}</div><div class="perk">▲ ${n.perk}</div><div class="flaw">▼ ${n.flaw}</div><div class="perk">★ ${specText(n)[0]}</div><div class="flaw">✖ ${specText(n)[1]}</div></button>`).join('')}</div>
+ <div class="diff">Difficulty${guest?' (set by the host)':''}: ${Object.entries(DIFFS).map(([k,d])=>`<button data-d="${k}" class="${k===sDk?'on':''}" ${guest?'disabled':''}>${d.label}</button>`).join('')}</div>
+ <button class="go" ${goOn?'':'disabled'}>${goTxt}</button>
+ ${mpH}
+ <div class="help">Left-click / drag to select units.<br>Select units, then click an enemy to attack or the ground to move.<br>Click your cities to build armies, fleets & air wings.<br>Knock a city's garrison to zero, then march infantry or armor in to capture it.<br>Planes patrol a spot and return to base to refuel.<br>Transports carry troops by sea — small ships can sail up rivers.<br>Mountains, forests & hills slow armies but protect infantry. Swamps bog down armor, deserts leave troops exposed, lakes block the way. Roads are fast.<br>Every nation is at war with everyone. Be the last nation standing and new enemies rise – the last one lies across the sea.</div></div>`;
+  const ji=document.getElementById('joinCode');if(ji){ji.addEventListener('keydown',e=>{if(e.key==='Enter')startJoin(ji.value);});
+   ji.addEventListener('input',()=>{const v=ji.value.replace(/\D/g,'');if(v!==ji.value)ji.value=v;});}};
+ lobRender=render;render();overlay.style.display='flex';
+ overlay.onclick=e=>{const nb=e.target.closest('[data-n]');if(nb&&!nb.disabled){sPick=+nb.dataset.n;if(lob&&lob.role==='guest')send({t:'pick',n:sPick});if(lob&&lob.role==='host')sendLobby();render();return;}
+  const db=e.target.closest('[data-d]');if(db&&!db.disabled){sDk=db.dataset.d;if(lob)sendLobby();render();return;}
+  const mb=e.target.closest('[data-mp]');if(mb){const a=mb.dataset.mp;if(a==='host')startHost();else if(a==='join')startJoin(document.getElementById('joinCode').value);else leaveMp();return;}
+  const go=e.target.closest('.go');if(go&&!go.disabled){if(!lob)startGame(sPick,sDk);else if(lob.role==='host')startMpGame();}};}
+function startGame(p,dk){player=p;humans=mp==='host'?[p,guestNation]:[p];diff=DIFFS[dk];initState();started=true;gameOver=false;selection.clear();selCity=null;mapDirty=true;overlay.style.display='none';
+ document.getElementById('log').innerHTML='';const n=nations[player];
+ showLog(`You have taken command of <b style="color:${n.color}">${n.name}</b>. You have 3 days of peace to build your army – war begins on Day 4, or as soon as your forces cross into enemy territory.`,n.color);
+ if(mp==='host'){const g=nations[guestNation];showLog(`Your friend commands <b style="color:${g.color}">${g.name}</b>. They are an enemy like everyone else.`,g.color);}
+ showLog(`Auto-build is ON – your cities build units automatically. Turn it off in the top bar to choose yourself.`);showLog(`Click ${n.capital.name} to start building forces.`);
+ focusOn(n.capital.x,n.capital.y,1);
+ if(profile)showLog(`Enemy staffs have studied your ${profile.games} past campaign${profile.games>1?"s":""} and will plan against your habits.`,"#e9a");setSpeed(1);panelDirty=true;}
+function showPhase(n){setSpeed(0);if(!nations[player].alive)return;overlay.style.display='flex';
+ overlay.innerHTML=`<div class="card"><h1 style="color:${n.color}">${n.name.toUpperCase()}</h1><p>${humans.length>1?'You are the last commander standing':'The four nations have fallen to you'} – but a new enemy rises. <b>${n.name}</b>, ${n.blurb.toLowerCase().replace(/\.$/,'')}, has declared war.</p>
+ ${n.id===5?'<p>Kestria lies across the sea. Your armies cannot march there – build <b>Transports</b> at a port city, load Infantry and Armor, and land them on the island. Warships and bombers can soften its defences first.</p>':'<p>Its armies will pour in from the Eastern Lands. Hold your border, then take the fight to them.</p>'}
+ ${icbmOn(player)?'<p><b>☢ ICBMs are online.</b> Build them at your capital and launch from the side panel – the blast zone stays uninhabitable for a minute.</p>':''}
+ <p>You have <b>2 days</b> to prepare before the fighting starts.</p>
+ <button class="go">TO WAR</button></div>`;
+ overlay.onclick=e=>{if(e.target.closest('.go')){overlay.style.display='none';askSpeed(1);}};}
+function showEnd(win){saveProfile();const n=nations[player];overlay.style.display='flex';
+ const w=nations[winner],other=!win&&w&&isHuman(winner)?` ${w.name} – your friend – won the war.`:'';
+ overlay.innerHTML=`<div class="card"><h1>${win?'VICTORY':'DEFEAT'}</h1><p>${win?`${n.name} rules every land and island after ${Math.floor(time/24)+1} days of war.`:`${n.name} has fallen.${other}`}</p>
+ <div class="row"><span>Units built</span><span>${n.built}</span></div><div class="row"><span>Units lost</span><span>${n.lost}</span></div><br><button class="go">NEW GAME</button></div>`;
+ overlay.onclick=e=>{if(e.target.closest('.go')){if(mp)location.reload();else showStart();}};}
+function showOut(){selection.clear();selCity=null;const n=nations[player];overlay.style.display='flex';
+ overlay.innerHTML=`<div class="card"><h1>DEFEAT</h1><p>${n.name} has fallen on ${dateStr()}. The war goes on without you – you can keep watching.</p><button class="go">KEEP WATCHING</button></div>`;
+ overlay.onclick=e=>{if(e.target.closest('.go'))overlay.style.display='none';};}
+
+// ================= NETWORK (PeerJS, browser to browser) =================
+// The host runs the whole simulation and sends a snapshot of the world ~8 times a second.
+// The guest draws those snapshots (smoothing movement in between) and sends its orders back as commands.
+const CODE_CH='0123456789',peerId=code=>'high-command-war-sim-'+code;
+const TYPES=Object.keys(UT),ORD=['move','attack','board','unload'],STATES=[null,'landed','fly','rtb'];
+const r1=v=>Math.round(v*10)/10;
+function send(o){if(conn&&conn.open)try{conn.send(o);}catch(e){}}
+function noLib(){if(typeof Peer!=='undefined')return false;lob.status='Could not load the online-play library. Check your internet connection and reload the page.';lobRender();return true;}
+function startHost(){lob={role:'host',code:'',status:'Getting a game code…',gpick:-1};lobRender();if(noLib())return;
+ const code=Array.from({length:5},()=>CODE_CH[Math.random()*CODE_CH.length|0]).join('');
+ peer=new Peer(peerId(code));
+ peer.on('open',()=>{if(!lob)return;lob.code=code;lob.status='Waiting for your friend to join. Send them this code.';lobRender();});
+ peer.on('connection',c=>{if(conn&&conn.open||started){c.on('open',()=>{c.send({t:'full'});setTimeout(()=>c.close(),500);});return;}
+  conn=c;c.on('open',()=>{if(!lob)return;lob.status='Your friend connected and is picking a nation…';lobRender();sendLobby();});
+  c.on('data',onData);c.on('close',()=>onClose(c));c.on('error',()=>onClose(c));});
+ peer.on('error',e=>{if(e.type==='unavailable-id'&&lob){peer.destroy();peer=null;startHost();return;}
+  if(lob&&!started){lob.status='Connection problem ('+e.type+'). Try again.';lobRender();}});}
+function startJoin(raw){const code=String(raw||'').replace(/\D/g,'');
+ if(code.length!==5){const ji=document.getElementById('joinCode');if(ji){ji.value='';ji.placeholder='5 digits';ji.focus();ji.style.borderColor='#ef5b5b';}return;}
+ lob={role:'guest',code,status:'Reaching the matchmaking server…',hn:-1,ok:false};lobRender();if(noLib())return;
+ const me=lob;peer=new Peer();
+ // if nothing has happened after 10s, say so instead of "Connecting…" forever
+ setTimeout(()=>{if(lob===me&&!me.ok&&!started){me.status=`Still can't reach the host after 10 seconds.<br>• Check the code is exactly <b>${code}</b> and the host window still shows it.<br>• Reload <b>both</b> windows (Cmd+R) so they run the same version, then host again for a new code.<br>• A VPN or an ad-blocker setting that blocks WebRTC can stop the connection – try turning it off.`;lobRender();}},10000);
+ peer.on('open',()=>{if(lob!==me)return;me.status='Found the server – connecting to the host…';lobRender();
+  conn=peer.connect(peerId(code),{reliable:true,serialization:'json'});const c=conn;
+  c.on('open',()=>{if(!lob)return;lob.ok=true;lob.status='Connected! Pick your nation, then wait for the host to start the game.';send({t:'hello'});lobRender();});
+  c.on('data',onData);c.on('close',()=>onClose(c));c.on('error',()=>onClose(c));});
+ peer.on('error',e=>{if(lob!==me||started)return;me.ok=false;
+  me.status=e.type==='peer-unavailable'?`No game found with code <b>${code}</b>. Check the code, and make sure the host window still shows it (reload both windows and host again if unsure).`
+   :e.type==='network'||e.type==='server-error'||e.type==='socket-error'?'Could not reach the matchmaking server. Check your internet connection.'
+   :e.type==='browser-incompatible'||e.type==='webrtc'?'This browser blocked the peer-to-peer connection (WebRTC). Turn off any VPN or WebRTC-blocking extension and try again.'
+   :'Connection problem ('+e.type+'). Press Leave and try again.';lobRender();});}
+function leaveMp(){const c=conn;conn=null;if(c)c.close();if(peer)peer.destroy();peer=null;lob=null;mp=null;lobRender();}
+function sendLobby(){send({t:'lobby',hn:sPick,dk:sDk});}
+function onData(m){if(!m||typeof m!=='object')return;
+ switch(m.t){
+  case 'hello':if(lob&&lob.role==='host')sendLobby();break;
+  case 'lobby':if(lob&&lob.role==='guest'&&!started){lob.hn=m.hn;if(DIFFS[m.dk])sDk=m.dk;
+   if(sPick===m.hn)sPick=NATIONS.find(n=>!n.late&&n.id!==m.hn).id;send({t:'pick',n:sPick});lobRender();}break;
+  case 'pick':if(lob&&lob.role==='host'&&!started){const ok=Number.isInteger(m.n)&&m.n>=0&&m.n<4&&m.n!==sPick;lob.gpick=ok?m.n:-1;
+   lob.status=ok?`Your friend picked <b>${NATIONS[m.n].name}</b>. Press START GAME when you're ready.`:'Your friend is picking a nation…';lobRender();}break;
+  case 'full':if(lob){lob.ok=false;lob.status='That game already has two players.';lobRender();}break;
+  case 'start':if(lob&&lob.role==='guest'&&!started)startGuest(m);break;
+  case 'snap':if(mp==='guest'&&started)applySnap(m);break;
+  case 'log':if(mp==='guest')showLog(m.m,m.c,m.d);break;
+  case 'ev':if(mp==='guest')onEvent(m);break;
+  case 'cmd':if(mp==='host'&&started&&isHuman(guestNation))runCmd(guestNation,m);break;}}
+function onClose(c){if(c!==conn)return;conn=null;
+ if(started&&!gameOver){
+  if(mp==='host'){humans=humans.filter(h=>h!==guestNation);log(`<b>Your friend disconnected.</b> The computer takes over ${nations[guestNation].name}.`,'#e66');}
+  else if(mp==='guest'){setSpeed(0);overlay.style.display='flex';
+   overlay.innerHTML=`<div class="card"><h1>DISCONNECTED</h1><p>The connection to the host was lost.</p><button class="go">BACK TO MENU</button></div>`;
+   overlay.onclick=e=>{if(e.target.closest('.go'))location.reload();};}}
+ else if(lob&&!started){if(lob.role==='host'){lob.gpick=-1;lob.status='Your friend left. Waiting for someone to join with your code.';}else{lob.ok=false;lob.status='The host closed the game.';}lobRender();}}
+function startMpGame(){mp='host';guestNation=lob.gpick;lob=null;startGame(sPick,sDk);
+ send({t:'start',you:guestNation,host:player,dk:sDk});sendSnap();}
+function startGuest(m){mp='guest';lob=null;player=m.you;guestNation=m.you;humans=[m.host,m.you];diff=DIFFS[m.dk]||DIFFS.normal;
+ initState();units=[];fx=[];started=true;gameOver=false;selection.clear();selCity=null;mapDirty=true;overlay.style.display='none';
+ document.getElementById('log').innerHTML='';const n=nations[player],h=nations[m.host];
+ showLog(`You have taken command of <b style="color:${n.color}">${n.name}</b>. You have 3 days of peace to build your army – war begins on Day 4, or as soon as your forces cross into enemy territory.`,n.color);
+ showLog(`Your friend (the host) commands <b style="color:${h.color}">${h.name}</b>. They are an enemy like everyone else.`,h.color);
+ showLog(`Auto-build is ON – your cities build units automatically. Turn it off in the top bar to choose yourself.`);showLog(`Click ${n.capital.name} to start building forces.`);focusOn(n.capital.x,n.capital.y,1);panelDirty=true;}
+function onEvent(m){if(m.k==='phase')showPhase(nations[m.id]);
+ else if(m.k==='end'){gameOver=true;winner=m.w;showEnd(m.w===player);}
+ else if(m.k==='out')showOut();}
+const ref=t=>t?(t.isCity?-1-t.id:t.id):0;// unit ids start at 1: >0 unit, <0 city, 0 none
+function encUnit(u){const o=u.order;
+ return [u.id,TYPES.indexOf(u.type),u.nation,r1(u.x),r1(u.y),Math.ceil(u.hp),Math.round(u.ang*100)/100,r1(u.fuel),u.ammo,STATES.indexOf(u.state),u.inside?u.inside.id:0,ref(u.base),
+  u.cargo.length?u.cargo.map(c=>c.id):0,o?[ORD.indexOf(o.type),o.x!=null?r1(o.x):null,o.y!=null?r1(o.y):null,ref(o.target)]:0,
+  u.tgt&&!u.tgt.dead?ref(u.tgt):0,u.nation===guestNation&&u.path.length?u.path.map(p=>[p[0]|0,p[1]|0]):0,u.jump?1:0,u.seen||0];}
+function sendSnap(){if(!conn||!conn.open)return;
+ send({t:'snap',time:Math.round(time*1000)/1000,pu:peaceUntil,po:peaceOver,sp:speed,go:gameOver,
+  N:nations.map(n=>[Math.floor(n.funds),r1(n.income),n.alive?1:0,n.dormant?1:0,n.capital?n.capital.id:-1,n.icbm||0,n.icbmTech?1:0,n.blockade?1:0,n.lost,n.built,n.auto?1:0]),
+  C:cities.map(c=>[c.id,c.owner,Math.round(c.gar),c.garMax,c.capN,r1(c.capT),c.queue.map(q=>[TYPES.indexOf(q.type),r1(q.t),q.cost])]),
+  U:units.filter(u=>!u.dead).map(encUnit),
+  F:fallout.map(z=>[r1(z.x),r1(z.y),z.n,r1(z.until)]),
+  X:fx.filter(f=>f.k!=='mark')});}
+function applySnap(m){time=m.time;peaceUntil=m.pu;peaceOver=m.po;gameOver=m.go;if(m.sp!==speed)setSpeed(m.sp);
+ m.N.forEach((a,i)=>{const n=nations[i];if(n.dormant&&!a[3])activateGeo(i);
+  n.funds=a[0];n.income=a[1];n.alive=!!a[2];n.dormant=!!a[3];n.capital=a[4]>=0?cities[a[4]]||null:null;n.icbm=a[5];n.icbmTech=!!a[6];n.blockade=!!a[7];n.lost=a[8];n.built=a[9];n.auto=!!a[10];});
+ for(const a of m.C){const c=cities[a[0]];if(!c)continue;if(c.owner!==a[1]){c.owner=a[1];mapDirty=true;}
+  c.gar=a[2];c.garMax=a[3];c.capN=a[4];c.capT=a[5];c.queue=a[6].map(q=>({type:TYPES[q[0]],t:q[1],cost:q[2]}));}
+ const old=new Map(units.map(u=>[u.id,u])),next=[];
+ for(const a of m.U){let u=old.get(a[0]);if(!u)u={id:a[0],x:a[3],y:a[4],path:[],cargo:[],order:null};
+  u.type=TYPES[a[1]];u.nation=a[2];u.tx=a[3];u.ty=a[4];if(Math.hypot(u.x-a[3],u.y-a[4])>150){u.x=a[3];u.y=a[4];}
+  u.hp=a[5];u.ang=a[6];u.fuel=a[7];u.ammo=a[8];u.state=STATES[a[9]]||null;u._in=a[10];u._b=a[11];u.jump=a[16]?{}:null;u.seen=a[17]||0;
+  u._cargo=a[12]||[];u._o=a[13];u._tg=a[14];u.path=a[15]||[];u.dead=false;next.push(u);}
+ const byId=new Map(next.map(u=>[u.id,u])),deref=r=>r>0?byId.get(r)||null:r<0?cities[-1-r]||null:null;
+ for(const u of next){u.inside=u._in?byId.get(u._in)||null:null;u.cargo=u._cargo.map(id=>byId.get(id)).filter(Boolean);
+  const o=u._o;u.order=o?{type:ORD[o[0]],x:o[1],y:o[2],target:deref(o[3])}:null;if(u.order&&u.order.type==='attack'&&!u.order.target)u.order=null;
+  u.tgt=deref(u._tg);u.base=deref(u._b);if(u.inside)selection.delete(u);}
+ for(const u of units)if(!byId.has(u.id)){u.dead=true;selection.delete(u);}
+ units=next;
+ fallout=m.F.map(a=>({x:a[0],y:a[1],n:a[2],until:a[3]}));
+ fx=m.X.concat(fx.filter(f=>f.k==='mark'));}
+
+// ================= MAIN LOOP =================
+let last=performance.now(),acc=0,netClock=0;
+function frame(now){const real=Math.min(.1,(now-last)/1000);last=now;
+ if(mp==='host'&&started){netClock+=real;if(netClock>=.125){netClock=0;sendSnap();}}
+ if(mp==='guest'&&started){const k=Math.min(1,real*12);// glide units toward the latest snapshot
+  for(const u of units)if(u.tx!=null){u.x+=(u.tx-u.x)*k;u.y+=(u.ty-u.y)*k;}
+  for(const f of fx)f.t-=f.k==='mark'?real:real*speed;fx=fx.filter(f=>f.t>0);}
+ const pan=500/cam.z*real;if(keys['a']||keys['arrowleft'])cam.x-=pan;if(keys['d']||keys['arrowright'])cam.x+=pan;if(keys['w']||keys['arrowup'])cam.y-=pan;if(keys['s']||keys['arrowdown'])cam.y+=pan;
+ if(keys['a']||keys['d']||keys['w']||keys['s']||keys['arrowleft']||keys['arrowright']||keys['arrowup']||keys['arrowdown'])clampCam();
+ if(started&&!gameOver&&speed>0&&mp!=='guest'){acc+=real*speed;let n=0;while(acc>=.05&&n<20){update(.05);acc-=.05;n++;}if(n>=20)acc=0;}
+ draw();panelClock+=real;if(started&&(panelDirty||panelClock>.4)){panelClock=0;renderPanel();renderTop();}
+ requestAnimationFrame(frame);}
+
+buildGrid();
+window.addEventListener('resize',resize);
+window.addEventListener("pagehide",saveProfile);
+if(/[?&]test/.test(location.search)){
+ // headless self-test: all four nations AI-controlled
+ testMode=true;player=3;initState();started=true;resize();
+ const out=[];const t0=performance.now();const steps=+(location.search.match(/steps=(\d+)/)||[0,12000])[1];
+ for(let i=0;i<steps;i++){update(.05);if(i%2000===0)out.push(`t=${time.toFixed(0)}h units=${units.length} `+nations.map(n=>`${n.name}:${cities.filter(c=>c.owner===n.id).length}c/$${n.funds|0}`).join(' '));}
+ out.push(`ms=${(performance.now()-t0)|0} errors=${JSON.stringify(window.__errors)}`);
+ out.push('types: '+JSON.stringify(units.reduce((a,u)=>(a[u.type]=(a[u.type]||0)+1,a),{})));
+ out.push('built: '+nations.map(n=>n.name+'='+n.built+'/lost='+n.lost).join(' '));
+ document.getElementById('testout').textContent=out.join('\n');draw();
+}else{
+ nations=NATIONS.map(n=>({...n,alive:!n.late,dormant:!!n.late,funds:0,income:0}));cities=CITY_DEFS.filter(d=>!NATIONS[d.n].late).map((d,i)=>({id:i,name:d.name,x:d.x,y:d.y,owner:d.n,orig:d.n,port:!!d.port,gar:1,garMax:1,queue:[],region:null}));
+ for(const c of cities){let p=NATIONS[c.orig].poly.slice();for(const d of cities)if(d!==c&&d.orig===c.orig)p=clipHalf(p,c,d);c.region=p;}
+ for(const n of nations)n.capital=cities.find(c=>c.owner===n.id&&CITY_DEFS[c.id].cap);
+ player=-1;resize();showStart();requestAnimationFrame(frame);
+}
+</script>
+</body>
+</html>
