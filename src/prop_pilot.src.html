@@ -46,7 +46,7 @@ const river=z=>Math.sin(z/1500)*700+900,road=z=>-600+Math.sin(z/900)*300;
 const FIELDS=[[108,174,79],[201,178,74],[79,154,69],[156,123,69],[122,184,90],[214,198,106]];
 const SD=[[88,168,236],[196,232,252]],SS=[[74,84,158],[252,176,112]],POOL=[0,0,0,1,1,1,2,3,4,5,6,6,7,7,8,8];
 let state=0,t=0,X,Z,alt,yaw,pitch,roll,speed,thr,stX,stY,spin=0,dist,hull,inv,flash,fcol,shake,best=0,msg='',msgT=0,birds=[],bT=4,keys={},mode=0,pp={x:0,y:0};
-var onGround=true,airT=0,bonus=0,landed=false,bullets=[],rockets=[],booms=[],trail=[],ruins=[],dead={},rk=8,rkT=0,gT=0,rT=0,gunBtn=0,rocBtn=0,gcount=0,tg=[],ebul=[],wave=1,mDone=false,hSpawn=false,fl=[],fc=4,fcT=0,fcd=0,dmgP=0;const wr=(v,m)=>((v+m)%(2*m)+2*m)%(2*m)-m;
+var onGround=true,airT=0,bonus=0,landed=false,bullets=[],rockets=[],booms=[],trail=[],ruins=[],dead={},rk=8,rkT=0,gT=0,rT=0,gunBtn=0,rocBtn=0,tg=[],ebul=[],wave=1,mDone=false,hSpawn=false,fl=[],fc=4,fcT=0,fcd=0,dmgP=0;const wr=(v,m)=>((v+m)%(2*m)+2*m)%(2*m)-m;
 const balls=Array.from({length:14},(_,i)=>{const h=hh(i,7);return{x:(h%12000)-6000,z:((h>>>8)%12000)-6000,y:150+(h>>>4)%350,k:i%4}});
 var lpf=0;
 // ---- planes + hangar (points are earned by clearing waves and saved in localStorage)
@@ -150,8 +150,8 @@ function blast(x,y,z,R,s){boom(x,y,z,R*1.6,1.1);if(Math.hypot(x-X,z-Z)<500)shake
  if(n){pts(40*n,n>1?'Direct hits! +'+40*n:'Target destroyed! +40');if(ruins.length>40)ruins.splice(0,ruins.length-40)}}
 function weapons(dt){
  const sy=Math.sin(yaw),cy=Math.cos(yaw),sp=Math.sin(pitch),cp=Math.cos(pitch),dx=sy*cp,dy=sp,dz=cy*cp,rx=cy,rz=-sy;gT-=dt;rT-=dt;
- if((keys.f||gunBtn)&&gT<=0){gT=PL().gun;gcount++;const sd=gcount%2?14:-14,v=speed+1100,gl=SAVE.up.gun|0,dm=.25*(1+.4*gl);for(let i=0;i<(gl?3:1);i++){const a=Math.random()*6.283,s=gl?.03*Math.sqrt(Math.random()):0,ox=Math.cos(a)*s,oy=Math.sin(a)*s;// Spread gun: random point in a circular cone (right = rx,rz; up = -sp*sy,cp,-sp*cy)
-  bullets.push({x:X+dx*20+rx*sd,y:alt+dy*20-5,z:Z+dz*20+rz*sd,vx:(dx+rx*ox-sp*sy*oy)*v,vy:(dy+cp*oy)*v,vz:(dz+rz*ox-sp*cy*oy)*v,l:1.3,dm})}shake=Math.max(shake,.05);}
+ if((keys.f||gunBtn)&&gT<=0){gT=PL().gun;const v=speed+1100,gl=SAVE.up.gun|0,dm=.25*(1+.4*gl);for(let i=0;i<(gl?3:1);i++){const a=Math.random()*6.283,s=gl?.02*Math.sqrt(Math.random()):0,ox=Math.cos(a)*s,oy=Math.sin(a)*s;// Spread gun: random point in a circular cone (right = rx,rz; up = -sp*sy,cp,-sp*cy)
+  bullets.push({x:X+dx*20,y:alt+dy*20-5,z:Z+dz*20,vx:(dx+rx*ox-sp*sy*oy)*v,vy:(dy+cp*oy)*v,vz:(dz+rz*ox-sp*cy*oy)*v,l:1.3,dm})}shake=Math.max(shake,.05);}
  if(aamF){aamF=0;const q=aamT();if(!q){msg='AAM: no aircraft ahead';msgT=1.2}else if(aam>0){aam--;const v=speed+450;rockets.push({x:X+dx*20,y:alt+dy*20-14,z:Z+dz*20,vx:dx*v,vy:dy*v,vz:dz*v,l:8,lk:q,lk0:q,aam:1});msg='FOX 2! AAM away at '+NM[q.t].toLowerCase();msgT=1.5}}
  if((keys.r||rocBtn)&&rT<=0&&rk>0){rT=.45;rk--;const sd=rk%2?30:-30,v=speed+300;rockets.push({x:X+dx*20+rx*sd,y:alt+dy*20-12,z:Z+dz*20+rz*sd,vx:dx*v,vy:dy*v,vz:dz*v,l:4,lk:lkP>=1?lkT:null,lk0:lkP>=1?lkT:null});}
  if(rk<PL().rk){rkT+=dt;if(rkT>5){rkT=0;rk++}}
@@ -659,12 +659,12 @@ function cockpit(dy){
   ctx.setLineDash([]);ctx.restore();
   ctx.textAlign='left';ctx.fillText(String(speed|0),cx-hw+8*u,gys);ctx.textAlign='right';ctx.fillText(String(alt|0),cx+hw-8*u,gys);ctx.textAlign='center';ctx.fillText(String((((yaw*180/Math.PI)%360+360)%360|0)).padStart(3,'0'),cx,ht+12*u);
   ctx.fillText('THR '+Math.round(thr*100)+'%   RKT '+rk,cx,hb-12*u);ctx.textBaseline='alphabetic';ctx.textAlign='left';ctx.restore();
-  if((keys.f||gunBtn)&&state==1&&Math.sin(t*90)>-.3){const fx=cx-250*u,fy=dy-6*u;g=ctx.createRadialGradient(fx,fy,1,fx,fy,26*u);g.addColorStop(0,'rgba(255,250,200,1)');g.addColorStop(.4,'rgba(255,190,60,.7)');g.addColorStop(1,'rgba(255,120,20,0)');ctx.fillStyle=g;ctx.fillRect(fx-30*u,fy-30*u,60*u,60*u)}}
+  if((keys.f||gunBtn)&&state==1&&Math.sin(t*90)>-.3){const fx=cx,fy=dy-6*u;g=ctx.createRadialGradient(fx,fy,1,fx,fy,26*u);g.addColorStop(0,'rgba(255,250,200,1)');g.addColorStop(.4,'rgba(255,190,60,.7)');g.addColorStop(1,'rgba(255,120,20,0)');ctx.fillStyle=g;ctx.fillRect(fx-30*u,fy-30*u,60*u,60*u)}}
  else{const hx=cx,hy=dy-58*u;
  const R=Math.min(W*.42,260*u),a=.1+.3*(1-thr);ctx.fillStyle=`rgba(40,40,40,${a*.5})`;ctx.beginPath();ctx.arc(hx,hy,R,0,7);ctx.fill();
  for(let b=0;b<2;b++){ctx.save();ctx.translate(hx,hy);ctx.rotate(spin+b*Math.PI);ctx.fillStyle=`rgba(30,22,16,${.35+.45*(1-thr)})`;ctx.beginPath();ctx.moveTo(-12*u,0);ctx.lineTo(-8*u,-R);ctx.lineTo(8*u,-R);ctx.lineTo(12*u,0);ctx.fill();ctx.restore()}
  ctx.fillStyle='#c62f2f';ctx.beginPath();ctx.arc(hx,hy,16*u,0,7);ctx.fill();ctx.fillStyle='#e8e0d0';ctx.beginPath();ctx.arc(hx-4*u,hy-4*u,5*u,0,7);ctx.fill();
- if((keys.f||gunBtn)&&state==1&&Math.sin(t*90)>-.3){for(const sd of[-1,1]){const fx=cx+sd*62*u,fy=dy-78*u;g=ctx.createRadialGradient(fx,fy,1,fx,fy,26*u);g.addColorStop(0,'rgba(255,250,200,1)');g.addColorStop(.4,'rgba(255,190,60,.7)');g.addColorStop(1,'rgba(255,120,20,0)');ctx.fillStyle=g;ctx.fillRect(fx-30*u,fy-30*u,60*u,60*u)}}}
+ if((keys.f||gunBtn)&&state==1&&Math.sin(t*90)>-.3){const fx=cx,fy=dy-80*u;g=ctx.createRadialGradient(fx,fy,1,fx,fy,26*u);g.addColorStop(0,'rgba(255,250,200,1)');g.addColorStop(.4,'rgba(255,190,60,.7)');g.addColorStop(1,'rgba(255,120,20,0)');ctx.fillStyle=g;ctx.fillRect(fx-30*u,fy-30*u,60*u,60*u)}}
  ckCache(1,dy,ckDash);
  const gy=dy+92*u,r=38*u,pq2=PL(),vmax=Math.ceil((pq2.base+pq2.th+40)/50)*50,ag=v=>.75*Math.PI+1.5*Math.PI*cl(v/vmax,0,1.02);
  gS+=(speed-gS)*.15;gA+=(alt-gA)*.2;gV+=(cl(Math.sin(pitch)*speed,-25,25)-gV)*.08;const rpmT=pq2.jet?62+thr*44+speed*.01:700+thr*2000+speed*1.2;gR+=(rpmT-gR)*.1;
