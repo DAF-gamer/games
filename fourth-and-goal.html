@@ -364,8 +364,17 @@ function drawField(offT,defT){
 // ---------- player model (from ironhawks_football_players.glb, home uniform, recolored per team) ----------
 let PM=null,PMAT=null;
 const PM_S=0.66,PM_CX=-2.35,PM_CY=0.02; // model is Z-up, faces -Y, ~3.3 units tall
-const PM_PIV={legL:[-2.57,1.42],legR:[-2.13,1.42],armL:[-3.0,2.3],armR:[-1.7,2.3]};
-function pmGroup(n){if(/^(L|R)_(cleat|stud\d|sock|sockstripe|shin|knee|thigh)$/.test(n))return 'leg'+n[0];if(/^(L|R)_(upperarm|elbow|forearm|glove|finger\d)$/.test(n))return 'arm'+n[0];return 'body';}
+// joint pivots in model units [x, height]: hips, knees, shoulders, elbows
+const PM_PIV={hipL:[-2.57,1.42],kneeL:[-2.57,1.02],hipR:[-2.13,1.42],kneeR:[-2.13,1.02],shL:[-3.0,2.3],elL:[-3.07,1.9],shR:[-1.7,2.3],elR:[-1.63,1.9]};
+const PM_CHAIN=[['hipL','kneeL'],['hipR','kneeR'],['shL','elL'],['shR','elR']];
+function pmGroup(n){
+  const s=n[0];
+  if(/^[LR]_thigh$/.test(n))return 'hip'+s;
+  if(/^[LR]_(knee|shin|sock|sockstripe|cleat|stud\d)$/.test(n))return 'knee'+s;
+  if(/^[LR]_(upperarm|elbow)$/.test(n))return 'sh'+s;
+  if(/^[LR]_(forearm|glove|finger\d)$/.test(n))return 'el'+s;
+  return 'body';
+}
 function pmSlot(p){
   const n=p.n,[r,g,b]=p.c;
   if(/mask|stud/.test(n))return 'mask';
@@ -404,8 +413,8 @@ function buildPlayerMesh(geos){
   if(!PMAT)PMAT=new THREE.MeshLambertMaterial({vertexColors:true});
   const g=new THREE.Group();g.rotation.order='YXZ';
   const body=new THREE.Mesh(geos.body,PMAT);body.castShadow=true;g.add(body);
-  const ud={};
-  for(const k of ['legL','legR','armL','armR']){const piv=PM_PIV[k],pg=new THREE.Group();pg.position.set((piv[0]-PM_CX)*PM_S,piv[1]*PM_S,0);const m=new THREE.Mesh(geos[k],PMAT);m.castShadow=true;pg.add(m);g.add(pg);ud[k]=pg;}
+  const ud={},joint=(k,parent,pp)=>{const piv=PM_PIV[k],j=new THREE.Group();j.position.set((piv[0]-pp[0])*PM_S,(piv[1]-pp[1])*PM_S,0);const m=new THREE.Mesh(geos[k],PMAT);m.castShadow=true;j.add(m);parent.add(j);ud[k]=j;return j;};
+  for(const [up,lo] of PM_CHAIN){const j=joint(up,g,[PM_CX,0]);joint(lo,j,PM_PIV[up]);}
   g.userData=ud;g.visible=false;scene.add(g);return g;
 }
 function buildTeamMeshes(tid,home){const geos=buildLookGeos(teamPalette(TEAMS[tid],home));const a=[];for(let i=0;i<11;i++)a.push(buildPlayerMesh(geos));a.geos=geos;return a;}
@@ -1129,15 +1138,33 @@ function ballPos(){
   if(b.state==='fall')return{x:b.x,y:b.y,z:b.z};
   return null;
 }
+// Run cycle: thighs swing from the hip, knees fold most while the leg swings through,
+// arms swing opposite the legs with bent elbows; linemen crouch in a stance before the snap.
+function animatePlayer(p,u,dt,sp){
+  p.anim+=sp*dt*2.9;                                   // about one stride every 2.2 yards
+  const tgt=Math.min(1,sp/7);p.amp=(p.amp||0)+(tgt-(p.amp||0))*Math.min(1,dt*6);
+  const A=p.amp,ph=p.anim;
+  const stance=(!P.live&&!P.over&&(p.role==='OL'||p.role==='DL'))?1:0;
+  for(const [s,off] of [['L',0],['R',Math.PI]]){
+    const f=ph+off,sn=Math.sin(f),cs=Math.cos(f);
+    u['hip'+s].rotation.x=-0.8*A*sn-stance*0.75;            // negative = thigh forward
+    u['knee'+s].rotation.x=0.1+A*(0.2+1.3*Math.max(0,cs))+stance*1.15;
+    u['sh'+s].rotation.x=0.65*A*sn-stance*0.35;              // arm swings opposite its leg
+    u['el'+s].rotation.x=-(0.2+1.1*A)-0.25*A*Math.max(0,sn)-stance*0.5;
+  }
+  const b=P.ball,holder=b&&(b.state==='held'||b.state==='down')&&b.holder===p;
+  if(holder&&p===P.qb&&!P.qbRan&&P.off.type==='pass'&&!P.thrown){for(const s of ['L','R']){u['sh'+s].rotation.x=-0.7;u['el'+s].rotation.x=-1.3;}} // ball up, ready to throw
+  else if(holder){u.shR.rotation.x=-0.25;u.elR.rotation.x=-1.75;}                                          // ball tucked
+  return{y:A*0.07*Math.abs(Math.sin(ph))-stance*0.22,lean:0.2*A+stance*0.45};
+}
 function render(dt){
   if(!renderer)return;
   if(P){
     for(const p of P.pl){
       const m=p.mesh,ud=m.userData,sp=Math.hypot(p.vx,p.vz);
       if(sp>0.4)p.face=lerpAngle(p.face,Math.atan2(p.vx,p.vz),Math.min(1,dt*10));
-      p.anim+=sp*dt*2.3;const amp=Math.min(1,sp/6)*0.85,s=Math.sin(p.anim)*amp;
-      ud.legL.rotation.x=s;ud.legR.rotation.x=-s;ud.armL.rotation.x=-s*0.8;ud.armR.rotation.x=s*0.8;
-      m.position.set(p.x,0,p.z);m.rotation.y=p.face;m.rotation.x=p.fall*1.35;
+      const pose=animatePlayer(p,ud,dt,sp);
+      m.position.set(p.x,pose.y,p.z);m.rotation.y=p.face;m.rotation.x=p.fall*1.35+pose.lean;
     }
   }
   const bp=ballPos();
