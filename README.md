@@ -6,6 +6,7 @@ Live at https://fightscramble.com. Cloudflare Pages deploys every push to `main`
 |---|---|---|
 | Prop Pilot | `src/prop_pilot.src.html` | `perl src/build.pl` (writes `prop-pilot.html`) |
 | High Command | `high-command.html` | nothing to build |
+| Fourth & Goal | `fourth-and-goal.html` | nothing to build |
 
 ## Update workflow
 1. `git switch main && git pull` then `git switch -c feature/<name>`
