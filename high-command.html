@@ -1241,6 +1241,6 @@ if(/[?&]test/.test(location.search)){
  player=-1;resize();showStart();requestAnimationFrame(frame);
 }
 </script>
-<script>if(location.protocol.startsWith("http")&&!(()=>{try{return localStorage.getItem("fs_me")}catch(e){}})())fetch("/api/visits",{method:"POST",keepalive:true}).catch(()=>{})</script>
+<script>if(location.protocol.startsWith("http"))fetch("/api/visits",{method:"POST",keepalive:true}).catch(()=>{})</script>
 </body>
 </html>
