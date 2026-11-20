@@ -760,5 +760,4 @@ function frame0(ts){requestAnimationFrame(frame);const dt=Math.max(0,Math.min(.0
 for(const[e,f]of[[document.getElementById('bg'),v=>gunBtn=v],[document.getElementById('br'),v=>rocBtn=v]]){e.addEventListener('pointerdown',ev=>{ev.preventDefault();f(1)});['pointerup','pointerleave','pointercancel'].forEach(n=>e.addEventListener(n,()=>f(0)))}
 document.getElementById('bf').addEventListener('pointerdown',ev=>{ev.preventDefault();dropFlares()});document.getElementById('bb').addEventListener('pointerdown',ev=>{ev.preventDefault();fireAAM()});
 meshLoad().then(()=>{glInit();if(GLT){reset();setCard();requestAnimationFrame(frame)}else document.body.innerHTML='<p style="font:20px Georgia;padding:40px">Prop Pilot needs WebGL2. Please open it in an up-to-date Chrome, Safari, Firefox or Edge.</p>';})
-if(location.protocol.startsWith("http"))fetch("/api/visits",{method:"POST",keepalive:true}).catch(()=>{});// visitor counter (functions/api/visits.js)
 </script></body></html>
