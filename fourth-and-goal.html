@@ -296,7 +296,7 @@ function fgProb(d){const t=[[18,0.995],[30,0.97],[40,0.9],[50,0.76],[55,0.62],[6
 // ======================================================================
 // 3D scene
 // ======================================================================
-let renderer=null,scene,camera,fieldCanvas,fieldTex,losMesh,fdMesh,ballMesh,ringMesh,sun;const tgSprites=[];
+let pixRatio=Math.min(devicePixelRatio,1.5),renderer=null,scene,camera,fieldCanvas,fieldTex,losMesh,fdMesh,ballMesh,ringMesh,sun;const tgSprites=[];
 const camPos=new THREE.Vector3(0,30,-30),camLook=new THREE.Vector3(0,0,50);
 function makeCrowdTex(rep){
   const c=document.createElement('canvas');c.width=256;c.height=64;const x=c.getContext('2d');
@@ -308,14 +308,13 @@ function makeCrowdTex(rep){
 function init3D(){
   scene=new THREE.Scene();scene.background=new THREE.Color(0x0f1a33);scene.fog=new THREE.Fog(0x0f1a33,150,330);
   camera=new THREE.PerspectiveCamera(64,innerWidth/innerHeight,0.1,800);
-  if(!NORENDER){renderer=new THREE.WebGLRenderer({canvas:$('#gl'),antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;}
+  if(!NORENDER){renderer=new THREE.WebGLRenderer({canvas:$('#gl'),antialias:true});renderer.setPixelRatio(pixRatio);renderer.setSize(innerWidth,innerHeight);}
   scene.add(new THREE.HemisphereLight(0xdde8ff,0x2a4020,0.7));
-  sun=new THREE.DirectionalLight(0xffffff,0.8);sun.position.set(25,60,-15);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
-  Object.assign(sun.shadow.camera,{left:-45,right:45,top:45,bottom:-45,near:1,far:160});scene.add(sun);scene.add(sun.target);
-  const ground=new THREE.Mesh(new THREE.PlaneGeometry(160,240),new THREE.MeshLambertMaterial({color:0x1f5122}));ground.rotation.x=-Math.PI/2;ground.position.set(0,-0.03,50);ground.receiveShadow=true;scene.add(ground);
+  sun=new THREE.DirectionalLight(0xffffff,0.8);sun.position.set(25,60,-15);scene.add(sun);
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(160,240),new THREE.MeshLambertMaterial({color:0x1f5122}));ground.rotation.x=-Math.PI/2;ground.position.set(0,-0.03,50);scene.add(ground);
   fieldCanvas=document.createElement('canvas');fieldCanvas.width=1067;fieldCanvas.height=2400;
   fieldTex=new THREE.CanvasTexture(fieldCanvas);if(renderer)fieldTex.anisotropy=renderer.capabilities.getMaxAnisotropy();
-  const field=new THREE.Mesh(new THREE.PlaneGeometry(53.333,120),new THREE.MeshLambertMaterial({map:fieldTex}));field.rotation.x=-Math.PI/2;field.position.set(0,0,50);field.receiveShadow=true;scene.add(field);
+  const field=new THREE.Mesh(new THREE.PlaneGeometry(53.333,120),new THREE.MeshLambertMaterial({map:fieldTex}));field.rotation.x=-Math.PI/2;field.position.set(0,0,50);scene.add(field);
   // stands
   const sideMat=new THREE.MeshLambertMaterial({map:makeCrowdTex(24)}),endMat=new THREE.MeshLambertMaterial({map:makeCrowdTex(12)}),wall=new THREE.MeshLambertMaterial({color:0x2b3550});
   for(let k=0;k<9;k++){
@@ -336,7 +335,7 @@ function init3D(){
   }
   losMesh=new THREE.Mesh(new THREE.BoxGeometry(53.33,0.02,0.16),new THREE.MeshBasicMaterial({color:0x2f7bff}));losMesh.position.y=0.03;scene.add(losMesh);
   fdMesh=new THREE.Mesh(new THREE.BoxGeometry(53.33,0.02,0.16),new THREE.MeshBasicMaterial({color:0xffe600}));fdMesh.position.y=0.035;scene.add(fdMesh);
-  ballMesh=new THREE.Mesh(new THREE.SphereGeometry(0.15,14,10),new THREE.MeshLambertMaterial({color:0x7a3e1a}));ballMesh.scale.set(1,1,1.75);ballMesh.castShadow=true;scene.add(ballMesh);
+  ballMesh=new THREE.Mesh(new THREE.SphereGeometry(0.15,14,10),new THREE.MeshLambertMaterial({color:0x7a3e1a}));ballMesh.scale.set(1,1,1.75);scene.add(ballMesh);
   ringMesh=new THREE.Mesh(new THREE.RingGeometry(0.7,0.9,28),new THREE.MeshBasicMaterial({color:0xffcc33,transparent:true,opacity:0.85,side:THREE.DoubleSide}));ringMesh.rotation.x=-Math.PI/2;ringMesh.position.y=0.05;scene.add(ringMesh);
   const TGC=['#ffcc33','#35d0ff','#ff5ccf'];
   for(let i=0;i<3;i++){const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');x.fillStyle=TGC[i];x.beginPath();x.arc(32,32,28,0,7);x.fill();x.lineWidth=4;x.strokeStyle='#000';x.stroke();x.fillStyle='#000';x.font='bold 40px sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(TGKEYS[i],32,34);
@@ -362,7 +361,7 @@ function drawField(offT,defT){
   fieldTex.needsUpdate=true;
 }
 // ---------- player model (from ironhawks_football_players.glb, home uniform, recolored per team) ----------
-let PM=null,PMAT=null;
+let PM=null,PMAT=null,BLOB=null,PM_TRIS=null;
 const PM_S=0.66,PM_CX=-2.35,PM_CY=0.02; // model is Z-up, faces -Y, ~3.3 units tall
 // joint pivots in model units [x, height]: hips, knees, shoulders, elbows
 const PM_PIV={body:[-2.35,1.42],hipL:[-2.57,1.42],kneeL:[-2.57,1.02],hipR:[-2.13,1.42],kneeR:[-2.13,1.02],shL:[-3.0,2.3],elL:[-3.07,1.9],shR:[-1.7,2.3],elR:[-1.63,1.9]};
@@ -395,14 +394,30 @@ function teamPalette(t,home){
   if(home)return Object.assign(base,{pri:t.c1,sec:t.c2,pants:t.c1,stripe:'#f2f2f2',num:luma(t.c1)>0.6?'#151515':'#f4f4f4'});
   return Object.assign(base,{pri:'#f2f2f2',sec:t.c1,pants:t.c1,stripe:t.c1,num:t.c1});
 }
+// Simplify a part by snapping its vertices to a grid (vertex clustering). Returns a flat xyz list, 3 vertices per triangle.
+function pmDecimate(part){
+  const vo=part.v[0],nv=part.v[1]/3,[io,ic]=PLAYER_MODEL.idx[part.i],V=i=>vo+i*3;
+  const out=[];
+  if(ic/3<=120){for(let k=0;k<ic;k++){const v=V(PM.u[io+k]);out.push(PM.f[v],PM.f[v+1],PM.f[v+2]);}return out;}
+  let mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];
+  for(let i=0;i<nv;i++)for(let a=0;a<3;a++){const c=PM.f[V(i)+a];if(c<mn[a])mn[a]=c;if(c>mx[a])mx[a]=c;}
+  const cell=Math.max(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2])/(ic/3>1000?9:6);
+  const cl=new Map(),id=new Int32Array(nv),sum=[];
+  for(let i=0;i<nv;i++){const v=V(i),key=Math.floor((PM.f[v]-mn[0])/cell)+','+Math.floor((PM.f[v+1]-mn[1])/cell)+','+Math.floor((PM.f[v+2]-mn[2])/cell);
+    let c=cl.get(key);if(c==null){c=sum.length;cl.set(key,c);sum.push([0,0,0,0]);}id[i]=c;const s=sum[c];s[0]+=PM.f[v];s[1]+=PM.f[v+1];s[2]+=PM.f[v+2];s[3]++;}
+  for(let k=0;k<ic;k+=3){const a=id[PM.u[io+k]],b=id[PM.u[io+k+1]],c=id[PM.u[io+k+2]];if(a===b||b===c||a===c)continue;
+    for(const q of [a,b,c]){const s=sum[q];out.push(s[0]/s[3],s[1]/s[3],s[2]/s[3]);}}
+  return out;
+}
 function buildLookGeos(pal){
   if(!PM){const raw=atob(PLAYER_MODEL.bin),buf=new ArrayBuffer(raw.length),u8=new Uint8Array(buf);for(let i=0;i<raw.length;i++)u8[i]=raw.charCodeAt(i);PM={f:new Float32Array(buf),u:new Uint32Array(buf)};}
   const acc={};
-  for(const part of PLAYER_MODEL.parts){
+  if(!PM_TRIS)PM_TRIS=PLAYER_MODEL.parts.filter(p=>!/stud/.test(p.n)).map(p=>({part:p,tris:pmDecimate(p)}));
+  for(const {part,tris} of PM_TRIS){
     const g=pmGroup(part.n),a=acc[g]||(acc[g]={pos:[],col:[]});
-    const col=new THREE.Color(pal[pmSlot(part)]),vo=part.v[0],[io,ic]=PLAYER_MODEL.idx[part.i];
+    const col=new THREE.Color(pal[pmSlot(part)]);
     const piv=PM_PIV[g],px=piv?(piv[0]-PM_CX)*PM_S:0,py=piv?piv[1]*PM_S:0;
-    for(let k=0;k<ic;k++){const vi=vo+PM.u[io+k]*3,x=PM.f[vi],y=PM.f[vi+1],z=PM.f[vi+2];
+    for(let k=0;k<tris.length;k+=3){const x=tris[k],y=tris[k+1],z=tris[k+2];
       a.pos.push((x-PM_CX)*PM_S-px,z*PM_S-py,-(y-PM_CY)*PM_S);a.col.push(col.r,col.g,col.b);}
   }
   const out={};
@@ -413,9 +428,11 @@ function buildPlayerMesh(geos){
   if(!PMAT)PMAT=new THREE.MeshLambertMaterial({vertexColors:true});
   const g=new THREE.Group();g.rotation.order='YXZ';
   const torso=new THREE.Group();torso.position.set(0,PM_PIV.body[1]*PM_S,0);g.add(torso);
-  const body=new THREE.Mesh(geos.body,PMAT);body.castShadow=true;torso.add(body);
-  const ud={},joint=(k,parent,pp)=>{const piv=PM_PIV[k],j=new THREE.Group();j.position.set((piv[0]-pp[0])*PM_S,(piv[1]-pp[1])*PM_S,0);const m=new THREE.Mesh(geos[k],PMAT);m.castShadow=true;j.add(m);parent.add(j);ud[k]=j;return j;};
+  const body=new THREE.Mesh(geos.body,PMAT);torso.add(body);
+  const ud={},joint=(k,parent,pp)=>{const piv=PM_PIV[k],j=new THREE.Group();j.position.set((piv[0]-pp[0])*PM_S,(piv[1]-pp[1])*PM_S,0);const m=new THREE.Mesh(geos[k],PMAT);j.add(m);parent.add(j);ud[k]=j;return j;};
   for(const [up,lo] of PM_CHAIN){const arm=up.startsWith('sh');const j=arm?joint(up,torso,PM_PIV.body):joint(up,g,[PM_CX,0]);joint(lo,j,PM_PIV[up]);}
+  if(!BLOB)BLOB={geo:new THREE.CircleGeometry(0.55,16).rotateX(-Math.PI/2),mat:new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.32,depthWrite:false})};
+  const blob=new THREE.Mesh(BLOB.geo,BLOB.mat);blob.renderOrder=1;g.add(blob);ud.blob=blob;
   ud.torso=torso;g.userData=ud;g.visible=false;scene.add(g);return g;
 }
 function buildTeamMeshes(tid,home){const geos=buildLookGeos(teamPalette(TEAMS[tid],home));const a=[];for(let i=0;i<11;i++)a.push(buildPlayerMesh(geos));a.geos=geos;return a;}
@@ -1211,7 +1228,7 @@ function render(dt){
 
       const pose=animatePlayer(p,ud,dt,sp);
       if(pose.face!=null)p.face=lerpAngle(p.face,pose.face,Math.min(1,dt*10));else if(sp>0.4)p.face=lerpAngle(p.face,Math.atan2(p.vx,p.vz),Math.min(1,dt*10));
-      m.position.set(p.x,pose.y,p.z);m.rotation.y=p.face;m.rotation.x=p.fall*1.35;
+      m.position.set(p.x,pose.y,p.z);ud.blob.position.y=0.03-pose.y;m.rotation.y=p.face;m.rotation.x=p.fall*1.35;
     }
   }
   const bp=ballPos();
@@ -1226,7 +1243,6 @@ function render(dt){
   const rp=P&&P.userDef?P.ctrl:(h&&P.userOff&&h.team==='O'?h:null);
   ringMesh.visible=!!(rp&&!K&&!P.over);if(ringMesh.visible){ringMesh.position.set(rp.x,0.05,rp.z);ringMesh.material.color.set(P.userDef?0x35d0ff:0xffcc33);}
   updateCamera(dt,bp);
-  sun.position.set(camLook.x+25,60,camLook.z-15);sun.target.position.set(camLook.x,0,camLook.z);
   renderer.render(scene,camera);
 }
 function updateCamera(dt,bp){
@@ -1578,12 +1594,14 @@ function step(dt){
   if(K&&!K.done)updateKick(dt);
 }
 let lastT=performance.now();
+const perf={t:0,n:0};
 function frame(now){
   if(DEMO)setTimeout(()=>frame(performance.now()),16);else requestAnimationFrame(frame);
   const raw=(now-lastT)/1000;lastT=now;const dt=Math.min(0.05,raw);
-  if(DEMO){let left=Math.min(raw,5);while(left>0){const s=Math.min(1/40,left);step(s);left-=s;}}else step(dt);
+  let left=Math.min(raw,DEMO?5:0.25);while(left>1e-6){const s=Math.min(1/60,left);step(s);left-=s;}
   updateHUD();render(dt);
-  if(DEMO&&(window._fc=(window._fc||0)+1)%120===0)report(`DEMOHB fc=${window._fc} raw=${raw.toFixed(3)} phase=${G&&G.phase} plays=${G&&G.st[0].plays+G.st[1].plays} paused=${G&&G.paused} sim=${simTime.toFixed(1)}`);
+  if(renderer&&!DEMO){perf.t+=raw;perf.n++;if(perf.t>=2){const fps=perf.n/perf.t;perf.t=0;perf.n=0;if(fps<40&&pixRatio>0.75){pixRatio=Math.max(0.75,pixRatio-0.25);renderer.setPixelRatio(pixRatio);renderer.setSize(innerWidth,innerHeight);}}}
+  if(DEMO&&(window._fc=(window._fc||0)+1)%120===0)report(`DEMOHB fc=${window._fc} raw=${raw.toFixed(3)} phase=${G&&G.phase} plays=${G&&G.st[0].plays+G.st[1].plays} paused=${G&&G.paused} tris=${renderer&&renderer.info.render.triangles} calls=${renderer&&renderer.info.render.calls} sim=${simTime.toFixed(1)}`);
   if(DEMO&&STOPAT&&G&&G.paused&&!window._shot&&renderer&&(window._pf=(window._pf||0)+1)>60){window._shot=1;report(document.getElementById("gl").toDataURL("image/jpeg",0.85));}
 }
 
