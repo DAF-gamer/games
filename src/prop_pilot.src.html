@@ -150,7 +150,7 @@ function blast(x,y,z,R,s){boom(x,y,z,R*1.6,1.1);if(Math.hypot(x-X,z-Z)<500)shake
  if(n){pts(40*n,n>1?'Direct hits! +'+40*n:'Target destroyed! +40');if(ruins.length>40)ruins.splice(0,ruins.length-40)}}
 function weapons(dt){
  const sy=Math.sin(yaw),cy=Math.cos(yaw),sp=Math.sin(pitch),cp=Math.cos(pitch),dx=sy*cp,dy=sp,dz=cy*cp,rx=cy,rz=-sy;gT-=dt;rT-=dt;
- if((keys.f||gunBtn)&&gT<=0){gT=PL().gun;gcount++;const sd=gcount%2?14:-14,v=speed+1100;bullets.push({x:X+dx*20+rx*sd,y:alt+dy*20-5,z:Z+dz*20+rz*sd,vx:dx*v,vy:dy*v,vz:dz*v,l:1.3});shake=Math.max(shake,.05);}
+ if((keys.f||gunBtn)&&gT<=0){gT=PL().gun;gcount++;const sd=gcount%2?14:-14,v=speed+1100,gl=SAVE.up.gun|0,dm=.25*(1+.4*gl);for(const s of gl?[-.03,0,.03]:[0])bullets.push({x:X+dx*20+rx*sd,y:alt+dy*20-5,z:Z+dz*20+rz*sd,vx:(dx+rx*s)*v,vy:dy*v,vz:(dz+rz*s)*v,l:1.3,dm});shake=Math.max(shake,.05);}
  if(aamF){aamF=0;const q=aamT();if(!q){msg='AAM: no aircraft ahead';msgT=1.2}else if(aam>0){aam--;const v=speed+450;rockets.push({x:X+dx*20,y:alt+dy*20-14,z:Z+dz*20,vx:dx*v,vy:dy*v,vz:dz*v,l:8,lk:q,lk0:q,aam:1});msg='FOX 2! AAM away at '+NM[q.t].toLowerCase();msgT=1.5}}
  if((keys.r||rocBtn)&&rT<=0&&rk>0){rT=.45;rk--;const sd=rk%2?30:-30,v=speed+300;rockets.push({x:X+dx*20+rx*sd,y:alt+dy*20-12,z:Z+dz*20+rz*sd,vx:dx*v,vy:dy*v,vz:dz*v,l:4,lk:lkP>=1?lkT:null,lk0:lkP>=1?lkT:null});}
  if(rk<PL().rk){rkT+=dt;if(rkT>5){rkT=0;rk++}}
@@ -158,7 +158,7 @@ function weapons(dt){
   if(b.y<=TH(b.x,b.z)){b.l=0;booms.push({x:b.x,y:b.y,z:b.z,l:.4,m:.4,R:10,d:1})}
   else{for(const q of birds)if(!q.dead&&Math.hypot(q.x-b.x,q.y-b.y,q.z-b.z)<24){q.dead=1;b.l=0;boom(q.x,q.y,q.z,28,.5);pts(20,'Bird! +20')}
    for(const q of balls)if(t>=(q.d||0)&&Math.hypot(wr(q.x-b.x,6000),wr(q.z-b.z,6000),q.y-b.y)<40){q.d=t+20;b.l=0;boom(b.x,b.y,b.z,70,.7);pts(30,'Balloon! +30')}
-   for(const q of tg)if(q.alive&&Math.hypot(q.x-b.x,q.y+8-b.y,q.z-b.z)<RAD[q.t]){b.l=0;boom(b.x,b.y,b.z,14,.25);dmgT(q,.25)}
+   for(const q of tg)if(q.alive&&Math.hypot(q.x-b.x,q.y+8-b.y,q.z-b.z)<RAD[q.t]){b.l=0;boom(b.x,b.y,b.z,14,.25);dmgT(q,b.dm)}
    for(const e of ebul)if(e.m&&e.l>0&&Math.hypot(e.x-b.x,e.y-b.y,e.z-b.z)<34){e.l=0;b.l=0;boom(e.x,e.y,e.z,40,.6);pts(25,'Missile shot down! +25')}}}
  bullets=bullets.filter(b=>b.l>0);
  for(const r of rockets){const a=r.aam?(Math.hypot(r.vx,r.vy,r.vz)<1700?1+dt*1.2:1):1+dt*.3;r.vx*=a;r.vy*=a;r.vz*=a;if(r.lk&&r.lk.alive){const q=r.lk,sp=Math.hypot(r.vx,r.vy,r.vz),tl=r.aam?Math.min(3,Math.hypot(q.x-r.x,q.y-r.y,q.z-r.z)/sp):0,ex=q.x+(q.vx||0)*tl-r.x,ey=q.y+(q.vy||0)*tl+8-r.y,ez=q.z+(q.vz||0)*tl-r.z,ed=Math.hypot(ex,ey,ez)||1,k=Math.min(1,dt*(r.aam?9:3)),nx=r.vx/sp+(ex/ed-r.vx/sp)*k,ny=r.vy/sp+(ey/ed-r.vy/sp)*k,nz=r.vz/sp+(ez/ed-r.vz/sp)*k,nl=Math.hypot(nx,ny,nz)||1;r.vx=nx/nl*sp;r.vy=ny/nl*sp;r.vz=nz/nl*sp}r.x+=r.vx*dt;r.y+=r.vy*dt;r.z+=r.vz*dt;r.l-=dt;tPush({x:r.x,y:r.y,z:r.z,l:1.1});
@@ -254,8 +254,8 @@ function scen3(o){if(o.t==5&&P3)houseSmoke(o)}
 function af3(ty,bx,bz){const m=M3.A[ty];if(!P3)return;
  if(ty==3){const r=P3(bx,152*m.k,bz);if(r){const s=F/r[2]*m.k,on=Math.sin(t*4)>0;ctx.fillStyle=on?'#7dff7d':'#2a5a2a';ctx.beginPath();ctx.arc(r[0],r[1],Math.max(2.5,6*s),0,7);ctx.fill();if(on){ctx.fillStyle='rgba(125,255,125,.25)';ctx.beginPath();ctx.arc(r[0],r[1],Math.max(8,18*s),0,7);ctx.fill()}}}}
 // ---- gameplay: mission types, fighters, bosses (B-2 strike every 3 boss kills), mountain radar station, combos, hangar upgrades, runway service
-const UPG={armor:{n:'Armor plating',d:'+1 hull per level.',cost:[1000,2500]},flares:{n:'Flare pods',d:'+2 flares per level.',cost:[600,1500]}};
-SAVE.up=Object.assign({armor:0,flares:0},SAVE.up||{});if(SAVE.up.bomb){SAVE.pts+=1500;delete SAVE.up.bomb;svSave()}
+const UPG={armor:{n:'Armor plating',d:'+1 hull per level.',cost:[1000,2500]},flares:{n:'Flare pods',d:'+2 flares per level.',cost:[600,1500]},gun:{n:'Spread gun',d:'Fires 3 rounds in a spread. +40% damage per level.',cost:[1200,3000]}};
+SAVE.up=Object.assign({armor:0,flares:0,gun:0},SAVE.up||{});if(SAVE.up.bomb){SAVE.pts+=1500;delete SAVE.up.bomb;svSave()}
 const MX=()=>PL().hull+(SAVE.up.armor|0),MF=()=>4+2*(SAVE.up.flares|0);
 var BASE=null,chainQ=[],cvHint=0,evM=0,combo=1,comboT=0,bossKills=0,b2=null,wm=null,wmCD=0,wbul=[],mType='strike',mTime=0,gbL=[],radarDown=false,svcT=0,svcOn=0,PAD=null,msgQ=[];
 NM.push('Fighter','Radar station','Armored train');HP.push(4,14,15);RAD.push(28,40,44);SC.push(300,1000,1500);NM.push('Armor depot');HP.push(24);RAD.push(60);SC.push(1500);
