@@ -365,7 +365,7 @@ function drawField(offT,defT){
 let PM=null,PMAT=null;
 const PM_S=0.66,PM_CX=-2.35,PM_CY=0.02; // model is Z-up, faces -Y, ~3.3 units tall
 // joint pivots in model units [x, height]: hips, knees, shoulders, elbows
-const PM_PIV={hipL:[-2.57,1.42],kneeL:[-2.57,1.02],hipR:[-2.13,1.42],kneeR:[-2.13,1.02],shL:[-3.0,2.3],elL:[-3.07,1.9],shR:[-1.7,2.3],elR:[-1.63,1.9]};
+const PM_PIV={body:[-2.35,1.42],hipL:[-2.57,1.42],kneeL:[-2.57,1.02],hipR:[-2.13,1.42],kneeR:[-2.13,1.02],shL:[-3.0,2.3],elL:[-3.07,1.9],shR:[-1.7,2.3],elR:[-1.63,1.9]};
 const PM_CHAIN=[['hipL','kneeL'],['hipR','kneeR'],['shL','elL'],['shR','elR']];
 function pmGroup(n){
   const s=n[0];
@@ -412,10 +412,11 @@ function buildLookGeos(pal){
 function buildPlayerMesh(geos){
   if(!PMAT)PMAT=new THREE.MeshLambertMaterial({vertexColors:true});
   const g=new THREE.Group();g.rotation.order='YXZ';
-  const body=new THREE.Mesh(geos.body,PMAT);body.castShadow=true;g.add(body);
+  const torso=new THREE.Group();torso.position.set(0,PM_PIV.body[1]*PM_S,0);g.add(torso);
+  const body=new THREE.Mesh(geos.body,PMAT);body.castShadow=true;torso.add(body);
   const ud={},joint=(k,parent,pp)=>{const piv=PM_PIV[k],j=new THREE.Group();j.position.set((piv[0]-pp[0])*PM_S,(piv[1]-pp[1])*PM_S,0);const m=new THREE.Mesh(geos[k],PMAT);m.castShadow=true;j.add(m);parent.add(j);ud[k]=j;return j;};
-  for(const [up,lo] of PM_CHAIN){const j=joint(up,g,[PM_CX,0]);joint(lo,j,PM_PIV[up]);}
-  g.userData=ud;g.visible=false;scene.add(g);return g;
+  for(const [up,lo] of PM_CHAIN){const arm=up.startsWith('sh');const j=arm?joint(up,torso,PM_PIV.body):joint(up,g,[PM_CX,0]);joint(lo,j,PM_PIV[up]);}
+  ud.torso=torso;g.userData=ud;g.visible=false;scene.add(g);return g;
 }
 function buildTeamMeshes(tid,home){const geos=buildLookGeos(teamPalette(TEAMS[tid],home));const a=[];for(let i=0;i<11;i++)a.push(buildPlayerMesh(geos));a.geos=geos;return a;}
 function removeTeamMeshes(){if(!G||!G.meshes)return;for(const s of G.meshes){for(const m of s)scene.remove(m);if(s.geos)for(const k in s.geos)s.geos[k].dispose();}}
@@ -750,6 +751,7 @@ if(AUTO&&(P.caught||P.isRun)&&P.live&&P.ball.holder&&Math.floor(P.t*2)!==P._ls){
   }else if(P.over){
     for(const p of P.pl){p.vx*=0.88;p.vz*=0.88;p.x+=p.vx*dt;p.z+=p.vz*dt;}
     if(P.tackled)P.tackled.fall=Math.min(1,P.tackled.fall+dt*3);
+    if(P.tackled&&P.tackler)P.tackler.fall=Math.min(0.85,P.tackler.fall+dt*3);
     const b=P.ball;if(b.state==='fall'){b.y=Math.max(0.15,b.y-dt*4);}
   }
 }
@@ -962,7 +964,7 @@ function throwTo(r){
   const pr=nearestRusher();if(pr.d<2.2)err+=0.9*(2.2-pr.d);if(Math.hypot(qb.vx,qb.vz)>3)err+=0.4;
   tx+=gauss()*err*0.6;tz+=gauss()*err;
   startAir(qb,r,tx,tz,T,false);
-  P.thrown=true;G.st[P.O].att++;P.throwFrom={x:qb.x,z:qb.z};
+  P.thrown=true;G.st[P.O].att++;P.throwFrom={x:qb.x,z:qb.z};qb.throwT=P.t;
   for(const p of P.pl)if(p.team==='D')p.ballReact=P.t+p.react+0.1;
   return true;
 }
@@ -1031,6 +1033,7 @@ function describe(h,z,sack){
   return gain>=0?`${label(h)} runs for ${gain} ${yd}.`:`${label(h)} loses ${g}.`;
 }
 function deadAt(h,oob,tackler){
+  P.tackler=tackler||null;
   const dir=h.team==='O'?1:-1;
   let z=h.z+(oob?0:dir*0.9*clamp(h.vz*dir/4,0,1));
   if(oob)z=h.z;
@@ -1138,33 +1141,77 @@ function ballPos(){
   if(b.state==='fall')return{x:b.x,y:b.y,z:b.z};
   return null;
 }
-// Run cycle: thighs swing from the hip, knees fold most while the leg swings through,
-// arms swing opposite the legs with bent elbows; linemen crouch in a stance before the snap.
+// ---------- player animation ----------
+// Joint-angle curves from sprint motion-capture studies, sampled every 10% of a stride
+// (u=0 is foot strike; stance ends ~u=0.27). Degrees of flexion: hip + = thigh forward, knee + = bent.
+// Peak swing knee flexion ~120-125 deg, hip ~70 deg in front / ~18 deg behind at toe-off, ~40 deg knee bend in stance.
+const HIP_RUN=[40,22,0,-18,-8,20,50,68,72,58];
+const KNEE_RUN=[25,42,30,28,75,118,125,100,60,22];
+const D2R=Math.PI/180,LEG_T=0.4*PM_S,LEG_S=0.99*PM_S,HIP_H=1.42*PM_S; // thigh, shank, hip height (yards)
+function cyc(a,u){u=((u%1)+1)%1;const n=a.length,x=u*n,i=Math.floor(x),t=x-i,p0=a[(i+n-1)%n],p1=a[i%n],p2=a[(i+1)%n],p3=a[(i+2)%n];
+  return 0.5*(2*p1+(-p0+p2)*t+(2*p0-5*p1+4*p2-p3)*t*t+(-p0+3*p1-3*p2+p3)*t*t*t);}
+const STANCES={ // pre-snap poses (degrees): [hipL,kneeL,hipR,kneeR,shL,elL,shR,elR,lean]
+  line:[80,115,80,115,40,60,70,5,70],          // three-point stance, right hand down
+  qb:[15,25,15,25,35,105,35,105,12],
+  wr:[38,40,-5,20,20,70,20,70,30],             // staggered two-point stance
+  rb:[40,45,40,45,45,30,45,30,35],             // hands on thighs
+  def:[35,50,35,50,30,70,30,70,25],            // athletic ready stance
+};
+function stanceFor(p){if(p.role==='OL'||p.role==='DL')return STANCES.line;if(p.role==='QB')return STANCES.qb;if(p.role==='WR'||p.role==='TE')return STANCES.wr;if(p.role==='RB'||p.role==='FB')return STANCES.rb;return STANCES.def;}
+function backpedaling(p){
+  return p.team==='D'&&(p.role==='CB'||p.role==='S'||p.role==='LB')&&P.live&&p.z>P.los&&p.vz>1&&p.vz>Math.abs(p.vx)*0.6
+    &&P.ball.state==='held'&&P.ball.holder===P.qb&&!P.qbRan&&!P.handed;
+}
 function animatePlayer(p,u,dt,sp){
-  p.anim+=sp*dt*2.9;                                   // about one stride every 2.2 yards
-  const tgt=Math.min(1,sp/7);p.amp=(p.amp||0)+(tgt-(p.amp||0))*Math.min(1,dt*6);
-  const A=p.amp,ph=p.anim;
-  const stance=(!P.live&&!P.over&&(p.role==='OL'||p.role==='DL'))?1:0;
-  for(const [s,off] of [['L',0],['R',Math.PI]]){
-    const f=ph+off,sn=Math.sin(f),cs=Math.cos(f);
-    u['hip'+s].rotation.x=-0.8*A*sn-stance*0.75;            // negative = thigh forward
-    u['knee'+s].rotation.x=0.1+A*(0.2+1.3*Math.max(0,cs))+stance*1.15;
-    u['sh'+s].rotation.x=0.65*A*sn-stance*0.35;              // arm swings opposite its leg
-    u['el'+s].rotation.x=-(0.2+1.1*A)-0.25*A*Math.max(0,sn)-stance*0.5;
+  const ease=Math.min(1,dt*8);
+  const A0=Math.min(1,sp/8.5);p.amp=(p.amp||0)+(A0-(p.amp||0))*Math.min(1,dt*6);const A=p.amp;
+  const acc=(sp-(p.lsp||0))/Math.max(dt,1e-3);p.lsp=sp;p.acc=(p.acc||0)+(acc-(p.acc||0))*Math.min(1,dt*4);
+  let q; // target pose in degrees
+  const bp=backpedaling(p);
+  if(!P.live&&!P.over&&sp<0.5){const s=stanceFor(p);q={hipL:s[0],kneeL:s[1],hipR:s[2],kneeR:s[3],shL:s[4],elL:s[5],shR:s[6],elR:s[7],lean:s[8]};}
+  else if(bp){ // low, choppy backpedal facing the quarterback
+    p.cyc=(p.cyc||0)-dt*sp/1.4;const w=2*Math.PI*p.cyc;
+    q={hipL:45+18*Math.sin(w),kneeL:70+25*Math.sin(w+1.2),hipR:45-18*Math.sin(w),kneeR:70-25*Math.sin(w+1.2),
+       shL:20*Math.sin(w+Math.PI),elL:80,shR:20*Math.sin(w),elR:80,lean:30};
+  }else{
+    p.cyc=(p.cyc||0)+dt*sp/(2.2+0.2*sp);       // stride rate rises with speed (~2.2 strides/s at sprint)
+    const uL=p.cyc,uR=p.cyc+0.5,n={hip:5,knee:8,sh:0,el:25};
+    const hL=cyc(HIP_RUN,uL),hR=cyc(HIP_RUN,uR);
+    const mix=(neu,v)=>neu+A*(v-neu);
+    const shL=1.25*(hR-28),shR=1.25*(hL-28);    // each arm swings with the opposite leg
+    q={hipL:mix(n.hip,hL),kneeL:mix(n.knee,cyc(KNEE_RUN,uL)),hipR:mix(n.hip,hR),kneeR:mix(n.knee,cyc(KNEE_RUN,uR)),
+       shL:mix(n.sh,shL),elL:mix(n.el,90+0.3*shL),shR:mix(n.sh,shR),elR:mix(n.el,90+0.3*shR),
+       lean:8*A+clamp(p.acc*1.6,0,22)};
   }
+  // situational upper-body overrides
   const b=P.ball,holder=b&&(b.state==='held'||b.state==='down')&&b.holder===p;
-  if(holder&&p===P.qb&&!P.qbRan&&P.off.type==='pass'&&!P.thrown){for(const s of ['L','R']){u['sh'+s].rotation.x=-0.7;u['el'+s].rotation.x=-1.3;}} // ball up, ready to throw
-  else if(holder){u.shR.rotation.x=-0.25;u.elR.rotation.x=-1.75;}                                          // ball tucked
-  return{y:A*0.07*Math.abs(Math.sin(ph))-stance*0.22,lean:0.2*A+stance*0.45};
+  if(p.throwT!=null&&P.t-p.throwT<0.35){const k=clamp((P.t-p.throwT-0.05)/0.25,0,1),e=k*k*(3-2*k);q.shR=200-170*e;q.elR=110-100*e;} // overhand throw
+  else if(holder&&p===P.qb&&!P.qbRan&&P.off.type==='pass'&&!P.thrown){q.shL=q.shR=35;q.elL=q.elR=110;}          // ball at the chest
+  else if(holder){q.shR=15;q.elR=110;}                                                                        // ball tucked
+  else if(b&&b.state==='air'&&!b.pitch&&b.target===p&&b.T-b.t<0.45){q.shL=q.shR=150;q.elL=q.elR=15;}          // reach for the catch
+  else if((p.blk&&dist(p,p.blk)<1.4)||blocked(p)){q.shL=q.shR=75;q.elL=q.elR=25;q.lean=Math.max(q.lean,30);}  // hands on the opponent
+  if(P.off&&P.off.type==='kneel'&&p===P.qb&&P.t>0.3){q.hipL=90;q.kneeL=90;q.hipR=-10;q.kneeR=110;q.lean=10;}
+  // ease toward the target pose (stops snapping between poses)
+  const c=p.pose||(p.pose=Object.assign({},q));
+  for(const k in q)c[k]+=(q[k]-c[k])*ease;
+  u.hipL.rotation.x=-c.hipL*D2R;u.kneeL.rotation.x=c.kneeL*D2R;u.hipR.rotation.x=-c.hipR*D2R;u.kneeR.rotation.x=c.kneeR*D2R;
+  u.shL.rotation.x=-c.shL*D2R;u.elL.rotation.x=-c.elL*D2R;u.shR.rotation.x=-c.shR*D2R;u.elR.rotation.x=-c.elR*D2R;
+  u.torso.rotation.x=c.lean*D2R;
+  // keep the planted foot on the ground: hip height comes from the straighter leg
+  const ext=(h,k)=>LEG_T*Math.cos(h*D2R)+LEG_S*Math.cos((h-k)*D2R);
+  let y=Math.max(ext(c.hipL,c.kneeL),ext(c.hipR,c.kneeR))-(LEG_T+LEG_S);
+  if(P.off&&P.off.type==='kneel'&&p===P.qb&&P.t>0.3)y=-0.35;
+  return{y,face:bp?Math.PI:null};
 }
 function render(dt){
   if(!renderer)return;
   if(P){
     for(const p of P.pl){
       const m=p.mesh,ud=m.userData,sp=Math.hypot(p.vx,p.vz);
-      if(sp>0.4)p.face=lerpAngle(p.face,Math.atan2(p.vx,p.vz),Math.min(1,dt*10));
+
       const pose=animatePlayer(p,ud,dt,sp);
-      m.position.set(p.x,pose.y,p.z);m.rotation.y=p.face;m.rotation.x=p.fall*1.35+pose.lean;
+      if(pose.face!=null)p.face=lerpAngle(p.face,pose.face,Math.min(1,dt*10));else if(sp>0.4)p.face=lerpAngle(p.face,Math.atan2(p.vx,p.vz),Math.min(1,dt*10));
+      m.position.set(p.x,pose.y,p.z);m.rotation.y=p.face;m.rotation.x=p.fall*1.35;
     }
   }
   const bp=ballPos();
