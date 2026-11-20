@@ -199,6 +199,8 @@ function meander(pts){const out=[pts[0]];// rivers: same idea, smaller wiggles
  for(let i=1;i<pts.length;i++){const P=pts[i-1],Q=pts[i],rng=mulberry((P[0]*131+Q[1]*977)|0),seg=[];
   (function d(A,B){const dx=B[0]-A[0],dy=B[1]-A[1],L=Math.hypot(dx,dy);if(L<16)return;const o=(rng()*2-1)*L*.18,M=[(A[0]+B[0])/2-dy/L*o,(A[1]+B[1])/2+dx/L*o];d(A,M);seg.push(M);d(M,B);})(P,Q);
   out.push(...seg,Q);}return out;}
+// shown on the start screen; update it with each feature or fix so testers know which build they have
+const VERSION='Bomber landing fix · Nov 19, 2026';
 const UT={
  inf:{name:'Infantry',dom:'land',hp:100,spd:20,atk:{land:9,air:2,sea:0},rng:28,cost:100,time:8,cap:1,desc:'Cheap. Captures cities. Strong in forests, mountains, hills & cities.'},
  tank:{name:'Armor',dom:'land',hp:170,spd:38,atk:{land:18,air:0,sea:0},rng:30,cost:260,time:14,cap:1,desc:'Fast and hard-hitting. Slowed & weakened in forest, mountains & swamp.'},
@@ -1075,7 +1077,7 @@ function showStart(){sPick=3;sDk='normal';lob=null;
     <div class="note">One of you hosts and the other joins with the 5-digit code. You each command a different nation and the computer runs the rest. Every nation is at war with every other, so your friend is an enemy too.</div>`
    :lob.role==='host'?`<div class="sec">HOSTING AN ONLINE GAME</div><div class="mp-row">Your code: <span class="code">${lob.code||'…'}</span><button class="ghost" data-mp="leave">Cancel</button></div><div class="note">${lob.status}</div>`
    :`<div class="sec">JOINING GAME ${lob.code}</div><div class="mp-row"><button class="ghost" data-mp="leave">Leave</button></div><div class="note">${lob.status}</div>`;
-  overlay.innerHTML=`<div class="card"><h1>HIGH COMMAND</h1><p>Four nations. One continent. You hold the office of supreme commander — choose your country. Your country's strengths (▲ ★) only work for human commanders – computer-run countries keep their weaknesses and limits, but not their strengths.</p>
+  overlay.innerHTML=`<div class="card"><h1>HIGH COMMAND</h1><div style="color:var(--muted);font-size:12px;margin:-6px 0 10px">Version: ${VERSION}</div><p>Four nations. One continent. You hold the office of supreme commander — choose your country. Your country's strengths (▲ ★) only work for human commanders – computer-run countries keep their weaknesses and limits, but not their strengths.</p>
  <div class="nations">${NATIONS.filter(n=>!n.late).map(n=>`<button class="nbtn ${n.id===sPick?'on':''}" data-n="${n.id}" ${n.id===friend?'disabled':''} style="background:linear-gradient(90deg,${hexA(n.color,.35)},#26323c 70%)">${n.id===friend?'<span class="tag">YOUR FRIEND</span>':''}<b>${n.name}</b><div>${n.blurb}</div><div class="perk">▲ ${n.perk}</div><div class="flaw">▼ ${n.flaw}</div><div class="perk">★ ${specText(n)[0]}</div><div class="flaw">✖ ${specText(n)[1]}</div></button>`).join('')}</div>
  <div class="diff">Difficulty${guest?' (set by the host)':''}: ${Object.entries(DIFFS).map(([k,d])=>`<button data-d="${k}" class="${k===sDk?'on':''}" ${guest?'disabled':''}>${d.label}</button>`).join('')}</div>
  <button class="go" ${goOn?'':'disabled'}>${goTxt}</button>
