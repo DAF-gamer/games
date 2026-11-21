@@ -200,7 +200,7 @@ function meander(pts){const out=[pts[0]];// rivers: same idea, smaller wiggles
   (function d(A,B){const dx=B[0]-A[0],dy=B[1]-A[1],L=Math.hypot(dx,dy);if(L<16)return;const o=(rng()*2-1)*L*.18,M=[(A[0]+B[0])/2-dy/L*o,(A[1]+B[1])/2+dx/L*o];d(A,M);seg.push(M);d(M,B);})(P,Q);
   out.push(...seg,Q);}return out;}
 // shown on the start screen; update it with each feature or fix so testers know which build they have
-const VERSION='Bomber landing fix · Nov 19, 2026';
+const VERSION='Realism: terrain, hit odds, smarter AI · Nov 21, 2026';
 const UT={
  inf:{name:'Infantry',dom:'land',hp:100,spd:20,atk:{land:9,air:2,sea:0},rng:28,cost:100,time:8,cap:1,desc:'Cheap. Captures cities. Strong in forests, mountains, hills & cities.'},
  tank:{name:'Armor',dom:'land',hp:170,spd:38,atk:{land:18,air:0,sea:0},rng:30,cost:260,time:14,cap:1,desc:'Fast and hard-hitting. Slowed & weakened in forest, mountains & swamp.'},
@@ -237,7 +237,7 @@ const BUILD_ORDER=['inf','para','tank','art','rkt','aa','sup','ftr','heli','trh'
 // ICBMs unlock for the player as soon as the first rival nation is knocked out
 const icbmOn=n=>isHuman(n)&&!!nations[n]&&!!nations[n].icbmTech;
 let nukeAim=false;
-const DIFFS={easy:{mult:.75,aggro:0,label:'Easy'},normal:{mult:1,aggro:40,label:'Normal'},hard:{mult:1.35,aggro:120,label:'Hard'}};
+const DIFFS={easy:{mult:.75,aggro:0,fc:.4,label:'Easy'},normal:{mult:1,aggro:40,fc:.55,label:'Normal'},hard:{mult:1.35,aggro:120,fc:.65,label:'Hard'}};
 
 // ================= HELPERS =================
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -283,6 +283,46 @@ const ROUGH=t=>t===2||t===3||t===5;// bad ground for armor
 function landCost(i,tank){if(gType[i]!==1)return Infinity;if(gRoad[i])return .6;let c=TERR_COST[gTerr[i]];if(tank&&ROUGH(gTerr[i]))c*=1.5;if(gRiver[i])c+=1.6;return c;}
 // damage taken by land units standing on each terrain type: [infantry, everything else]
 const TERR_DEF=[[1,1],[1,1],[.7,.85],[.55,.75],[.8,.9],[.9,1],[1.1,1.1]];
+// ---- realism: geography, hit chances from weapon tests & war records, battle forecasts ----
+// height of each terrain type: hills 1, mountains 2. Land units on high ground see and shoot farther (+15% range per level) and hit more often vs lower targets.
+const ELEV=[0,0,0,2,1,0,0];
+const elevAt=u=>UT[u.type]&&UT[u.type].dom==='land'?ELEV[terrAt(u)]:0;
+// standing in a river with no bridge: wading units are exposed and shoot badly (opposed river crossings are among the deadliest attacks in history)
+const fording=u=>{if(UT[u.type].dom!=='land')return false;const i=cellOf(u.x,u.y);return gRiver[i]===1&&gType[i]===1&&!gRoad[i];};
+function rngOf(u){const t=UT[u.type];return t.dom==='land'?t.rng*(1+.15*elevAt(u)):t.rng;}
+// chance that one shot hits, per weapon and target type, from published weapon tests and combat records (aimed tank gunnery, SAM kill rates, torpedo hit rates…). Rocket salvos and bombs hit an area, so they aren't rolled.
+const ACC={inf:{land:.5,air:.1},para:{land:.5,air:.1},tank:{land:.75},art:{land:.45,sea:.2},aa:{land:.5,air:.5},ftr:{land:.4,air:.55,sea:.4},
+ heli:{land:.65,sea:.6},dd:{land:.5,air:.35,sea:.6},bb:{land:.5,air:.3,sea:.45},sub:{sea:.7},cv:{air:.35},rkt:{land:1,sea:1}};
+const accOf=(k,dom)=>(ACC[k]&&ACC[k][dom])||.5;
+// everything that changes the odds of a hit: range, cover, cities, high ground, river crossings. Returns {p, why[]} so the panel can explain it.
+function hitInfo(u,tg,d){const dom=domOf(tg),base=accOf(u.type,dom);let p=base;const why=[];
+ if(u.type==='rkt')return {p:1,base,why};
+ const R=rngOf(u);if(d>R*.5){const f=1-.4*Math.min(1,(d/R-.5)/.5);p*=f;if(f<.95)why.push('long range');}
+ if(!tg.isCity&&dom==='land'){const c=TERR_DEF[terrAt(tg)][foot(tg.type)?0:1];p*=c;if(c<1)why.push('target in cover');if(inDefCity(tg)){p*=.75;why.push('target dug in at a city');}}
+ const dh=elevAt(u)-(tg.isCity?0:elevAt(tg));if(dh>0){p*=1+.1*dh;why.push('high ground');}else if(dh<0){p*=1+.08*dh;why.push('shooting uphill');}
+ if(fording(u)){p*=.75;why.push('wading a river');}
+ if(!tg.isCity&&fording(tg)){p*=1.25;why.push('target crossing a river');}
+ return {p:clamp(p,.03,.97),base,why};}
+// Battle forecast: like a staff wargame, play the fight out many times with dice and count the wins.
+// attackers: land units; target city c. Defenders: enemy land units near the city plus its garrison.
+function forecast(att,c,runs=120){const own=c.owner;const A=[],B=[];
+ const mk=(u,side)=>{const t=UT[u.type];return {k:u.type,hp:u.hp,mx:t.hp,atk:t.atk.land,acc:accOf(u.type,'land'),rel:u.type==='rkt'?5.5:u.type==='sup'?0:1,
+  cov:side?TERR_DEF[terrAt(u)][foot(u.type)?0:1]*(dist(u,c)<30?.75:1):1,cap:!!t.cap,good:isGood(u.nation,u.type)};};
+ for(const u of att)if(!u.dead&&!u.inside&&UT[u.type].dom==='land')A.push(mk(u,0));
+ if(!A.length)return {win:0,runs};
+ for(const e of units)if(!e.dead&&!e.inside&&e.nation!==att[0].nation&&UT[e.type].dom==='land'&&dist(e,c)<200*SC&&!att.includes(e))B.push(mk(e,1));
+ let wins=0;const ha=new Float32Array(A.length),hb=new Float32Array(B.length);
+ for(let r=0;r<runs;r++){for(let i=0;i<A.length;i++)ha[i]=A[i].hp;for(let i=0;i<B.length;i++)hb[i]=B[i].hp;let gar=c.owner===att[0].nation?0:c.gar,la=A.length,lb=B.length;
+  for(let tk=0;tk<150&&la&&(lb||gar>0);tk++){
+   for(let i=0;i<A.length;i++){const a=A[i];if(ha[i]<=0||!a.atk||(a.rel>1&&tk%6))continue;
+    let j=-1;if(lb){j=(Math.random()*B.length)|0;let n=0;while(hb[j]<=0&&n++<B.length)j=(j+1)%B.length;}
+    const dmg=a.atk/a.acc*(.55+.45*ha[i]/a.mx)*(a.good?1.25:1);
+    if(j>=0&&hb[j]>0){if(Math.random()<a.acc*B[j].cov){hb[j]-=dmg*(.85+Math.random()*.3);if(hb[j]<=0)lb--;}}else if(Math.random()<a.acc)gar-=dmg;}
+   for(let j=0;j<B.length;j++){const b=B[j];if(hb[j]<=0||!b.atk||(b.rel>1&&tk%6))continue;let i=(Math.random()*A.length)|0,n=0;while(ha[i]<=0&&n++<A.length)i=(i+1)%A.length;if(ha[i]<=0)continue;
+    if(Math.random()<b.acc){ha[i]-=b.atk/b.acc*(.55+.45*hb[j]/b.mx)*(b.good?1.25:1)*(.85+Math.random()*.3);if(ha[i]<=0)la--;}}
+   if(gar>0){const i=(Math.random()*A.length)|0;if(ha[i]>0){ha[i]-=8*(.4+.6*gar/c.garMax);if(ha[i]<=0)la--;}gar+=4*(1-Math.min(1,la/3));}}
+  if(lb<=0&&gar<=0){let cap=false;for(let i=0;i<A.length;i++)if(ha[i]>0&&A[i].cap){cap=true;break;}if(cap)wins++;}}
+ return {win:wins/runs,runs,def:B.length};}
 function seaCost(i,small){if(gType[i]===0)return 1;if(small&&gRiver[i]&&gType[i]===1)return 1.3;return Infinity;}
 const CF={land:i=>landCost(i,false),tank:i=>landCost(i,true),sea:i=>seaCost(i,false),small:i=>seaCost(i,true)};
 function cfFor(u){const t=UT[u.type];if(t.dom==='land')return wheeled(u.type)?CF.tank:CF.land;return t.small?CF.small:CF.sea;}
@@ -401,12 +441,12 @@ function aliveTgt(tg,n){return tg.isCity?true:targetable(tg,n);}
 function domOf(tg){return tg.isCity?'land':UT[tg.type].dom;}
 function tgtR(tg){return tg.isCity?12:UT[tg.type].dom==='sea'?10:7;}
 function canHit(u,tg){const a=UT[u.type].atk[domOf(tg)];return a>0;}
-function validTgt(u,tg){if(tg.isCity)return tg.owner!==u.nation&&tg.gar>0&&dist(u,tg)<=UT[u.type].rng+tgtR(tg)+4;
- return tg.nation!==u.nation&&targetable(tg,u.nation)&&dist(u,tg)<=UT[u.type].rng+tgtR(tg)+4;}
-function findTarget(u){if(atPeace())return null;const t=UT[u.type];let best=null,bs=1e9;
+function validTgt(u,tg){if(tg.isCity)return tg.owner!==u.nation&&tg.gar>0&&dist(u,tg)<=rngOf(u)+tgtR(tg)+4;
+ return tg.nation!==u.nation&&targetable(tg,u.nation)&&dist(u,tg)<=rngOf(u)+tgtR(tg)+4;}
+function findTarget(u){if(atPeace())return null;const t=UT[u.type],R=rngOf(u);let best=null,bs=1e9;
  for(const e of units){if(e.nation===u.nation||!targetable(e,u.nation))continue;const ed=UT[e.type].dom;if(!t.atk[ed])continue;
-  const d=dist(u,e);if(d>t.rng+tgtR(e))continue;const s=d-(ed===t.dom?1000:0)-(ed==='air'&&t.atk.air>=12?1500:0);if(s<bs){bs=s;best=e;}}
- if(!best&&t.atk.land>0)for(const c of cities){if(c.owner===u.nation||c.gar<=0)continue;if(dist(u,c)<=t.rng+tgtR(c)){best=c;break;}}
+  const d=dist(u,e);if(d>R+tgtR(e))continue;const s=d-(ed===t.dom?1000:0)-(ed==='air'&&t.atk.air>=12?1500:0);if(s<bs){bs=s;best=e;}}
+ if(!best&&t.atk.land>0)for(const c of cities){if(c.owner===u.nation||c.gar<=0)continue;if(dist(u,c)<=R+tgtR(c)){best=c;break;}}
  return best;}
 function inDefCity(u){for(const c of cities)if(c.owner===u.nation&&dist(u,c)<30)return true;return false;}
 function terrAt(u){return gTerr[cellOf(u.x,u.y)];}
@@ -417,7 +457,10 @@ function fire(u,tg){if(atPeace())return;const t=UT[u.type];const dom=domOf(tg);l
  if(u.type==='tank'&&ROUGH(terrAt(u)))dmg*=.65;
  if(u.nation===0&&isHuman(0)&&t.dom==='land'&&(terrAt(u)===2||terrAt(u)===3))dmg*=1.2;
  if(isGood(u.nation,u.type))dmg*=1.25;
- if(!tg.isCity&&dom==='land'){dmg*=TERR_DEF[terrAt(tg)][foot(tg.type)?0:1];if(inDefCity(tg))dmg*=.75;}
+ const hi=hitInfo(u,tg,d);
+ if(Math.random()>=hi.p){u.cd=.9+Math.random()*.2;// a miss: the shot lands near the target
+  if(u.type!=='rkt')fx.push({k:'shot',x1:u.x,y1:u.y,x2:tg.x+rnd(16),y2:tg.y+rnd(16),t:.14,m:.14,c:'rgba(255,255,255,.55)'});return;}
+ dmg/=hi.base;
  dmg*=(.55+.45*u.hp/t.hp)*(.85+Math.random()*.3);
  damage(tg,dmg,u.nation,u.type);u.cd=.9+Math.random()*.2;
  if(u.type==='rkt'){u.cd=5+Math.random();// salvo: splashes everything around the target, then a long reload
@@ -458,7 +501,7 @@ function updSurface(u,dt){const t=UT[u.type];
  u.retgt-=dt;if(u.retgt<=0||(u.tgt&&!validTgt(u,u.tgt))){u.retgt=.35;u.tgt=t.rng?findTarget(u):null;}
  if(o&&o.type==='attack'){const tg=o.target;
   if(!aliveTgt(tg,u.nation)||(tg.isCity&&(tg.owner===u.nation))){u.order=null;u.path=[];}
-  else if(dist(u,tg)<=t.rng+tgtR(tg)&&canHit(u,tg)){u.tgt=tg;u.path=[];}
+  else if(dist(u,tg)<=rngOf(u)+tgtR(tg)&&canHit(u,tg)){u.tgt=tg;u.path=[];}
   else{u.repath-=dt;if(u.repath<=0){u.repath=1.5;const p=astar(u.x,u.y,tg.x,tg.y,cfFor(u));if(p)u.path=p;}}}
  if(o&&o.type==='board'){const tr=o.target;
   if(tr.dead){u.order=null;u.path=[];}
@@ -621,8 +664,17 @@ function effFactor(m){// damage dealt per cost invested, relative to the average
  const v={};let s=0,k=0;for(const t in BASE_MIX){const b=m.built[t]||0;if(b<3)continue;v[t]=(m.dealt[t]||0)/(UT[t].cost*b);s+=v[t];k++;}
  const f={};for(const t in v)f[t]=s>0?clamp(Math.sqrt(v[t]/(s/k)),.6,1.6):1;return f;}
 function landHPNear(n,x,y,r){let s=0;for(const e of units)if(e.nation!==n&&!e.dead&&!e.inside&&UT[e.type].dom==='land'&&Math.hypot(e.x-x,e.y-y)<r)s+=e.hp;return s;}
-function pickTarget(n,my){let best=null,bs=1e9;for(const c of cities){if(c.owner===n.id)continue;let md=1e9;for(const m of my)md=Math.min(md,dist(m,c));
- const s=md+c.gar*.8+(nations[c.owner].capital===c?60:0)-(isHuman(c.owner)?diff.aggro:0)-(n.id===2&&c.id===LUMAFORD?80:0)
+// how hard the ground is between two points for an army on foot: extra cost for mountains, forest, swamp, and for every unbridged river to wade
+function routePenalty(a,b){const L=dist(a,b),n=Math.max(2,Math.ceil(L/16));let sum=0,k=0,fords=0,wet=false;
+ for(let i=1;i<n;i++){const c=cellOf(a.x+(b.x-a.x)*i/n,a.y+(b.y-a.y)*i/n);if(gType[c]!==1){wet=false;continue;}
+  const r=gRiver[c]===1&&!gRoad[c];if(r&&!wet)fords++;wet=r;if(gRoad[c])sum+=.6;else sum+=TERR_COST[gTerr[c]];k++;}
+ return (k?Math.max(0,sum/k-1)*L*.4:0)+fords*50;}
+// a defensive spot near a city with the best cover and height
+function coverSpot(c,u){let best={x:c.x+rnd(15),y:c.y+rnd(15)},bs=9;const f=foot(u.type)?0:1;
+ for(let k=0;k<10;k++){const a=Math.random()*6.28,r=6+Math.random()*18,x=c.x+Math.cos(a)*r,y=c.y+Math.sin(a)*r,i=cellOf(x,y);if(gType[i]!==1)continue;
+  const s=TERR_DEF[gTerr[i]][f]-.05*ELEV[gTerr[i]]+(gRiver[i]&&!gRoad[i]?.3:0);if(s<bs){bs=s;best={x,y};}}return best;}
+function pickTarget(n,my){let best=null,bs=1e9;for(const c of cities){if(c.owner===n.id)continue;let md=1e9,mc=null;for(const m of my){const d=dist(m,c);if(d<md){md=d;mc=m;}}
+ const s=md+(mc?routePenalty(mc,c):0)+c.gar*.8+(nations[c.owner].capital===c?60:0)-(isHuman(c.owner)?diff.aggro:0)-(n.id===2&&c.id===LUMAFORD?80:0)
   +landHPNear(n.id,c.x,c.y,200*SC)*.15+(n.mem.fails[c.id]||0)*70;if(s<bs){bs=s;best=c;}}return best;}
 function aiProduce(n,my,mine){const em=enemyMix(n,my),ef=effFactor(n.mem),dem={},want={};let wt=0;
  for(const k in BASE_MIX)dem[k]=0;for(const t in em)for(const k in COUNTER[t]||{})dem[k]+=em[t]*COUNTER[t][k];
@@ -648,7 +700,7 @@ function aiThink(n){
  for(const u of land)if(u.role==='def'&&!threats.some(t=>t.c===u.defCity))u.role=null;
  for(const th of threats){let have=0;for(const u of land)if(u.role==='def'&&u.defCity===th.c)have+=u.hp;
   const cand=land.filter(u=>u.role!=='def'&&u.role!=='home').sort((a,b)=>dist(a,th.c)-dist(b,th.c));
-  for(const u of cand){if(have>=th.s*1.2||dist(u,th.c)>420*SC)break;u.role='def';u.defCity=th.c;orderMove(u,th.c.x+rnd(15),th.c.y+rnd(15));have+=u.hp;}}
+  for(const u of cand){if(have>=th.s*1.2||dist(u,th.c)>420*SC)break;u.role='def';u.defCity=th.c;const p=coverSpot(th.c,u);orderMove(u,p.x,p.y);have+=u.hp;}}
  if(n.capital&&!land.some(u=>u.role==='home')){const g=land.filter(u=>!u.role&&u.type==='inf').sort((a,b)=>dist(a,n.capital)-dist(b,n.capital))[0];if(g){g.role='home';orderMove(g,n.capital.x+rnd(10),n.capital.y+rnd(10));}}
  for(const u of land)if(u.role==='home'&&!u.order&&n.capital&&dist(u,n.capital)>30)orderMove(u,n.capital.x+rnd(10),n.capital.y+rnd(10));
  // badly damaged attackers fall back to the nearest friendly city to heal
@@ -659,14 +711,22 @@ function aiThink(n){
  if(tgt){const stage=my.slice().sort((a,b)=>dist(a,tgt)-dist(b,tgt))[0];
   const wave=Math.min(14,4+Math.floor(time/240)+m.waveAdd);
   for(const u of land)if(u.role==='atk'){marching++;if(u.tgtCity!==tgt||(!u.order&&dist(u,tgt)>40)){u.tgtCity=tgt;orderMove(u,tgt.x+rnd(18),tgt.y+rnd(18));}}
+  // an assault that is going badly gets called off before it is wiped out: the survivors fall back to regroup
+  const front=land.filter(u=>u.role==='atk'&&dist(u,tgt)<260*SC);
+  if(front.length>=3&&tgt.gar>0&&forecast(front,tgt,60).win<.12){
+   for(const u of land)if(u.role==='atk'){u.role=null;orderMove(u,stage.x+rnd(40),stage.y+rnd(40));}
+   m.fails[tgt.id]=(m.fails[tgt.id]||0)+1;m.waveAdd=Math.min(6,m.waveAdd+2);
+   if(isHuman(tgt.owner))log(`${n.name} called off its attack on ${tgt.name} and is falling back to regroup.`,n.color,tgt.owner);
+   marching=0;n.wave=null;n.targetT=-999;}
   if(marching)n.wave=tgt;
   else if(n.wave&&n.wave.owner!==n.id){// assault wiped out or driven off: remember it and come back stronger
    m.fails[n.wave.id]=(m.fails[n.wave.id]||0)+1;m.waveAdd=Math.min(6,m.waveAdd+2);
    if(isHuman(n.wave.owner))log(`${n.name}'s assault on ${n.wave.name} was repulsed – expect them back in greater strength.`,n.color,n.wave.owner);
    n.wave=null;n.targetT=-999;}
-  const ready=land.filter(u=>!u.role&&dist(u,stage)<150*SC),rhp=ready.reduce((s,u)=>s+u.hp,0);
-  const need=landHPNear(n.id,tgt.x,tgt.y,200*SC)+tgt.gar*.5;// don't march into a stronger army unless massively ready
-  if((ready.length>=wave&&rhp>=need)||ready.length>=wave*2||(marching>=3&&ready.length)){for(const u of ready){u.role='atk';u.tgtCity=tgt;orderMove(u,tgt.x+rnd(18),tgt.y+rnd(18));marching++;}if(ready.length)n.wave=tgt;}
+  const ready=land.filter(u=>!u.role&&dist(u,stage)<150*SC);
+  // like a staff wargame: play the assault out many times first, and only go if it usually wins
+  const fc=ready.length>=wave&&!marching?forecast(ready,tgt,80):null;
+  if((fc&&fc.win>=diff.fc)||ready.length>=wave*2||(marching>=3&&ready.length)){for(const u of ready){u.role='atk';u.tgtCity=tgt;orderMove(u,tgt.x+rnd(18),tgt.y+rnd(18));marching++;}if(ready.length)n.wave=tgt;}
   else for(const u of land)if(!u.role&&!u.order&&dist(u,stage)>=150*SC)orderMove(u,stage.x+rnd(50),stage.y+rnd(50));
   // paratroopers waiting in a city drop in behind an assault that's already under way
   if(marching>=3)for(const u of land)if(u.type==='para'&&!u.jump&&u.role!=='def'&&u.role!=='home'&&inDefCity(u)){const d=dist(u,tgt);
@@ -921,8 +981,20 @@ function draw(){const dpr=window.devicePixelRatio||1;ctx.setTransform(dpr,0,0,dp
  ctx.restore();
  if(drag&&drag.box){ctx.strokeStyle='#ffe066';ctx.fillStyle='rgba(255,224,102,.1)';ctx.lineWidth=1;const x=Math.min(drag.sx,drag.cx),y=Math.min(drag.sy,drag.cy),w=Math.abs(drag.cx-drag.sx),h=Math.abs(drag.cy-drag.sy);ctx.fillRect(x,y,w,h);ctx.strokeRect(x,y,w,h);}
  if(nukeAim){ctx.fillStyle='rgba(120,20,20,.85)';ctx.fillRect(vw/2-150,44,300,26);ctx.fillStyle='#fff';ctx.font='bold 13px system-ui';ctx.textAlign='center';ctx.fillText('☢ Click a target for the ICBM  ·  Esc to cancel',vw/2,62);}
+ drawForecast();
  if(speed===0&&started&&!gameOver){ctx.fillStyle='rgba(30,40,48,.75)';ctx.fillRect(vw/2-60,10,120,28);ctx.fillStyle='#f2c94c';ctx.font='bold 13px system-ui';ctx.textAlign='center';ctx.fillText('PAUSED',vw/2,29);}}
 
+// battle forecast: hover an enemy city with land units selected to see how often 200 simulated assaults win
+let fcCache={key:'',r:null};
+function drawForecast(){if(!mouseW||nukeAim||!started||gameOver)return;const c=cityAt(mouseW.x,mouseW.y);if(!c||c.owner===player)return;
+ const sel=[...selection].filter(u=>!u.dead&&!u.inside&&u.nation===player&&UT[u.type].dom==='land');if(!sel.length)return;
+ const key=c.id+'|'+sel.map(u=>u.id).join(',')+'|'+Math.floor(time);if(fcCache.key!==key)fcCache={key,r:forecast(sel,c,200)};
+ const r=fcCache.r,pct=Math.round(r.win*100),col=pct>=65?'#6fcf97':pct>=35?'#f2c94c':'#ef5b5b';
+ const sx=(mouseW.x-cam.x)*cam.z+16,sy=(mouseW.y-cam.y)*cam.z+16,w=236,h=58,x=Math.min(sx,vw-w-6),y=Math.min(sy,vh-h-6);
+ ctx.fillStyle='rgba(22,30,36,.9)';ctx.fillRect(x,y,w,h);ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.strokeRect(x,y,w,h);ctx.textAlign='left';
+ ctx.fillStyle='#fff';ctx.font='bold 13px system-ui';ctx.fillText(`Battle forecast: ${c.name}`,x+9,y+18);
+ ctx.fillStyle=col;ctx.font='bold 15px system-ui';ctx.fillText(`${pct}% chance to take it`,x+9,y+37);
+ ctx.fillStyle='#aab8c2';ctx.font='11px system-ui';ctx.fillText(`${r.runs} simulated battles · ${sel.length} vs ${r.def||0} + garrison`,x+9,y+52);}
 // ================= INPUT =================
 let drag=null,panDrag=null,keys={},lastClick={t:0,u:null};
 function unitAt(wx,wy,ownOnly){const s=iconS();let best=null,bd=1e9;
@@ -1029,7 +1101,10 @@ function renderPanel(){const n=nations[player];let h='';const sel=[...selection]
   h+=`<div class="ph">${sel.length} unit${sel.length>1?'s':''} selected</div><div class="sub">Click: march there (shooting on the move) · Ctrl+click: attack-move · Esc to deselect</div>`;
   for(const k in g){const L=g[k],t=UT[k],hp=L.reduce((a,u)=>a+u.hp,0)/L.length;h+=`<div class="row"><span>${L.length}× ${t.name}</span><span>${Math.round(hp/t.hp*100)}% hp</span></div>`;}
   if(sel.length===1){const u=sel[0],t=UT[u.type];h+=`<div class="tip">${t.desc}</div>`;h+=bar('Strength',u.hp,t.hp);
-   if(t.dom==='land'){const tt=terrAt(u),d=TERR_DEF[tt][foot(u.type)?0:1];h+=`<div class="row"><span>Ground</span><span>${gRoad[cellOf(u.x,u.y)]?'Road · ':''}${T_NAMES[tt]}${d<1?` · ${Math.round((1-d)*100)}% cover`:d>1?' · exposed':''}</span></div>`;}
+   if(t.dom==='land'){const tt=terrAt(u),d=TERR_DEF[tt][foot(u.type)?0:1];h+=`<div class="row"><span>Ground</span><span>${gRoad[cellOf(u.x,u.y)]?'Road · ':''}${T_NAMES[tt]}${d<1?` · ${Math.round((1-d)*100)}% cover`:d>1?' · exposed':''}</span></div>`;
+    const ev=elevAt(u);if(ev)h+=`<div class="row"><span>High ground</span><span>+${ev*15}% range · +${ev*10}% to hit</span></div>`;
+    if(fording(u))h+=`<div class="row"><span>River crossing</span><span style="color:#ef5b5b">exposed · −25% to hit</span></div>`;}
+   if(ACC[u.type]&&u.type!=='rkt'){const A=ACC[u.type],L=Object.keys(A).map(k=>`${k} ${Math.round(A[k]*100)}%`).join(' · ');h+=`<div class="row"><span>Hit chance</span><span>${L}</span></div>`;}
    if(t.dom==='air'){h+=bar('Fuel',u.fuel,t.fuel,'#f2c94c');if(t.ammo)h+=`<div class="row"><span>Bombs</span><span>${u.ammo}/${t.ammo}</span></div>`;
     h+=`<div class="row"><span>Status</span><span>${u.state==='landed'?(u.base&&!u.base.isCity?'On a Carrier':'On airfield at '+(u.base?u.base.name:'?')):u.state==='rtb'?'Returning to base':'Airborne'}</span></div>`;}
    if(t.carry)h+=`<div class="row"><span>Cargo</span><span>${u.cargo.length}/${t.carry}</span></div>`;
@@ -1048,7 +1123,7 @@ function renderPanel(){const n=nations[player];let h='';const sel=[...selection]
   if(st)h+=`<div class="row"><span>Status</span><span style="color:${st[1]}">${st[0]}</span></div>`;
   h+='<div class="sec">ARMED FORCES</div>';for(const k of BUILD_ORDER)if(g[k])h+=`<div class="row"><span>${UT[k].name}</span><span>${g[k]}</span></div>`;
   h+=`<div class="row"><span>Units lost</span><span>${n.lost}</span></div>`;
-  h+=`<div class="tip"><b>Orders</b><br>Left-click / drag: select units · double-click: all of that type<br>With units selected, click (or right-click): move / attack<br><kbd>Esc</kbd>: deselect · <kbd>Ctrl</kbd>+click: attack-move (stop to fight anything on the way)<br>Click a city you own to build units<br><kbd>Space</kbd> pause · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> speed · <kbd>X</kbd> stop · <kbd>F</kbd> fit map<br>Wheel: zoom · <kbd>WASD</kbd>/arrows or middle-drag: pan<br><br><b>Terrain</b><br>Roads: fast · Plains/desert: open ground<br>Forest, mountains, hills: slow, but give cover (best for infantry)<br>Swamp: very slow, bad for armor · Lakes: impassable<br><br><b>To capture a city</b>, knock its garrison to 0 then move Infantry or Armor onto it. Lose all your cities and your nation falls.</div>`;}
+  h+=`<div class="tip"><b>Orders</b><br>Left-click / drag: select units · double-click: all of that type<br>With units selected, click (or right-click): move / attack<br><kbd>Esc</kbd>: deselect · <kbd>Ctrl</kbd>+click: attack-move (stop to fight anything on the way)<br>Click a city you own to build units<br><kbd>Space</kbd> pause · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> speed · <kbd>X</kbd> stop · <kbd>F</kbd> fit map<br>Wheel: zoom · <kbd>WASD</kbd>/arrows or middle-drag: pan<br><br><b>Terrain</b><br>Roads: fast · Plains/desert: open ground<br>Forest, mountains, hills: slow, but give cover (best for infantry)<br>Swamp: very slow, bad for armor · Lakes: impassable<br>Hills &amp; mountains: high ground, so +range and better aim<br>Rivers without a bridge: units wading across are easy targets<br><br><b>Combat</b><br>Every shot rolls to hit (odds from real weapon tests). Hover an enemy city with units selected for a <b>battle forecast</b>: 200 simulated assaults.<br><br><b>To capture a city</b>, knock its garrison to 0 then move Infantry or Armor onto it. Lose all your cities and your nation falls.</div>`;}
  selEl.innerHTML=h;panelDirty=false;}
 selEl.addEventListener('pointerdown',e=>{const b=e.target.closest('[data-build]');const n=nations[player];
  if(b&&selCity&&selCity.owner===player){command({c:'build',city:selCity.id,k:b.dataset.build});panelDirty=true;return;}
