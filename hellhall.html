@@ -70,7 +70,7 @@ body.fullscreen-mode #hud{width:min(100vw,160vh,160dvh);margin:0;padding:5px 8px
 <div id="stat"><div class="row"><span class="ic">&#10010;</span><div id="hpBar"><i id="hpTrail"></i><i id="hpFill"></i></div><span class="n" id="hpN">100</span></div><div class="row"><span class="ic" id="wpN">&#9646;</span><div id="mag"></div><span class="n" id="amN"></span></div><div id="spare"></div></div>
 <div id="fps"></div>
 <div id="waveBanner" aria-live="polite"></div>
-<div id="msg"><b>Survive the waves</b><span>Fight through three waves of demons: 12 in wave 1, 18 in wave 2, and 24 in wave 3. Clear each wave to bring on the next. Fight through an abandoned small town: Main Street, crashed cars, a strip mall, the housing district, and the big town square, all sealed inside a quarantine fence. WASD to move, mouse or arrow keys to turn, hold click or Space to fire. Ammo is short: grab the yellow-banded ammo crates around town (yellow on the minimap). Choose your weapon:</span><div class="pick"><button data-w="rifle"><strong>Assault rifle</strong>Full auto · 32-round magazine · 64 total rounds</button><button data-w="shotgun"><strong>Shotgun</strong>15-pellet blast · 5-shell tube · 10 total shells</button></div></div>
+<div id="msg"><b>Survive the waves</b><span>Fight through three waves of demons: 12 in wave 1, 18 in wave 2, and 24 in wave 3. Clear each wave to bring on the next. Fight through an abandoned small town: Main Street, crashed cars, a strip mall, the housing district, and the big town square, all sealed inside a quarantine fence. WASD to move, mouse or arrow keys to turn, hold click or Space to fire. Ammo is short: grab the glowing ammo crates on car hoods and out in the open (yellow on the minimap). Choose your weapon:</span><div class="pick"><button data-w="rifle"><strong>Assault rifle</strong>Full auto · 32-round magazine · 64 total rounds</button><button data-w="shotgun"><strong>Shotgun</strong>15-pellet blast · 5-shell tube · 10 total shells</button></div></div>
 </div>
 <div id="hud"><div id="kl">Wave 1/3 · 12 left</div></div>
 <p class="help">W/A/S/D move · mouse, trackpad or arrow keys look · hold click or Space to fire · press R to reload. Escape releases the cursor.</p>
@@ -561,12 +561,14 @@ function sheriffParts(d){var P=[],b=d.belt,top=.215,Wc=d.W-.18;
  [-1,1].forEach(function(s){P.push([gridGeo(10,6,function(u,v,o){var x=s>0?(-.6+1.0*u):(.4-1.0*u),y=.2+.26*v;o.set(x,y,s*(sideZ(d,x,y)+.004))}),'decal',WHITE,null])});
  P.push([rbox(.06,.2,.5,.02),'paint',hsl(0,0,.1),M4(d.L+.095,.3,0)]);return P}
 var SHERIFF=sheriffParts(CARDEF[0]);
+var CAR_HOODS=[];
 CARS.forEach(function(c,i){var hz=c[2]==='h',cx=c[0]+(hz?1:.5),cz2=c[1]+(hz?.5:1),yaw=(hz?0:Math.PI/2)+(hash(i,3)-.5)*.45+(hash(i,4)<.5?Math.PI:0),flip=i===5,sheriff=i===1,
  t=sheriff?0:[0,0,1,2,0,2,1,0][i%8],flat=!flip&&hash(i,9)>.6,
  col=sheriff?hsl(0,0,.04):[hsl(0,0,.6),hsl(.62,.55,.2),hsl(.98,.6,.22),hsl(0,0,.85),hsl(.35,.35,.17),hsl(.1,.3,.55),hsl(.0,.7,.38),hsl(.55,.25,.35),hsl(0,0,.1)][i%9],
  root=M4(cx,flip?1.0:(flat?-.03:0),cz2,flat?.05:0,yaw,flip?Math.PI:(hash(i,8)-.5)*.04);
  var parts=CARTYPES[t].concat(sheriff?SHERIFF:[]);
  parts.forEach(function(p){geo(p[1],p[0],p[3]?new THREE.Matrix4().multiplyMatrices(root,p[3]):root,p[2]==='body'?col:(p[2]||col))});
+ if(!flip)CAR_HOODS.push({p:new THREE.Vector3(.72,CARDEF[t].belt-.03,0).applyMatrix4(root),yaw:yaw,cells:hz?[[c[0],c[1]],[c[0]+1,c[1]]]:[[c[0],c[1]],[c[0],c[1]+1]]});// ammo crates can sit here
  if(!flip)geo('shadowblob',new THREE.PlaneGeometry(2.6,1.25),new THREE.Matrix4().multiplyMatrices(M4(cx,.03,cz2,-Math.PI/2,yaw,0),new THREE.Matrix4()),WHITE)});
 // town square fountain (dry and filthy) with a bronze statue
 (function(){var c=hsl(0,0,.72);geo('stone',GB_CYL,M4(FX,.2,FZ,0,0,0,.95,.4,.95),c);geo("stone",new THREE.TorusGeometry(.95,.06,10,40),M4(FX,.4,FZ,Math.PI/2),c);geo('paint',new THREE.CircleGeometry(.85,28),M4(FX,.41,FZ,-Math.PI/2),hsl(.15,.3,.16));
@@ -727,26 +729,35 @@ var flashSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:T.flash,blending:THR
 
 // ---------- game logic ----------
 // ---------- ammo crates ----------
-// AMMO_N crates spread across the reachable streets (farthest-point picks, so they cover the whole map).
-// Walk over one to pick up a full magazine for the gun you carry. Taken crates come back at the start of each wave.
-var AMMO_N=14,AMMO_R=.4,AMMO=[],NOAMMO='OUT OF AMMO · FIND A CRATE';
-(function(){var w=MW,h=MH,D=new Array(w*h).fill(-1),q=[[Math.floor(START[0]),Math.floor(START[1])]],cand=[],i;D[q[0][1]*w+q[0][0]]=0;
+// AMMO_CAR crates sit on the hoods of wrecked cars, the rest out in the open (cells with open ground two cells all round).
+// Both kinds are picked farthest-point from the start and each other, so they cover the whole reachable map.
+// They float a little above the surface, bob and glow. Walk up to one to take a full magazine for the gun you carry.
+// Taken crates come back at the start of each wave.
+var AMMO_N=14,AMMO_CAR=6,AMMO=[],NOAMMO='OUT OF AMMO · FIND A CRATE';
+(function(){var w=MW,h=MH,D=new Array(w*h).fill(-1),q=[[Math.floor(START[0]),Math.floor(START[1])]],i;D[q[0][1]*w+q[0][0]]=0;
  function open(X,Y){return X>=0&&Y>=0&&X<w&&Y<h&&M[Y][X]==='0'}
+ function reach(X,Y){return open(X,Y)&&D[Y*w+X]>=0}
  for(i=0;i<q.length;i++){var c=q[i];[[1,0],[-1,0],[0,1],[0,-1]].forEach(function(n){var X=c[0]+n[0],Y=c[1]+n[1];if(!open(X,Y)||D[Y*w+X]>=0)return;D[Y*w+X]=D[c[1]*w+c[0]]+1;q.push([X,Y])})}
- // only cells with open neighbours all round, so a crate never sits against a wall or car
- q.forEach(function(c){var ok=true;for(var dy=-1;dy<=1;dy++)for(var dx=-1;dx<=1;dx++)if(!open(c[0]+dx,c[1]+dy))ok=false;if(ok)cand.push(c)});
- var pts=[[START[0],START[1]]],md=cand.map(function(c){return Math.hypot(c[0]+.5-START[0],c[1]+.5-START[1])});
- for(var n=0;n<AMMO_N&&cand.length;n++){var bi=0;for(i=1;i<cand.length;i++)if(md[i]>md[bi])bi=i;var p=cand[bi],px=p[0]+.5,py=p[1]+.5;pts.push([px,py]);
-  for(i=0;i<cand.length;i++)md[i]=Math.min(md[i],Math.hypot(cand[i][0]+.5-px,cand[i][1]+.5-py))}
+ function groundY(x,z){return BLOCKS.some(function(b){return x>b[0]-1&&x<b[2]+2&&z>b[1]-1&&z<b[3]+2})?.066:0}
+ var cars=CAR_HOODS.filter(function(ch){return ch.cells.some(function(c){return reach(c[0]+1,c[1])||reach(c[0]-1,c[1])||reach(c[0],c[1]+1)||reach(c[0],c[1]-1)})}).map(function(ch){return{x:ch.p.x,y:ch.p.z,top:ch.p.y,yaw:ch.yaw,car:true}});
+ var opens=[];q.forEach(function(c){for(var dy=-2;dy<=2;dy++)for(var dx=-2;dx<=2;dx++)if(!open(c[0]+dx,c[1]+dy))return;opens.push({x:c[0]+.5,y:c[1]+.5,top:groundY(c[0]+.5,c[1]+.5),yaw:0,car:false})});
+ var picked=[{x:START[0],y:START[1]}];
+ function pick(list,n){var md=list.map(function(c){return Math.min.apply(null,picked.map(function(p){return Math.hypot(c.x-p.x,c.y-p.y)}))});
+  for(var k=0;k<n&&k<list.length;k++){var bi=0;for(var j=1;j<list.length;j++)if(md[j]>md[bi])bi=j;var p=list[bi];picked.push(p);md[bi]=-1;
+   for(j=0;j<list.length;j++)if(md[j]>=0)md[j]=Math.min(md[j],Math.hypot(list[j].x-p.x,list[j].y-p.y))}}
+ pick(cars,AMMO_CAR);pick(opens,AMMO_N-(picked.length-1));
  var boxG=new THREE.BoxGeometry(.22,.12,.13),bandG=new THREE.BoxGeometry(.226,.03,.136),
-  boxM=new THREE.MeshStandardMaterial({color:'#4b5a2e',roughness:.7,metalness:.15}),bandM=new THREE.MeshStandardMaterial({color:'#ffcf3a',emissive:'#ffb000',emissiveIntensity:.6,roughness:.5});
- pts.slice(1).forEach(function(p){var gy=BLOCKS.some(function(b){return p[0]>b[0]-1&&p[0]<b[2]+2&&p[1]>b[1]-1&&p[1]<b[3]+2})?.066:0;
-  var g=new THREE.Group(),b=new THREE.Mesh(boxG,boxM);b.position.y=.06;b.castShadow=true;g.add(b);var s=new THREE.Mesh(bandG,bandM);s.position.y=.09;g.add(s);
-  var bl=new THREE.Mesh(poolGeo,blobMat);bl.scale.set(.2,1,.14);bl.position.set(p[0],gy+.006,p[1]);scene.add(bl);
-  g.position.set(p[0],gy,p[1]);scene.add(g);AMMO.push({x:p[0],y:p[1],g:g,blob:bl,on:true})})})();
-function restockAmmo(){AMMO.forEach(function(a){a.on=true;a.g.visible=a.blob.visible=true})}
-function updateAmmo(dt,t){AMMO.forEach(function(a,i){if(!a.on)return;a.g.rotation.y=t*1.2+i;a.g.children[1].material.emissiveIntensity=.45+.35*Math.sin(t*4);
- if(Math.hypot(P.x-a.x,P.y-a.y)<AMMO_R){a.on=false;a.g.visible=a.blob.visible=false;var add=MAG_SIZE[wp];P.reserve+=add;HM={t:'+'+add+(wp==='shotgun'?' SHELLS':' AMMO'),tm:.9};hudStat();if(P.mag<=0)beginReload()}})}
+  boxM=new THREE.MeshStandardMaterial({color:'#56662f',emissive:'#2a3008',emissiveIntensity:.5,roughness:.7,metalness:.15}),
+  bandM=new THREE.MeshStandardMaterial({color:'#ffcf3a',emissive:'#ffb000',emissiveIntensity:.8,roughness:.5}),
+  haloM=new THREE.SpriteMaterial({map:T.dot,color:'#ffcc55',transparent:true,opacity:.28,blending:THREE.AdditiveBlending,depthWrite:false});
+ picked.slice(1).forEach(function(p){var g=new THREE.Group(),f=new THREE.Group();g.add(f);g.position.set(p.x,p.top,p.y);g.rotation.y=-p.yaw;
+  var b=new THREE.Mesh(boxG,boxM);f.add(b);var s=new THREE.Mesh(bandG,bandM);s.position.y=.03;f.add(s);var halo=new THREE.Sprite(haloM);halo.scale.setScalar(.5);f.add(halo);
+  scene.add(g);var bl=null;if(!p.car){bl=new THREE.Mesh(poolGeo,blobMat);bl.scale.set(.16,1,.11);bl.position.set(p.x,p.top+.006,p.y);scene.add(bl)}
+  AMMO.push({x:p.x,y:p.y,g:g,f:f,blob:bl,car:p.car,r:p.car?.85:.45,on:true})})})();
+function showCrate(a,v){a.on=v;a.g.visible=v;if(a.blob)a.blob.visible=v}
+function restockAmmo(){AMMO.forEach(function(a){showCrate(a,true)})}
+function updateAmmo(dt,t){AMMO.forEach(function(a,i){if(!a.on)return;a.f.position.y=(a.car?.1:.15)+.025*Math.sin(t*2.2+i);a.f.rotation.y=t*.8+i;
+ if(Math.hypot(P.x-a.x,P.y-a.y)<a.r){showCrate(a,false);var add=MAG_SIZE[wp];P.reserve+=add;HM={t:'+'+add+(wp==='shotgun'?' SHELLS':' AMMO'),tm:.9};hudStat();if(P.mag<=0)beginReload()}})}
 function reset(){PEL=[];pitch=0;camKick=0;reloadActive=false;reloadElapsed=0;reloadDuration=0;reloadTarget=0;reloadLoaded=0;reloadCommitted=false;wave=1;waveDelay=-1;waveNotice=1.8;waveBanner.textContent='WAVE 1';waveBanner.style.display='block';P={x:START[0],y:START[1],a:Math.PI/2,hp:100,mag:MAG_SIZE[wp],reserve:TOTAL_AMMO[wp]-MAG_SIZE[wp]};blood.clear();dust.clear();makeWaveEnemies(WAVE_COUNTS[0]);restockAmmo();hudStat()}
 function kill(e){e.alive=false;var ax=e.x-P.x,ay=e.y-P.y,al=Math.hypot(ax,ay)||1,pow=wp==='shotgun'?1.6:1;ax/=al;ay/=al;e.kx=ax*6*pow;e.ky=ay*6*pow;e.vz=(3+Math.random())*pow;e.z=0;e.fy=Math.atan2(-ax,-ay)}
 function dmg(e,z){var h=z==='head'?4:z==='chest'?1.5:.6;if(z==='head'||z==='chest')e.hp-=h;else e.hp=Math.max(.5,e.hp-h);e.pain=.15;if(z==='head')HM={t:'HEADSHOT',tm:.6};
