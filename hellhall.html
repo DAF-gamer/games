@@ -794,7 +794,7 @@ var flashSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:T.flash,blending:THR
 // Both kinds are picked farthest-point from the start and each other, so they cover the whole reachable map.
 // They float a little above the surface, bob and glow. Walk up to one to take a full magazine for the gun you carry.
 // Taken crates come back at the start of each wave.
-var AMMO_N=14,AMMO_CAR=6,AMMO=[],NOAMMO='OUT OF AMMO · FIND A CRATE';
+var AMMO_N=14,AMMO_CAR=6,AMMO=[],NOAMMO='OUT OF AMMO · FIND A CRATE',RELOADMSG='EMPTY · PRESS R TO RELOAD';
 (function(){var w=MW,h=MH,D=new Array(w*h).fill(-1),q=[[Math.floor(START[0]),Math.floor(START[1])]],i;D[q[0][1]*w+q[0][0]]=0;
  function open(X,Y){return X>=0&&Y>=0&&X<w&&Y<h&&M[Y][X]==='0'}
  function reach(X,Y){return open(X,Y)&&D[Y*w+X]>=0}
@@ -818,7 +818,7 @@ var AMMO_N=14,AMMO_CAR=6,AMMO=[],NOAMMO='OUT OF AMMO · FIND A CRATE';
 function showCrate(a,v){a.on=v;a.g.visible=v;if(a.blob)a.blob.visible=v}
 function restockAmmo(){AMMO.forEach(function(a){showCrate(a,true)})}
 function updateAmmo(dt,t){AMMO.forEach(function(a,i){if(!a.on)return;a.f.position.y=(a.car?.1:.15)+.025*Math.sin(t*2.2+i);a.f.rotation.y=t*.8+i;
- if(Math.hypot(P.x-a.x,P.y-a.y)<a.r){showCrate(a,false);var add=MAG_SIZE[wp];P.reserve+=add;HM={t:'+'+add+(wp==='shotgun'?' SHELLS':' AMMO'),tm:.9};hudStat();sfx("pump",{rate:1.25,vol:.6});if(P.mag<=0)beginReload()}})}
+ if(Math.hypot(P.x-a.x,P.y-a.y)<a.r){showCrate(a,false);var add=MAG_SIZE[wp];P.reserve+=add;HM={t:'+'+add+(wp==='shotgun'?' SHELLS':' AMMO'),tm:.9};hudStat();sfx("pump",{rate:1.25,vol:.6})}})}
 function reset(){PEL=[];pitch=0;camKick=0;reloadActive=false;reloadElapsed=0;reloadDuration=0;reloadTarget=0;reloadLoaded=0;reloadCommitted=false;wave=1;waveDelay=-1;waveNotice=1.8;waveBanner.textContent='WAVE 1';waveBanner.style.display='block';P={x:START[0],y:START[1],a:Math.PI/2,hp:100,mag:MAG_SIZE[wp],reserve:TOTAL_AMMO[wp]-MAG_SIZE[wp]};blood.clear();dust.clear();makeWaveEnemies(WAVE_COUNTS[0]);restockAmmo();hudStat()}
 function kill(e){e.alive=false;var ax=e.x-P.x,ay=e.y-P.y,al=Math.hypot(ax,ay)||1,pow=wp==='shotgun'?1.6:1;ax/=al;ay/=al;e.kx=ax*6*pow;e.ky=ay*6*pow;e.vz=(3+Math.random())*pow;e.z=0;e.fy=Math.atan2(-ax,-ay);sfx("death",{at:e,rate:rv(.85,1.05)})}
 function dmg(e,z){var h=z==='head'?4:z==='chest'?1.5:.6;if(z==='head'||z==='chest')e.hp-=h;else e.hp=Math.max(.5,e.hp-h);e.pain=.15;if(z==='head')HM={t:'HEADSHOT',tm:.6};
@@ -831,7 +831,7 @@ function spawnArmGib(e,side){var g=new THREE.Group();var u=new THREE.Mesh(ZG.up,
 function move(dx,dy){var m=.22;if(!wall(P.x+dx+(dx>0?m:-m),P.y))P.x+=dx;if(!wall(P.x,P.y+dy+(dy>0?m:-m)))P.y+=dy}
 function beginReload(){if(state!=='play'||reloadActive||P.mag>=MAG_SIZE[wp]||P.reserve<=0)return;reloadActive=true;reloadElapsed=0;reloadLoaded=0;reloadCommitted=false;reloadTarget=Math.min(MAG_SIZE[wp]-P.mag,P.reserve);reloadDuration=wp==='rifle'?1.55:(.48*reloadTarget+.48);if(wp==="rifle")sfx("rreload",{vol:.18})}
 function advanceReload(dt){if(!reloadActive)return;reloadElapsed+=dt;if(wp==='rifle'){if(!reloadCommitted&&reloadElapsed>=1.08){var moved=Math.min(MAG_SIZE.rifle-P.mag,P.reserve);P.mag+=moved;P.reserve-=moved;reloadCommitted=true;}if(reloadElapsed>=reloadDuration){reloadActive=false;reloadElapsed=0;}}else{while(reloadLoaded<reloadTarget&&reloadElapsed>=.28+reloadLoaded*.46){P.mag++;P.reserve--;reloadLoaded++;sfx("shell",{vol:.3,rate:rv(.95,1.08)})}if(reloadElapsed>=reloadDuration){reloadActive=false;reloadElapsed=0;sfx("pump",{vol:.3})}}}
-function fire(){if(state!=='play'||cool>0||reloadActive)return;if(P.mag<=0){if(P.reserve>0)beginReload();else{sfx("click",{vol:.6});cool=.3}return;}P.mag--;var sg=wp==='shotgun';cool=sg?.85:.11;flash=sg?.12:.08;camKick+=sg?.035:.008;sfx(sg?"shotgun":"rifle",{vol:sg?.3:.18,rate:rv(.95,1.05)});if(sg&&P.mag>0)sfx("pump",{delay:.38,vol:.35});
+function fire(){if(state!=='play'||cool>0||reloadActive)return;if(P.mag<=0){if(wp==='shotgun'&&P.reserve>0)beginReload();else{sfx("click",{vol:.6});cool=.3;if(P.reserve>0)HM={t:RELOADMSG,tm:.9}}return;}P.mag--;var sg=wp==='shotgun';cool=sg?.85:.11;flash=sg?.12:.08;camKick+=sg?.035:.008;sfx(sg?"shotgun":"rifle",{vol:sg?.3:.18,rate:rv(.95,1.05)});if(sg&&P.mag>0)sfx("pump",{delay:.38,vol:.35});
  for(var pl=0;pl<(sg?15:1);pl++){var ox=0,oy=0;if(sg&&pl>0){var inn=pl<7,an2=(inn?pl*1.047:(pl-7)*.785+.39)+(Math.random()-.5)*.4,rr=(inn?.047:.097)*(.85+Math.random()*.3);ox=Math.cos(an2)*rr;oy=Math.sin(an2)*rr}shoot(ox,oy)}}
 var RC=new THREE.Raycaster();
 function shoot(ox,oy){var dir=new THREE.Vector3(Math.tan(ox),Math.tan(oy),-1).normalize().applyQuaternion(camera.quaternion),org=camera.position.clone();
@@ -844,7 +844,7 @@ function shoot(ox,oy){var dir=new THREE.Vector3(Math.tan(ox),Math.tan(oy),-1).no
 function update(dt){var s=2.8*dt,fw=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),st=(keys.KeyD?1:0)-(keys.KeyA?1:0);
 if(keys.ArrowLeft)P.a-=2.2*dt;if(keys.ArrowRight)P.a+=2.2*dt;
 var ca=Math.cos(P.a),sa=Math.sin(P.a);if(fw||st){move((ca*fw-sa*st)*s,(sa*fw+ca*st)*s);bob+=dt*9}
-if(keys.Space||md)fire();cool-=dt;advanceReload(dt);updateAmmo(dt,performance.now()/1000);flash-=dt;hurt-=dt;if(HM)HM.tm-=dt;
+if(keys.Space||md)fire();cool-=dt;if(wp==='shotgun'&&P.mag<=0&&P.reserve>0&&!reloadActive&&cool<=0)beginReload();advanceReload(dt);updateAmmo(dt,performance.now()/1000);flash-=dt;hurt-=dt;if(HM)HM.tm-=dt;
 PEL.forEach(function(p){p.tr+=p.v*dt;if(p.tr>=p.dist){var hp=p.o.clone().addScaledVector(p.d,p.dist);if(p.kind==='flesh')blood.emit(hp,9,2.2);else dust.emit(hp,6,1.6,1.4)}});PEL=PEL.filter(function(p){return p.tr<p.dist});
 GB.forEach(function(b){if(b.rest)return;b.vz-=14*dt;b.z+=b.vz*dt;var nx=b.x+b.vx*dt,ny=b.y+b.vy*dt;if(wall(nx,b.y))b.vx*=-.4;else b.x=nx;if(wall(b.x,ny))b.vy*=-.4;else b.y=ny;b.mesh.rotation.x+=b.sx*dt;b.mesh.rotation.z+=b.sz*dt;if(b.z<.04){b.z=.04;if(Math.abs(b.vz)>1.5){b.vz*=-.35;b.vx*=.6;b.vy*=.6}else{b.rest=true;b.mesh.rotation.set(Math.PI/2,b.mesh.rotation.y,b.mesh.rotation.z)}}b.mesh.position.set(b.x,b.z,b.y)});
 var FD=bfs(),left=0;E.forEach(function(e){if(!e.alive){if(e.z>0||e.vz>0){e.vz-=12*dt;e.z=Math.max(0,e.z+e.vz*dt);if(e.z===0)e.vz=0}if(e.kx||e.ky){var kx=e.x+e.kx*dt,ky=e.y+e.ky*dt;if(!wallNear(kx,e.y,.19))e.x=kx;else e.kx=0;if(!wallNear(e.x,ky,.19))e.y=ky;else e.ky=0;if(!(e.z>0)){var fr=Math.max(0,1-4*dt);e.kx*=fr;e.ky*=fr}}e.dt+=dt;e.pain-=dt;if(!(e.z>0)&&Math.abs(e.kx||0)+Math.abs(e.ky||0)<.5)e.gt=(e.gt||0)+dt;return}left++;e.gr=(e.gr==null?rv(1,6):e.gr)-dt;if(e.gr<=0){e.gr=rv(4,9);var gnow=performance.now();if(gnow-SND.lastGroan>600&&Math.hypot(P.x-e.x,P.y-e.y)<20){SND.lastGroan=gnow;sfx("groan",{at:e,rate:rv(.8,1.1),vol:.9})}}e.pain-=dt;e.cd-=dt;
