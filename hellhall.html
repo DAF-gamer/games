@@ -137,7 +137,7 @@ var M=GRID.map(function(r){return r.join('')});
 var isMed=function(x,y){return x>=HWY.med&&x<=HWY.med+1&&x<HWY.rail},isRail=function(x){return x===HWY.rail},isPump=function(x,y){return PUMPS.some(function(p){return p[0]===x&&p[1]===y})};
 var WC={1:[70,68,66],2:[120,112,100],3:[60,100,50],4:[96,100,110],5:[160,140,110],6:[170,120,90],7:[190,50,40],8:[140,110,70],9:[150,155,165]};
 var P,E=[],wp='rifle',PEL=[],GB=[],pitch=0,HM=null,md=false,keys={},flash=0,hurt=0,state='menu',last=0,bob=0,cool=0,camKick=0;
-var MAG_SIZE={rifle:32,shotgun:5},TOTAL_AMMO={rifle:160,shotgun:30};
+var MAG_SIZE={rifle:32,shotgun:5},TOTAL_AMMO={rifle:64,shotgun:10};
 var wave=1,waveDelay=-1,waveNotice=0,waveBanner=document.getElementById('waveBanner'),WAVE_COUNTS=[12,18,24];
 var reloadActive=false,reloadElapsed=0,reloadDuration=0,reloadTarget=0,reloadLoaded=0,reloadCommitted=false;
 var msg=document.getElementById('msg');var PICK=msg.querySelector('.pick').outerHTML;
