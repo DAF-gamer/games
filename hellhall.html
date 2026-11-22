@@ -754,9 +754,9 @@ GB.forEach(function(b){if(b.rest)return;b.vz-=14*dt;b.z+=b.vz*dt;var nx=b.x+b.vx
 var FD=bfs(),left=0;E.forEach(function(e){if(!e.alive){if(e.z>0||e.vz>0){e.vz-=12*dt;e.z=Math.max(0,e.z+e.vz*dt);if(e.z===0)e.vz=0}if(e.kx||e.ky){var kx=e.x+e.kx*dt,ky=e.y+e.ky*dt;if(!wallNear(kx,e.y,.19))e.x=kx;else e.kx=0;if(!wallNear(e.x,ky,.19))e.y=ky;else e.ky=0;if(!(e.z>0)){var fr=Math.max(0,1-4*dt);e.kx*=fr;e.ky*=fr}}e.dt+=dt;e.pain-=dt;return}left++;e.pain-=dt;e.cd-=dt;
 var dx=P.x-e.x,dy=P.y-e.y,d=Math.hypot(dx,dy),ox=e.x,oy=e.y;
 var vis=true,ang=Math.atan2(dy,dx),steps=Math.floor(d*4);for(var i=1;i<steps;i++){if(wall(e.x+Math.cos(ang)*i/4,e.y+Math.sin(ang)*i/4)){vis=false;break}}
-if(d>1){var tx=P.x,ty=P.y;if(!vis){var cx=Math.floor(e.x),cy=Math.floor(e.y),bv=FD[cy*MW+cx],bx2=cx,by=cy;[[1,0],[-1,0],[0,1],[0,-1]].forEach(function(n){var X=cx+n[0],Y=cy+n[1];if(X<0||Y<0||X>=MW||Y>=MH)return;var v=FD[Y*MW+X];if(v<bv){bv=v;bx2=X;by=Y}});tx=bx2+.5;ty=by+.5}var ex=tx-e.x,ey=ty-e.y,el=Math.hypot(ex,ey)||1,sp=(e.cr?.3:1.1)*dt,nx=e.x+ex/el*sp,ny=e.y+ey/el*sp;if(!wallNear(nx,e.y,.19))e.x=nx;if(!wallNear(e.x,ny,.19))e.y=ny}
+if(d>.55){var tx=P.x,ty=P.y;if(!vis){var cx=Math.floor(e.x),cy=Math.floor(e.y),bv=FD[cy*MW+cx],bx2=cx,by=cy;[[1,0],[-1,0],[0,1],[0,-1]].forEach(function(n){var X=cx+n[0],Y=cy+n[1];if(X<0||Y<0||X>=MW||Y>=MH)return;var v=FD[Y*MW+X];if(v<bv){bv=v;bx2=X;by=Y}});tx=bx2+.5;ty=by+.5}var ex=tx-e.x,ey=ty-e.y,el=Math.hypot(ex,ey)||1,sp=(e.cr?.3:1.1)*dt,nx=e.x+ex/el*sp,ny=e.y+ey/el*sp;if(!wallNear(nx,e.y,.19))e.x=nx;if(!wallNear(e.x,ny,.19))e.y=ny}
 e.ph+=Math.hypot(e.x-ox,e.y-oy)*(e.cr?9:7.5)+dt*.4;
-if(vis&&d<1.3&&e.cd<=0){e.cd=1;P.hp-=8;hurt=.25}});
+if(vis&&d<.75&&e.cd<=0){e.cd=1;P.hp-=8;hurt=.25}});
 hudStat();
 // When the last enemy falls, start a short break before the next wave.
 if(left===0&&state==='play'){if(wave<WAVE_COUNTS.length){if(waveDelay<0)waveDelay=3.0;waveDelay-=dt;if(waveDelay<=0){wave++;makeWaveEnemies(WAVE_COUNTS[wave-1]);waveDelay=-1;waveNotice=1.8;waveBanner.textContent='WAVE '+wave;}}else{end('All waves cleared','You survived all three waves. Click to play again.');}}
