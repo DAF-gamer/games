@@ -409,6 +409,8 @@ DOWNTOWN.forEach(function(b,i){var x0=b[0],z0=b[1],x1=b[2]+1,z1=b[3]+1,h=hash(i,
 (function(){var x0=MALL[0],z0=MALL[1],x1=MALL[2]+1,z1=MALL[3]+1,h=2.2;
  quad('mall',V(x0,0,z0),V(x0,0,z1),V(x0,h,z1),V(x0,h,z0),1,1);
  quad('plain',V(x1,0,z0),V(x0,0,z0),V(x0,h+.4,z0),V(x1,h+.4,z0),(x1-x0)/4,(h+.4)/4);quad('plain',V(x0,0,z1),V(x1,0,z1),V(x1,h+.4,z1),V(x0,h+.4,z1),(x1-x0)/4,(h+.4)/4);
+ quad('plain',V(x1,0,z1),V(x1,0,z0),V(x1,h+.4,z0),V(x1,h+.4,z1),(z1-z0)/4,(h+.4)/4);box('plain',x1-.2,h,z0,x1+.02,h+.4,z1,hsl(.1,.25,.55),4,4);
+ for(var dz2=z0+2;dz2<z1-1;dz2+=4.5)box('metal',x1,0,dz2,x1+.04,1.05,dz2+.55,hsl(.08,.15,.32));
  box('plain',x0-.02,h,z0,x0+.2,h+.4,z1,hsl(.1,.25,.55),4,4);quad('roof',V(x0,h,z1),V(x1,h,z1),V(x1,h,z0),V(x0,h,z0),(x1-x0)/8,(z1-z0)/8);
  geo("metal",rbox(.8,.08,z1-z0,.03),M4(x0-.38,1.79,(z0+z1)/2),hsl(0,0,.6));for(var z=z0+1;z<z1;z+=4)geo("metal",new THREE.CylinderGeometry(.045,.055,1.75,12),M4(x0-.7,.875,z),hsl(0,0,.5));
  var sx=x0-3.5,sz=z0-.5;geo('metal',GB_CYL,M4(sx,1.6,sz,0,0,0,.08,3.2,.08),hsl(0,0,.4));box('mall',sx-.5,3.1,sz-.08,sx+.5,3.7,sz+.08,null,1,1);})();
