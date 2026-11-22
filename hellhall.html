@@ -669,8 +669,11 @@ function makeZombie(e){var mats=Object.assign({hair:new THREE.MeshStandardMateri
  scene.add(root);e.m={root:root,body:body,torso:torso,head:head,legs:legs,arms:arms,stL:stL,stR:stR,pool:pool,blob:blob,skin:skin,mats:{body:skin.material}};e.ph=Math.random()*6;e.fy=Math.atan2(P.x-e.x,P.y-e.y)}
 function clearEnemies(){E.forEach(function(e){scene.remove(e.m.root);scene.remove(e.m.pool);scene.remove(e.m.blob);e.m.skin.material.dispose();e.m.skin.geometry.dispose();e.m.skin.skeleton.dispose()});E=[];hitList=[];GB.forEach(function(b){scene.remove(b.mesh)});GB=[]}
 function makeWaveEnemies(count){clearEnemies();var list=SPAWN_POINTS.slice(0,count).map(function(p){return{x:p[0],y:p[1],hp:4,alive:true,cd:0,pain:0,dt:0,hc:[[40,30,25],[90,60,35],[25,25,28],[125,105,70],[115,40,25]][Math.floor(Math.random()*5)]}});E=list;list.forEach(makeZombie);return list}
+var ZLIE=.6,ZSINK=1.0;// seconds a dead zombie lies on the ground, then seconds it takes to sink away
 function poseZombie(e,dt){var m=e.m,al=e.alive,t=e.dt||0,f=Math.min(1,t/.5);
- m.root.position.set(e.x,e.z||0,e.y);
+ // dead and settled on the ground: lie still for a moment, then sink into the ground and vanish (the blood pool stays)
+ var sink=al?0:Math.max(0,((e.gt||0)-ZLIE)/ZSINK);m.root.visible=sink<1;
+ m.root.position.set(e.x,(e.z||0)-Math.min(1,sink)*.45,e.y);
  if(al){var want=Math.atan2(P.x-e.x,P.y-e.y),df=Math.atan2(Math.sin(want-e.fy),Math.cos(want-e.fy));e.fy+=df*Math.min(1,dt*6)}
  m.root.rotation.y=e.fy;
  var sw=Math.sin(e.ph),atk=al&&e.cd>.7?Math.sin((e.cd-.7)/.3*Math.PI):0;
@@ -751,7 +754,7 @@ var ca=Math.cos(P.a),sa=Math.sin(P.a);if(fw||st){move((ca*fw-sa*st)*s,(sa*fw+ca*
 if(keys.Space||md)fire();cool-=dt;advanceReload(dt);flash-=dt;hurt-=dt;if(HM)HM.tm-=dt;
 PEL.forEach(function(p){p.tr+=p.v*dt;if(p.tr>=p.dist){var hp=p.o.clone().addScaledVector(p.d,p.dist);if(p.kind==='flesh')blood.emit(hp,9,2.2);else dust.emit(hp,6,1.6,1.4)}});PEL=PEL.filter(function(p){return p.tr<p.dist});
 GB.forEach(function(b){if(b.rest)return;b.vz-=14*dt;b.z+=b.vz*dt;var nx=b.x+b.vx*dt,ny=b.y+b.vy*dt;if(wall(nx,b.y))b.vx*=-.4;else b.x=nx;if(wall(b.x,ny))b.vy*=-.4;else b.y=ny;b.mesh.rotation.x+=b.sx*dt;b.mesh.rotation.z+=b.sz*dt;if(b.z<.04){b.z=.04;if(Math.abs(b.vz)>1.5){b.vz*=-.35;b.vx*=.6;b.vy*=.6}else{b.rest=true;b.mesh.rotation.set(Math.PI/2,b.mesh.rotation.y,b.mesh.rotation.z)}}b.mesh.position.set(b.x,b.z,b.y)});
-var FD=bfs(),left=0;E.forEach(function(e){if(!e.alive){if(e.z>0||e.vz>0){e.vz-=12*dt;e.z=Math.max(0,e.z+e.vz*dt);if(e.z===0)e.vz=0}if(e.kx||e.ky){var kx=e.x+e.kx*dt,ky=e.y+e.ky*dt;if(!wallNear(kx,e.y,.19))e.x=kx;else e.kx=0;if(!wallNear(e.x,ky,.19))e.y=ky;else e.ky=0;if(!(e.z>0)){var fr=Math.max(0,1-4*dt);e.kx*=fr;e.ky*=fr}}e.dt+=dt;e.pain-=dt;return}left++;e.pain-=dt;e.cd-=dt;
+var FD=bfs(),left=0;E.forEach(function(e){if(!e.alive){if(e.z>0||e.vz>0){e.vz-=12*dt;e.z=Math.max(0,e.z+e.vz*dt);if(e.z===0)e.vz=0}if(e.kx||e.ky){var kx=e.x+e.kx*dt,ky=e.y+e.ky*dt;if(!wallNear(kx,e.y,.19))e.x=kx;else e.kx=0;if(!wallNear(e.x,ky,.19))e.y=ky;else e.ky=0;if(!(e.z>0)){var fr=Math.max(0,1-4*dt);e.kx*=fr;e.ky*=fr}}e.dt+=dt;e.pain-=dt;if(!(e.z>0)&&Math.abs(e.kx||0)+Math.abs(e.ky||0)<.5)e.gt=(e.gt||0)+dt;return}left++;e.pain-=dt;e.cd-=dt;
 var dx=P.x-e.x,dy=P.y-e.y,d=Math.hypot(dx,dy),ox=e.x,oy=e.y;
 var vis=true,ang=Math.atan2(dy,dx),steps=Math.floor(d*4);for(var i=1;i<steps;i++){if(wall(e.x+Math.cos(ang)*i/4,e.y+Math.sin(ang)*i/4)){vis=false;break}}
 if(d>.55){var tx=P.x,ty=P.y;if(!vis){var cx=Math.floor(e.x),cy=Math.floor(e.y),bv=FD[cy*MW+cx],bx2=cx,by=cy;[[1,0],[-1,0],[0,1],[0,-1]].forEach(function(n){var X=cx+n[0],Y=cy+n[1];if(X<0||Y<0||X>=MW||Y>=MH)return;var v=FD[Y*MW+X];if(v<bv){bv=v;bx2=X;by=Y}});tx=bx2+.5;ty=by+.5}var ex=tx-e.x,ey=ty-e.y,el=Math.hypot(ex,ey)||1,sp=(e.cr?.3:1.1)*dt,nx=e.x+ex/el*sp,ny=e.y+ey/el*sp;if(!wallNear(nx,e.y,.19))e.x=nx;if(!wallNear(e.x,ny,.19))e.y=ny}
