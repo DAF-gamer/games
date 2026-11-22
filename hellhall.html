@@ -70,7 +70,7 @@ body.fullscreen-mode #hud{width:min(100vw,160vh,160dvh);margin:0;padding:5px 8px
 <div id="stat"><div class="row"><span class="ic">&#10010;</span><div id="hpBar"><i id="hpTrail"></i><i id="hpFill"></i></div><span class="n" id="hpN">100</span></div><div class="row"><span class="ic" id="wpN">&#9646;</span><div id="mag"></div><span class="n" id="amN"></span></div><div id="spare"></div></div>
 <div id="fps"></div>
 <div id="waveBanner" aria-live="polite"></div>
-<div id="msg"><b>Survive the waves</b><span>Fight through three waves of demons: 12 in wave 1, 18 in wave 2, and 24 in wave 3. Clear each wave to bring on the next. Fight through an abandoned small town: Main Street, crashed cars, a strip mall, the housing district, and the big town square, all sealed inside a quarantine fence. WASD to move, mouse or arrow keys to turn, hold click or Space to fire. Ammo is short: grab the glowing ammo crates on car hoods and out in the open (yellow on the minimap). Choose your weapon:</span><div class="pick"><button data-w="rifle"><strong>Assault rifle</strong>Full auto · 32-round magazine · 64 total rounds</button><button data-w="shotgun"><strong>Shotgun</strong>15-pellet blast · 5-shell tube · 10 total shells</button></div></div>
+<div id="msg"><b>Survive the waves</b><span>Fight through three waves of demons: 12 in wave 1, 18 in wave 2, and 24 in wave 3. Clear each wave to bring on the next. Fight through an abandoned small town: Main Street, crashed cars, a strip mall, the housing district, and the big town square, all sealed inside a quarantine fence. WASD to move, mouse or arrow keys to turn, hold click or Space to fire. Ammo is short: grab the glowing ammo crates on car hoods and out in the open (yellow on the minimap). Choose your weapon:</span><div class="pick"><button data-w="rifle"><strong>Assault rifle</strong>Full auto · 32-round magazine · 96 total rounds</button><button data-w="shotgun"><strong>Shotgun</strong>15-pellet blast · 5-shell tube · 15 total shells</button></div></div>
 </div>
 <div id="hud"><div id="kl">Wave 1/3 · 12 left</div></div>
 <p class="help">W/A/S/D move · mouse, trackpad or arrow keys look · hold click or Space to fire · press R to reload. Escape releases the cursor.</p>
@@ -137,7 +137,7 @@ var M=GRID.map(function(r){return r.join('')});
 var isMed=function(x,y){return x>=HWY.med&&x<=HWY.med+1&&x<HWY.rail},isRail=function(x){return x===HWY.rail},isPump=function(x,y){return PUMPS.some(function(p){return p[0]===x&&p[1]===y})};
 var WC={1:[70,68,66],2:[120,112,100],3:[60,100,50],4:[96,100,110],5:[160,140,110],6:[170,120,90],7:[190,50,40],8:[140,110,70],9:[150,155,165]};
 var P,E=[],wp='rifle',PEL=[],GB=[],pitch=0,HM=null,md=false,keys={},flash=0,hurt=0,state='menu',last=0,bob=0,cool=0,camKick=0;
-var MAG_SIZE={rifle:32,shotgun:5},TOTAL_AMMO={rifle:64,shotgun:10};
+var MAG_SIZE={rifle:32,shotgun:5},TOTAL_AMMO={rifle:96,shotgun:15};
 var wave=1,waveDelay=-1,waveNotice=0,waveBanner=document.getElementById('waveBanner'),WAVE_COUNTS=[12,18,24];
 var reloadActive=false,reloadElapsed=0,reloadDuration=0,reloadTarget=0,reloadLoaded=0,reloadCommitted=false;
 var msg=document.getElementById('msg');var PICK=msg.querySelector('.pick').outerHTML;
