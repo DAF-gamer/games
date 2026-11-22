@@ -28,7 +28,27 @@ p.help{color:var(--dim);font-size:.9rem;max-width:960px;margin:4px 0}
 #cross{position:absolute;left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;pointer-events:none;z-index:3}
 #hurt{position:absolute;inset:3px;background:radial-gradient(ellipse at center,rgba(200,0,0,0) 35%,rgba(200,0,0,.9) 100%);opacity:0;pointer-events:none;z-index:2}
 #hm{position:absolute;left:50%;top:40%;transform:translateX(-50%);font:700 20px "Impact","Arial Black",sans-serif;letter-spacing:.08em;color:#ffe066;text-shadow:2px 2px 3px #000;pointer-events:none;opacity:0;z-index:3}
-#mini{position:absolute;left:10px;top:10px;width:120px;height:120px;pointer-events:none;z-index:3;opacity:.9}
+#mini{position:absolute;left:10px;top:96px;width:120px;height:120px;pointer-events:none;z-index:3;opacity:.9}
+#stat{position:absolute;left:10px;top:10px;width:260px;z-index:4;pointer-events:none;padding:7px 22px 7px 10px;background:linear-gradient(90deg,rgba(8,10,12,.78),rgba(8,10,12,.45));border-left:3px solid #f2d23b;clip-path:polygon(0 0,100% 0,calc(100% - 14px) 100%,0 100%);font:700 12px "Courier New",monospace;color:#e8e3d0;text-shadow:1px 1px 1px #000;display:flex;flex-direction:column;gap:6px}
+#stat .row{display:flex;align-items:center;gap:7px}
+#stat .ic{width:16px;text-align:center;color:#f2d23b;font-size:13px}
+#stat .n{min-width:28px;text-align:right}
+#hpBar{position:relative;flex:1;height:12px;background:rgba(255,255,255,.1);border:1px solid rgba(232,227,208,.35)}
+#hpBar i{position:absolute;left:0;top:0;bottom:0}
+#hpTrail{background:#b8322a;transition:width .5s .3s}
+#hpFill{background:#e8e3d0}
+#hpBar:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 2px),rgba(8,10,12,.85) calc(10% - 2px) 10%)}
+#stat.low #hpFill{background:#e0412f;animation:hpPulse .5s infinite alternate}
+@keyframes hpPulse{to{opacity:.45}}
+#mag{flex:1;display:flex;gap:1px;height:13px}
+#mag b{flex:1;background:#e8e3d0}
+#mag b.e{background:rgba(255,255,255,.13)}
+#mag.sh{gap:4px}#mag.sh b{flex:none;width:9px;border-radius:3px 3px 1px 1px;background:linear-gradient(#c8372a 62%,#d4a13a 62%)}
+#mag.sh b.e{background:rgba(255,255,255,.13)}
+#stat.rl #mag{animation:hpPulse .25s infinite alternate}
+#spare{display:flex;align-items:center;gap:3px;padding-left:23px;font-size:11px;color:#bdb6a2}
+#spare b{width:6px;height:10px;background:#bdb6a2}
+#spare em{font-style:normal;margin-left:4px}
 #fps{position:absolute;right:10px;top:10px;padding:3px 7px;background:rgba(0,0,0,.55);font:700 13px "Courier New",monospace;pointer-events:none;z-index:4;white-space:nowrap}
 html.fullscreen-mode,body.fullscreen-mode{width:100%;height:100%;overflow:hidden}
 body.fullscreen-mode{position:fixed;inset:0;z-index:9999;min-height:100vh;min-height:100dvh;height:100vh;height:100dvh;overflow:hidden;padding:0;justify-content:center}
@@ -47,11 +67,12 @@ body.fullscreen-mode #hud{width:min(100vw,160vh,160dvh);margin:0;padding:5px 8px
 <svg id="cross" viewBox="0 0 22 22" aria-hidden="true"><g stroke="#000" stroke-opacity=".6" stroke-width="3.2"><path d="M11 1v7M11 14v7M1 11h7M14 11h7"/></g><g stroke="#fff" stroke-width="1.6"><path d="M11 1v7M11 14v7M1 11h7M14 11h7"/></g></svg>
 <div id="hurt"></div>
 <div id="hm"></div>
+<div id="stat"><div class="row"><span class="ic">&#10010;</span><div id="hpBar"><i id="hpTrail"></i><i id="hpFill"></i></div><span class="n" id="hpN">100</span></div><div class="row"><span class="ic" id="wpN">&#9646;</span><div id="mag"></div><span class="n" id="amN"></span></div><div id="spare"></div></div>
 <div id="fps"></div>
 <div id="waveBanner" aria-live="polite"></div>
 <div id="msg"><b>Survive the waves</b><span>Fight through three waves of demons: 12 in wave 1, 18 in wave 2, and 24 in wave 3. Clear each wave to bring on the next. Fight through an abandoned small town: Main Street, crashed cars, a strip mall, the housing district, and the big town square, all sealed inside a quarantine fence. WASD to move, mouse or arrow keys to turn, hold click or Space to fire. Choose your weapon:</span><div class="pick"><button data-w="rifle"><strong>Assault rifle</strong>Full auto · 32-round magazine · 250 total rounds</button><button data-w="shotgun"><strong>Shotgun</strong>15-pellet blast · 5-shell tube · 48 total shells</button></div></div>
 </div>
-<div id="hud"><div id="hp">Health 100</div><div id="am">Ammo 250</div><div id="kl">Wave 1/3 · 12 left</div></div>
+<div id="hud"><div id="kl">Wave 1/3 · 12 left</div></div>
 <p class="help">W/A/S/D move · mouse, trackpad or arrow keys look · hold click or Space to fire · press R to reload. Escape releases the cursor.</p>
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
 <script>
@@ -120,6 +141,15 @@ var MAG_SIZE={rifle:32,shotgun:5},TOTAL_AMMO={rifle:250,shotgun:48};
 var wave=1,waveDelay=-1,waveNotice=0,waveBanner=document.getElementById('waveBanner'),WAVE_COUNTS=[12,18,24];
 var reloadActive=false,reloadElapsed=0,reloadDuration=0,reloadTarget=0,reloadLoaded=0,reloadCommitted=false;
 var msg=document.getElementById('msg');var PICK=msg.querySelector('.pick').outerHTML;
+var stEl=document.getElementById('stat'),hpFill=document.getElementById('hpFill'),hpTrail=document.getElementById('hpTrail'),hpN=document.getElementById('hpN'),magEl=document.getElementById('mag'),amN=document.getElementById('amN'),spEl=document.getElementById('spare'),HS={};
+// top-left status panel: segmented health bar with a red damage trail, the magazine as notches (shells for the shotgun),
+// spare magazines below. Only touches the DOM when a value changes.
+function hudStat(){var hp=Math.max(0,Math.ceil(P.hp)),ms=MAG_SIZE[wp],i;
+ if(HS.hp!==hp){HS.hp=hp;hpFill.style.width=hp+'%';hpTrail.style.width=hp+'%';hpN.textContent=hp;stEl.classList.toggle('low',hp<=30)}
+ if(HS.wp!==wp){HS.wp=wp;magEl.className=wp==='shotgun'?'sh':'';magEl.innerHTML=new Array(ms+1).join('<b></b>');HS.mag=HS.res=-1}
+ if(HS.mag!==P.mag){HS.mag=P.mag;for(i=0;i<magEl.children.length;i++)magEl.children[i].className=i<P.mag?'':'e';amN.textContent=P.mag}
+ if(HS.res!==P.reserve){HS.res=P.reserve;var h='';if(wp!=='shotgun')for(i=0;i<Math.min(10,Math.ceil(P.reserve/ms));i++)h+='<b></b>';spEl.innerHTML=h+'<em>'+(wp==='shotgun'?'+'+P.reserve+' shells':P.reserve+' spare')+'</em>'}
+ stEl.classList.toggle('rl',reloadActive)}
 var hmEl=document.getElementById('hm'),hurtEl=document.getElementById('hurt'),mini=document.getElementById('mini'),mg=mini.getContext('2d');
 // Spawn points: open cells at least 12 steps (by street) from the start, not hugging walls, spread out.
 var START=[30.5,24.5];
@@ -693,7 +723,7 @@ var handR=hand(),handL=hand();handL.add(handShell);handShell.position.set(0,.01,
 var flashSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:T.flash,blending:THREE.AdditiveBlending,depthWrite:false,depthTest:false,transparent:true}));gunRoot.add(flashSpr);flashSpr.visible=false;
 
 // ---------- game logic ----------
-function reset(){PEL=[];pitch=0;camKick=0;reloadActive=false;reloadElapsed=0;reloadDuration=0;reloadTarget=0;reloadLoaded=0;reloadCommitted=false;wave=1;waveDelay=-1;waveNotice=1.8;waveBanner.textContent='WAVE 1';waveBanner.style.display='block';P={x:START[0],y:START[1],a:Math.PI/2,hp:100,mag:MAG_SIZE[wp],reserve:TOTAL_AMMO[wp]-MAG_SIZE[wp]};blood.clear();dust.clear();makeWaveEnemies(WAVE_COUNTS[0])}
+function reset(){PEL=[];pitch=0;camKick=0;reloadActive=false;reloadElapsed=0;reloadDuration=0;reloadTarget=0;reloadLoaded=0;reloadCommitted=false;wave=1;waveDelay=-1;waveNotice=1.8;waveBanner.textContent='WAVE 1';waveBanner.style.display='block';P={x:START[0],y:START[1],a:Math.PI/2,hp:100,mag:MAG_SIZE[wp],reserve:TOTAL_AMMO[wp]-MAG_SIZE[wp]};blood.clear();dust.clear();makeWaveEnemies(WAVE_COUNTS[0]);hudStat()}
 function kill(e){e.alive=false;var ax=e.x-P.x,ay=e.y-P.y,al=Math.hypot(ax,ay)||1,pow=wp==='shotgun'?1.6:1;ax/=al;ay/=al;e.kx=ax*6*pow;e.ky=ay*6*pow;e.vz=(3+Math.random())*pow;e.z=0;e.fy=Math.atan2(-ax,-ay)}
 function dmg(e,z){var h=z==='head'?4:z==='chest'?1.5:.6;if(z==='head'||z==='chest')e.hp-=h;else e.hp=Math.max(.5,e.hp-h);e.pain=.15;if(z==='head')HM={t:'HEADSHOT',tm:.6};
 if(z==='armL'||z==='armR'){var k=z==='armL'?'aL':'aR';if(!e[k]){e[k]=true;HM={t:'ARM OFF',tm:.6};spawnArmGib(e,k==='aL'?-1:1)}}
@@ -727,8 +757,7 @@ var vis=true,ang=Math.atan2(dy,dx),steps=Math.floor(d*4);for(var i=1;i<steps;i++
 if(d>1){var tx=P.x,ty=P.y;if(!vis){var cx=Math.floor(e.x),cy=Math.floor(e.y),bv=FD[cy*MW+cx],bx2=cx,by=cy;[[1,0],[-1,0],[0,1],[0,-1]].forEach(function(n){var X=cx+n[0],Y=cy+n[1];if(X<0||Y<0||X>=MW||Y>=MH)return;var v=FD[Y*MW+X];if(v<bv){bv=v;bx2=X;by=Y}});tx=bx2+.5;ty=by+.5}var ex=tx-e.x,ey=ty-e.y,el=Math.hypot(ex,ey)||1,sp=(e.cr?.3:1.1)*dt,nx=e.x+ex/el*sp,ny=e.y+ey/el*sp;if(!wallNear(nx,e.y,.19))e.x=nx;if(!wallNear(e.x,ny,.19))e.y=ny}
 e.ph+=Math.hypot(e.x-ox,e.y-oy)*(e.cr?9:7.5)+dt*.4;
 if(vis&&d<1.3&&e.cd<=0){e.cd=1;P.hp-=8;hurt=.25}});
-document.getElementById('hp').textContent='Health '+Math.max(0,Math.ceil(P.hp));
-document.getElementById('am').textContent=(wp==='shotgun'?'Shells ':'Ammo ')+P.mag+' / '+P.reserve+(reloadActive?'  RELOADING':'');
+hudStat();
 // When the last enemy falls, start a short break before the next wave.
 if(left===0&&state==='play'){if(wave<WAVE_COUNTS.length){if(waveDelay<0)waveDelay=3.0;waveDelay-=dt;if(waveDelay<=0){wave++;makeWaveEnemies(WAVE_COUNTS[wave-1]);waveDelay=-1;waveNotice=1.8;waveBanner.textContent='WAVE '+wave;}}else{end('All waves cleared','You survived all three waves. Click to play again.');}}
 if(waveDelay>=0){waveBanner.textContent='WAVE '+(wave+1)+' INCOMING';waveBanner.style.display='block';}else if(waveNotice>0&&state==='play'){waveNotice-=dt;waveBanner.textContent='WAVE '+wave;waveBanner.style.display='block';}else if(state==='play'){waveBanner.style.display='none';}
