@@ -1,0 +1,1364 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Night Shift</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23162040'/%3E%3Cpath d='M40 12a20 20 0 1 0 12 30A16 16 0 0 1 40 12z' fill='%23ffd860'/%3E%3C/svg%3E">
+<style>
+  :root { --ink:#f4f1e8; --dim:#a9b0c2; --panel:rgba(12,16,28,.82); --line:rgba(255,255,255,.14); --gold:#ffd860; --red:#ff5a4e; --green:#5fd68a; --blue:#6fb7ff; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; overflow:hidden; background:#05070d; color:var(--ink); font:15px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  canvas#cv { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  .hide { display:none !important; }
+  .box { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px 12px; }
+  #tl { position:fixed; left:14px; top:14px; min-width:190px; }
+  #clock { font:700 28px/1 ui-monospace,Menlo,monospace; letter-spacing:1px; }
+  #ampm { font-size:15px; color:var(--dim); }
+  #till { margin-top:4px; color:var(--green); font-weight:600; }
+  #rateRow { margin-top:6px; display:flex; align-items:center; gap:8px; }
+  #rateBar { flex:1; height:8px; background:rgba(255,255,255,.12); border-radius:4px; overflow:hidden; }
+  #rateFill { height:100%; width:75%; background:var(--gold); transition:width .3s; }
+  #stars { color:var(--gold); letter-spacing:1px; font-size:14px; }
+  #tasks { position:fixed; right:14px; top:14px; min-width:220px; }
+  #tasks h4 { margin:0 0 4px; font-size:12px; letter-spacing:2px; color:var(--dim); }
+  #tasks div.t { padding:2px 0; }
+  #tasks .warn { color:var(--gold); }
+  #tasks .bad { color:var(--red); font-weight:600; }
+  #tasks .ok { color:var(--dim); }
+  #goal { position:fixed; left:50%; top:14px; transform:translateX(-50%); text-align:center; font-weight:600; max-width:46vw; }
+  #cross { position:fixed; left:50%; top:50%; width:6px; height:6px; margin:-3px 0 0 -3px; border-radius:50%; background:rgba(255,255,255,.85); box-shadow:0 0 0 1.5px rgba(0,0,0,.5); }
+  #prompt { position:fixed; left:50%; top:calc(50% + 22px); transform:translateX(-50%); white-space:nowrap; font-weight:600; text-shadow:0 1px 3px #000; }
+  #prompt kbd, .k { display:inline-block; min-width:22px; padding:0 6px; margin-right:6px; border-radius:5px; background:var(--gold); color:#111; font:700 13px/22px ui-monospace,Menlo,monospace; text-align:center; text-shadow:none; }
+  #prompt.info kbd { display:none; }
+  #prompt.info { color:var(--dim); font-weight:500; }
+  #held { position:fixed; left:50%; bottom:16px; transform:translateX(-50%); }
+  #toasts { position:fixed; left:14px; bottom:16px; display:flex; flex-direction:column; gap:6px; max-width:380px; }
+  .toast { background:var(--panel); border-left:3px solid var(--gold); padding:6px 10px; border-radius:6px; animation:tin .25s ease-out; }
+  .toast.good { border-color:var(--green); } .toast.bad { border-color:var(--red); }
+  @keyframes tin { from { opacity:0; transform:translateX(-12px); } }
+  #rob { position:fixed; left:50%; top:22%; transform:translateX(-50%); text-align:center; width:min(560px,92vw); border-color:var(--red); }
+  #rob h3 { margin:0 0 4px; color:var(--red); letter-spacing:3px; }
+  #robEye { margin-top:6px; font-weight:700; font-size:17px; }
+  #robEye.watch { color:var(--red); } #robEye.away { color:var(--green); }
+  #robTime { height:5px; background:var(--red); border-radius:3px; margin-top:8px; }
+  .screen { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(4,6,14,.78); padding:16px; }
+  .card { width:min(620px,100%); max-height:100%; overflow:auto; background:#0e1424; border:1px solid var(--line); border-radius:14px; padding:24px 28px; }
+  .card h1 { margin:0; font-size:44px; letter-spacing:4px; color:var(--gold); }
+  .card .sub { color:var(--dim); margin:2px 0 14px; }
+  .card ul { margin:8px 0 14px; padding-left:20px; } .card li { margin:3px 0; }
+  .ctl { display:grid; grid-template-columns:auto 1fr; gap:4px 12px; margin:10px 0 18px; color:var(--dim); }
+  button { font:inherit; cursor:pointer; border-radius:8px; border:1px solid var(--line); background:#1d2742; color:var(--ink); padding:7px 14px; }
+  button:hover { background:#28365c; }
+  button.big { background:var(--gold); color:#111; border:none; font-weight:800; font-size:18px; padding:12px 30px; letter-spacing:1px; }
+  button.big:hover { filter:brightness(1.08); }
+  #reg { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:min(560px,94vw); background:#101828; border:1px solid var(--line); border-radius:14px; padding:16px 18px; box-shadow:0 20px 60px rgba(0,0,0,.6); }
+  #reg .head { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  #reg .head b { letter-spacing:3px; color:var(--gold); }
+  .screenTxt { background:#07210f; color:#8dffb0; font:600 16px/1.5 ui-monospace,Menlo,monospace; border-radius:8px; padding:10px 12px; margin:8px 0; }
+  .items { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:6px; }
+  .item { text-align:left; display:flex; justify-content:space-between; gap:8px; }
+  .item.done { background:#14351f; border-color:#2f7a48; color:#a8f0c0; cursor:default; }
+  .denoms { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+  .denoms button { min-width:62px; font-weight:700; }
+  .bill { background:#24452b; } .coin { background:#4a4a52; border-radius:20px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px; }
+  .row .grow { flex:1; }
+  .go { background:var(--green); color:#062010; border:none; font-weight:800; }
+  .go:hover { background:#78e6a0; }
+  .stats { display:grid; grid-template-columns:1fr auto; gap:3px 18px; margin:12px 0 18px; }
+  .stats span:nth-child(even) { text-align:right; font-weight:700; }
+  #fade { position:fixed; inset:0; background:#000; opacity:0; pointer-events:none; transition:opacity 1.2s; }
+  @media (max-width:700px) { #goal { max-width:90vw; top:auto; bottom:64px; } #tasks { top:auto; bottom:70px; right:8px; min-width:0; font-size:13px; } .card h1 { font-size:32px; } }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div id="hud" class="hide">
+  <div id="tl" class="box">
+    <div id="clock">10:00 <span id="ampm">PM</span></div>
+    <div id="till">Register: $100.00</div>
+    <div id="rateRow"><span id="stars">★★★★☆</span><div id="rateBar"><div id="rateFill"></div></div></div>
+  </div>
+  <div id="goal" class="box hide"></div>
+  <div id="tasks" class="box"><h4>TO DO</h4><div id="taskList"></div></div>
+  <div id="cross"></div>
+  <div id="prompt"></div>
+  <div id="held" class="box hide"></div>
+  <div id="toasts"></div>
+  <div id="rob" class="box hide">
+    <h3>⚠ ROBBERY ⚠</h3>
+    <div>Look at the <b>register</b> and press <span class="k">E</span> to hand over the cash (safe).<br>
+      Or press the <b style="color:var(--red)">red silent alarm</b> under the counter, but only while he isn't looking!</div>
+    <div id="robEye" class="watch">👁 He's watching you</div>
+    <div id="robTime"></div>
+  </div>
+</div>
+
+<div id="reg" class="hide">
+  <div class="head"><b>REGISTER</b><span id="regWho"></span><button id="regX">Close (Esc)</button></div>
+  <div id="regBody"></div>
+</div>
+
+<div id="start" class="screen">
+  <div class="card">
+    <h1>NIGHT SHIFT</h1>
+    <div class="sub">One overnight shift at Late Nite Mart, 10 PM to 6 AM.</div>
+    <ul>
+      <li><b>Check out customers</b> at the register: scan their items and count out the right change.</li>
+      <li><b>Mop up spills.</b> The mop is in the back room. People slip on wet floors.</li>
+      <li><b>Stock the shelves.</b> Grab a box from the back room and take it to the matching shelf.</li>
+      <li><b>Take out the trash</b> before the cans overflow. The dumpster is out the back door.</li>
+      <li>Watch out: <b>someone might try to rob the store.</b></li>
+      <li>At 6 AM your shift ends. Walk to the <b>bus stop</b> and catch the bus home.</li>
+    </ul>
+    <div class="ctl">
+      <span class="k">WASD</span><span>walk (hold Shift to hurry)</span>
+      <span class="k">Mouse</span><span>look around</span>
+      <span class="k">E</span><span>use / pick up (or left click). Hold it to mop.</span>
+      <span class="k">Q</span><span>put down what you're holding</span>
+      <span class="k">M</span><span>sound on / off</span>
+      <span class="k">Esc</span><span>pause</span>
+    </div>
+    <button id="go" class="big">CLOCK IN</button>
+  </div>
+</div>
+
+<div id="pause" class="screen hide"><div class="card" style="text-align:center"><h1 style="font-size:34px">PAUSED</h1><p class="sub">Click to get back to work.</p><button id="resume" class="big">RESUME</button></div></div>
+<div id="end" class="screen hide"><div class="card"><h1 id="endT">HOME AT LAST</h1><div class="sub" id="endS"></div><div class="stats" id="endStats"></div><button class="big" onclick="location.reload()">WORK ANOTHER SHIFT</button></div></div>
+<div id="fade"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const rnd = (a, b) => a + Math.random() * (b - a);
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const money = c => (c < 0 ? '-$' : '$') + (Math.abs(c) / 100).toFixed(2);
+
+// ===================================================================== renderer
+const cv = $('cv');
+const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.outputEncoding = THREE.sRGBEncoding;
+const scene = new THREE.Scene();
+const NIGHT = new THREE.Color(0x070b18), DAWN = new THREE.Color(0xd99a78);
+scene.background = NIGHT.clone();
+scene.fog = new THREE.Fog(0x070b18, 30, 90);
+const camera = new THREE.PerspectiveCamera(70, 1, 0.05, 200);
+camera.rotation.order = 'YXZ';
+scene.add(camera);
+function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+
+// ===================================================================== helpers
+const MATS = {};
+function mat(color, o) {
+  if (o && (o.map || o.emissiveMap)) return new THREE.MeshLambertMaterial(Object.assign({ color }, o));
+  const k = color + '|' + JSON.stringify(o || {});
+  if (!MATS[k]) MATS[k] = new THREE.MeshLambertMaterial(Object.assign({ color }, o));
+  return MATS[k];
+}
+function glow(color) { return mat(color, { emissive: color, emissiveIntensity: 1 }); }
+function box(w, h, d, m, x, y, z, parent) {
+  const me = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+  me.position.set(x, y, z); (parent || scene).add(me); return me;
+}
+function cyl(rt, rb, h, m, x, y, z, parent, seg) {
+  const me = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg || 16), m);
+  me.position.set(x, y, z); (parent || scene).add(me); return me;
+}
+function ctex(w, h, draw, rep) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+  if (rep) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep[0], rep[1]); }
+  return t;
+}
+function plane(w, h, m, x, y, z, ry, rx) {
+  const me = new THREE.Mesh(new THREE.PlaneGeometry(w, h), m);
+  me.position.set(x, y, z); me.rotation.order = 'YXZ'; me.rotation.y = ry || 0; me.rotation.x = rx || 0;
+  scene.add(me); return me;
+}
+function floor(x0, z0, x1, z1, m, y) { return plane(x1 - x0, z1 - z0, m, (x0 + x1) / 2, y || 0, (z0 + z1) / 2, 0, -Math.PI / 2); }
+function signTex(text, bg, fg, w, h, font) {
+  return ctex(w || 512, h || 128, (g, W, H) => {
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    g.fillStyle = fg; g.font = font || `800 ${H * 0.55}px system-ui,sans-serif`;
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, W / 2, H / 2 + 2);
+  });
+}
+
+// ===================================================================== collision
+const SOLID = []; // [x0,z0,x1,z1]
+function solid(x0, z0, x1, z1) { SOLID.push([Math.min(x0, x1), Math.min(z0, z1), Math.max(x0, x1), Math.max(z0, z1)]); }
+function wall(x0, z0, x1, z1, h, m, y0) {
+  solid(x0, z0, x1, z1);
+  return box(Math.abs(x1 - x0), h, Math.abs(z1 - z0), m, (x0 + x1) / 2, (y0 || 0) + h / 2, (z0 + z1) / 2);
+}
+function collide(p, r) {
+  for (let it = 0; it < 2; it++) for (const s of SOLID) {
+    const cx = clamp(p.x, s[0], s[2]), cz = clamp(p.z, s[1], s[3]);
+    const dx = p.x - cx, dz = p.z - cz, d2 = dx * dx + dz * dz;
+    if (d2 < r * r) {
+      if (d2 > 1e-8) { const d = Math.sqrt(d2); p.x = cx + dx / d * r; p.z = cz + dz / d * r; }
+      else { // centre inside the box: push out the shortest way
+        const o = [p.x - s[0], s[2] - p.x, p.z - s[1], s[3] - p.z], m = Math.min(...o);
+        if (m === o[0]) p.x = s[0] - r; else if (m === o[1]) p.x = s[2] + r; else if (m === o[2]) p.z = s[1] - r; else p.z = s[3] + r;
+      }
+    }
+  }
+}
+
+// ===================================================================== world
+const T = {};
+T.tile = ctex(256, 256, (g, W) => {
+  for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { g.fillStyle = (i + j) % 2 ? '#d9d6cc' : '#ece9e0'; g.fillRect(i * 128, j * 128, 128, 128); }
+  g.strokeStyle = 'rgba(0,0,0,.18)'; g.lineWidth = 3; for (let i = 0; i <= 2; i++) { g.beginPath(); g.moveTo(i * 128, 0); g.lineTo(i * 128, W); g.moveTo(0, i * 128); g.lineTo(W, i * 128); g.stroke(); }
+}, [8, 6]);
+T.concrete = ctex(256, 256, (g, W) => { g.fillStyle = '#7d7f82'; g.fillRect(0, 0, W, W); for (let i = 0; i < 2500; i++) { g.fillStyle = `rgba(${Math.random() < .5 ? '0,0,0' : '255,255,255'},.06)`; g.fillRect(Math.random() * W, Math.random() * W, 2, 2); } g.strokeStyle = 'rgba(0,0,0,.3)'; g.lineWidth = 2; g.strokeRect(0, 0, W, W); }, [1, 1]);
+T.asphalt = ctex(512, 256, (g, W, H) => {
+  g.fillStyle = '#26282c'; g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 4000; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * .05})`; g.fillRect(Math.random() * W, Math.random() * H, 2, 2); }
+  g.fillStyle = '#e8c34a'; for (let x = 0; x < W; x += 128) g.fillRect(x, H / 2 - 4, 70, 8);
+}, [20, 1]);
+T.brick = ctex(256, 256, (g, W) => {
+  g.fillStyle = '#3a2420'; g.fillRect(0, 0, W, W);
+  for (let r = 0; r < 16; r++) for (let c = -1; c < 8; c++) { g.fillStyle = `hsl(10,${30 + Math.random() * 15}%,${20 + Math.random() * 8}%)`; g.fillRect(c * 32 + (r % 2) * 16 + 1, r * 16 + 1, 30, 14); }
+}, [6, 2]);
+T.wallIn = ctex(64, 256, (g, W, H) => { g.fillStyle = '#e9e4d8'; g.fillRect(0, 0, W, H); g.fillStyle = '#2f6e5a'; g.fillRect(0, H - 40, W, 40); g.fillStyle = '#c9c2b2'; g.fillRect(0, H - 44, W, 4); }, [12, 1]);
+
+const M = {
+  floor: mat('#ffffff', { map: T.tile }), conc: mat('#ffffff', { map: T.concrete }), road: mat('#ffffff', { map: T.asphalt }),
+  wallIn: mat('#ffffff', { map: T.wallIn }), wallBack: mat('#b9b3a4'), brick: mat('#ffffff', { map: T.brick }),
+  ceiling: mat('#d8d6cf'), metal: mat('#8f969e'), dark: mat('#2a2d33'), wood: mat('#8a6140'), white: mat('#f2f2f2'),
+  glass: new THREE.MeshLambertMaterial({ color: 0x9fc6d8, transparent: true, opacity: .18, depthWrite: false }),
+  shelf: mat('#c9ccd1'), shelfDark: mat('#5b6068'), cardboard: mat('#b68a55'), green: mat('#2e6b3b'), yellow: mat('#f2c230'),
+  black: mat('#151515'), red: mat('#c8281e'), lamp: glow('#fffbea'), counterFront: mat('#2f6e5a'),
+};
+
+// ---------- floors & ceilings
+floor(-8, -6, 8, 6, M.floor);
+T.concreteS = T.concrete.clone(); T.concreteS.repeat.set(6, 5); T.concreteS.needsUpdate = true;
+floor(2, -11, 8, -6, mat('#ffffff', { map: T.concreteS }));
+T.side = T.concrete.clone(); T.side.repeat.set(30, 2); T.side.needsUpdate = true;
+floor(-60, 6, 60, 9.2, mat('#ffffff', { map: T.side }));
+floor(-80, 9.2, 80, 17, M.road, -0.12);
+box(160, 0.12, 0.25, mat('#9a9a96'), 0, -0.06, 9.2); // curb
+floor(-80, 17, 80, 20, mat('#ffffff', { map: T.side }));
+floor(2, -16, 10, -11, mat('#3a3c40'));
+floor(-80, -40, 80, 6, mat('#15171b'), -0.02); // ground under everything else
+plane(16, 12, M.ceiling, 0, 3.2, 0, 0, Math.PI / 2);
+plane(6, 5, M.ceiling, 5, 3.0, -8.5, 0, Math.PI / 2);
+for (const x of [-5.5, -1.5, 2.5, 6]) for (const z of [-3.5, 0, 3.5]) box(1.2, .05, .5, M.lamp, x, 3.18, z);
+box(1.2, .05, .5, M.lamp, 5, 2.98, -8.5);
+
+// ---------- store walls (interior x -8..8, z -6..6, height 3.2)
+const H = 3.2;
+wall(-8.2, -6.2, -8, 6.2, H, M.wallIn);
+wall(8, -6.2, 8.2, 6.2, H, M.wallIn);
+wall(-8.2, -6.2, 4.4, -6, H, M.wallIn);
+wall(5.6, -6.2, 8.2, -6, H, M.wallIn);
+box(1.2, H - 2.3, .2, M.wallIn, 5, 2.3 + (H - 2.3) / 2, -6.1); // over the staff door
+// front wall: low base + glass + header, door gap x -5.8..-4.2
+function frontSeg(x0, x1) {
+  solid(x0, 6, x1, 6.2);
+  box(x1 - x0, .6, .2, M.counterFront, (x0 + x1) / 2, .3, 6.1);
+  const g = box(x1 - x0, 2, .05, M.glass, (x0 + x1) / 2, 1.6, 6.1); g.renderOrder = 5;
+  box(x1 - x0, H - 2.6, .22, M.wallBack, (x0 + x1) / 2, 2.6 + (H - 2.6) / 2, 6.1);
+  for (let x = x0; x <= x1 + .01; x += (x1 - x0) / Math.max(1, Math.round((x1 - x0) / 2.6))) box(.08, 2, .12, M.metal, x, 1.6, 6.1);
+}
+frontSeg(-8.2, -5.8); frontSeg(-4.2, 8.2);
+box(1.6, H - 2.4, .22, M.wallBack, -5, 2.4 + (H - 2.4) / 2, 6.1);
+box(.1, 2.4, .2, M.metal, -5.8, 1.2, 6.1); box(.1, 2.4, .2, M.metal, -4.2, 1.2, 6.1);
+const doorMat = mat('#e0e0e0', { transparent: true, opacity: .25, depthWrite: false });
+const doorL = box(.8, 2.35, .04, doorMat, -5.4, 1.18, 6.05), doorR = box(.8, 2.35, .04, doorMat, -4.6, 1.18, 6.05);
+doorL.renderOrder = doorR.renderOrder = 6;
+// storefront exterior: sign band + roof
+box(16.6, 1.4, .3, M.brick, 0, H + .7, 6.25);
+const signM = mat('#ffffff', { map: signTex('LATE NITE MART', '#13204a', '#ffd860', 1024, 128), emissive: '#ffffff', emissiveMap: null });
+signM.emissiveMap = signM.map; signM.emissiveIntensity = .9;
+plane(9, 1.1, signM, 0, H + .7, 6.41);
+const open24 = mat('#ffffff', { map: signTex('OPEN 24 HRS', '#200', '#ff3b3b', 512, 128) }); open24.emissive = new THREE.Color('#ffffff'); open24.emissiveMap = open24.map;
+plane(1.4, .35, open24, -6.8, 2.0, 6.16, 0);
+box(16.6, .3, 12.6, mat('#202227'), 0, H + .15 + .01, 0);
+// stockroom (x 2..8, z -11..-6, height 3)
+wall(1.8, -11.2, 2, -6, 3, M.wallBack);
+wall(8, -11.2, 8.2, -6, 3, M.wallBack);
+wall(1.8, -11.2, 3.9, -11, 3, M.wallBack);
+wall(5.1, -11.2, 10.2, -11, 3, M.wallBack);
+box(1.2, .7, .2, M.wallBack, 4.5, 2.65, -11.1);
+plane(1.4, .35, mat('#ffffff', { map: signTex('STAFF ONLY', '#7a1a14', '#fff', 512, 128) }), 5, 2.55, -5.88);
+plane(1.2, .3, mat('#ffffff', { map: signTex('EXIT', '#0d3b1c', '#7dff9b', 512, 128) }), 4.5, 2.45, -10.88);
+// alley (x 2..10, z -16..-11)
+wall(1.8, -16.2, 2, -11, 3.5, M.brick);
+wall(10, -16.2, 10.2, -11, 3.5, M.brick);
+wall(1.8, -16.2, 10.2, -16, 3.5, M.brick);
+// neighbours
+box(22, 7, 22, M.brick, -19.2, 3.5, -5);  solid(-30.2, -16, -8.2, 6);
+box(22, 6, 17, M.brick, 19.2, 3, -2.5); solid(8.2, -11, 30.2, 6);
+box(10, 6, 10, M.brick, -3, 3, -11.2);
+for (const [x, w] of [[-14, 3], [-24, 3], [14, 3], [24, 3]]) plane(w, 1.6, mat('#1a2430'), x, 1.7, 6.01, 0);
+// across the street: dark buildings with a few lit windows
+T.far = ctex(512, 256, (g, W, Hh) => {
+  g.fillStyle = '#14161c'; g.fillRect(0, 0, W, Hh);
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 10; c++) { g.fillStyle = Math.random() < .25 ? '#e9c77a' : '#0c0e13'; g.fillRect(c * 51 + 12, r * 60 + 18, 28, 34); }
+}, [1, 1]);
+for (let i = 0; i < 6; i++) { const w = rnd(14, 22), h = rnd(6, 12); box(w, h, 8, mat('#ffffff', { map: T.far }), -60 + i * 24, h / 2, 24); }
+solid(-80, 9.3, 80, 9.5); solid(-26.2, 6, -26, 9.5); solid(26, 6, 26.2, 9.5);
+
+// ---------- lights
+const hemi = new THREE.HemisphereLight(0xcfd8ff, 0x30302c, .45); scene.add(hemi);
+function plight(c, i, d, x, y, z) { const l = new THREE.PointLight(c, i, d, 1.2); l.position.set(x, y, z); scene.add(l); return l; }
+plight(0xfff6e6, 1.1, 14, -4, 2.9, 0); plight(0xfff6e6, 1.1, 14, 2.5, 2.9, 0); plight(0xfff6e6, .7, 10, 5, 2.6, -8.5);
+plight(0xdfe8ff, .8, 12, 0, 2.6, 8); plight(0xffcf8a, .7, 10, 6, 3, -13.5);
+const stLights = [];
+for (const x of [-20, -7, 7, 20]) {
+  cyl(.06, .08, 5, M.dark, x, 2.5, 9); box(.9, .1, .3, M.dark, x, 5, 9.4); box(.5, .06, .25, glow('#ffd9a0'), x, 4.95, 9.5);
+  stLights.push(plight(0xffc98a, .9, 13, x, 4.7, 9.6));
+}
+
+// ===================================================================== products & shelves
+const CATS = [
+  { name: 'Chips',   price: 249, col: '#f28c28', lab: 'CRUNCHOS' },
+  { name: 'Candy',   price: 129, col: '#8e44c9', lab: 'CHOCO BAR' },
+  { name: 'Cookies', price: 319, col: '#7a4a24', lab: 'COOKIES' },
+  { name: 'Bread',   price: 299, col: '#e0b86a', lab: 'BREAD' },
+  { name: 'Soup',    price: 189, col: '#cc2b2b', lab: 'SOUP' },
+  { name: 'Gum',     price:  99, col: '#22a86a', lab: 'MINT GUM' },
+  { name: 'Soda',    price: 199, col: '#2a7de1', lab: 'FIZZ' },
+];
+function packTex(cat, bottles) {
+  return ctex(384, 128, (g, W, Hh) => {
+    g.fillStyle = '#e8e4da'; g.fillRect(0, 0, W, Hh);
+    const n = bottles ? 4 : 3, w = W / n;
+    for (let i = 0; i < n; i++) {
+      const x = i * w + 6;
+      if (bottles) {
+        g.fillStyle = cat.col; g.fillRect(x + 16, 26, w - 44, Hh - 26); g.fillRect(x + 28, 4, w - 68, 26);
+        g.fillStyle = '#fff'; g.fillRect(x + 16, 62, w - 44, 22);
+        g.fillStyle = cat.col; g.font = '800 16px system-ui'; g.textAlign = 'center'; g.fillText(cat.lab, x + (w - 12) / 2, 79);
+      } else {
+        g.fillStyle = cat.col; g.fillRect(x, 4, w - 12, Hh - 6);
+        g.fillStyle = 'rgba(255,255,255,.9)'; g.fillRect(x + 6, Hh / 2 - 16, w - 24, 32);
+        g.fillStyle = cat.col; g.font = `800 ${cat.lab.length > 7 ? 17 : 22}px system-ui`; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText(cat.lab, x + (w - 12) / 2, Hh / 2 + 1);
+      }
+    }
+  });
+}
+function tagTex(cat) { return signTex(`${cat.name.toUpperCase()}  ${money(cat.price)}`, cat.col, '#fff', 512, 96, '800 52px system-ui,sans-serif'); }
+
+const FACES = []; // one face (shelf side) per category
+const CAP = 12;
+const LANES = [-6.3, -3, 0, 3.0], FZ = 4.3, BZ = -4.8;
+function addFace(ci, opts) {
+  const cat = CATS[ci], f = { ci, cat, stock: CAP, units: [], ...opts };
+  const front = mat('#ffffff', { map: packTex(cat, opts.cooler) }), side = mat(cat.col);
+  const ms = [side, side, side, side, front, side];
+  const order = [];
+  for (let lv = 0; lv < 3; lv++) for (let c = 0; c < 4; c++) order.push([lv, c]);
+  order.sort(() => Math.random() - .5);
+  for (const [lv, c] of order) {
+    const u = new THREE.Mesh(new THREE.BoxGeometry(1.2, .36, .3), ms);
+    if (opts.cooler) u.position.set(-6.05 + c * 2, .45 + lv * .55 + .18, -5.75);
+    else { u.position.set(opts.sx + opts.d * .24, .35 + lv * .5 + .18, -2.6 + c * 1.4); u.rotation.y = opts.d * Math.PI / 2; }
+    scene.add(u); f.units.push(u);
+  }
+  f.refresh = () => f.units.forEach((u, i) => u.visible = i < f.stock);
+  FACES.push(f); return f;
+}
+function shelfUnit(sx, left, right) {
+  const z0 = -3.3, z1 = 2.5, L = z1 - z0, zc = (z0 + z1) / 2;
+  solid(sx - .45, z0, sx + .45, z1);
+  box(.9, .15, L, M.shelfDark, sx, .075, zc);
+  box(.06, 2.2, L, M.shelf, sx, 1.1, zc);
+  for (const y of [.33, .83, 1.33]) box(.9, .04, L, M.shelf, sx, y, zc);
+  box(.9, 2.2, .05, M.shelfDark, sx, 1.1, z0); box(.9, 2.2, .05, M.shelfDark, sx, 1.1, z1);
+  for (const [ci, d] of [[left, -1], [right, 1]]) {
+    const tm = mat('#ffffff', { map: tagTex(CATS[ci]) });
+    for (const z of [-1.8, 1.0]) plane(1.6, .3, tm, sx + d * .035, 1.95, z, d * Math.PI / 2);
+    addFace(ci, { sx, d, lane: LANES.reduce((a, b) => Math.abs(b - (sx + d * 1.4)) < Math.abs(a - (sx + d * 1.4)) ? b : a), z0: -3.0, z1: 2.2 });
+  }
+}
+shelfUnit(-4.5, 0, 1); shelfUnit(-1.5, 2, 3); shelfUnit(1.5, 4, 5);
+// aisle signs hanging from the ceiling
+for (const [x, a, b] of [[-4.5, 0, 1], [-1.5, 2, 3], [1.5, 4, 5]]) {
+  const tx = signTex(`${CATS[a].name} · ${CATS[b].name}`, '#13204a', '#fff', 512, 96, '700 46px system-ui,sans-serif');
+  box(.05, .4, 2, mat('#ffffff', { map: tx }), x, 2.75, -.4); box(.02, .3, .02, M.metal, x, 3.05, -.4);
+}
+// drinks cooler on the back wall
+solid(-7.3, -6, 1.2, -5.4);
+box(8.5, .4, .6, M.dark, -3.05, .2, -5.7); box(8.5, .1, .6, M.dark, -3.05, 2.25, -5.7);
+box(.1, 2.3, .6, M.dark, -7.3, 1.15, -5.7); box(.1, 2.3, .6, M.dark, 1.2, 1.15, -5.7);
+box(8.3, 2.0, .05, glow('#dfefff'), -3.05, 1.15, -5.98);
+for (const y of [.43, .98, 1.53]) box(8.3, .03, .5, M.metal, -3.05, y, -5.7);
+const cg = box(8.4, 2.1, .03, M.glass, -3.05, 1.15, -5.41); cg.renderOrder = 5;
+for (let i = 0; i <= 4; i++) box(.06, 2.1, .06, M.metal, -7.25 + i * 2.1, 1.15, -5.4);
+box(8.5, .3, .62, mat('#ffffff', { map: signTex('ICE COLD DRINKS', '#1c4fa0', '#fff', 1024, 64, '800 40px system-ui') }), -3.05, 2.45, -5.7);
+addFace(6, { cooler: true, lane: null, x0: -6.6, x1: .6 });
+FACES.forEach(f => f.refresh());
+
+// ===================================================================== counter & clerk area
+solid(3.65, 1.2, 4.35, 5.2);
+box(.7, .95, 4, M.counterFront, 4, .475, 3.2);
+box(.85, .06, 4.1, M.wood, 4, .98, 3.2);
+const regG = new THREE.Group(); regG.position.set(4.05, 1.01, 3.0); scene.add(regG);
+box(.42, .12, .5, M.dark, 0, .06, 0, regG);
+const regScreenM = mat('#ffffff', { map: signTex('$0.00', '#07210f', '#8dffb0', 256, 128) });
+box(.05, .26, .38, M.dark, .1, .32, 0, regG);
+const scr = plane(.36, .24, regScreenM, 0, 0, 0); regG.add(scr); scr.position.set(.135, .32, 0); scr.rotation.set(0, Math.PI / 2, 0);
+box(.3, .04, .4, M.metal, -.05, .14, 0, regG);
+box(.03, .3, .03, M.dark, -.15, .15, .2, regG);
+// silent alarm: red button on the clerk side of the counter, under the lip
+const alarmB = cyl(.05, .05, .04, glow('#ff2a1a'), 4.37, .8, 2.3, null, 16); alarmB.rotation.z = Math.PI / 2;
+box(.02, .16, .16, M.dark, 4.355, .8, 2.3);
+// impulse rack on the customer side
+box(.25, .5, .6, mat(CATS[1].col), 3.5, 1.25, 4.6);
+// behind the clerk
+solid(7.4, 1.4, 8, 5.6);
+box(.6, 2.2, 4.2, M.dark, 7.7, 1.1, 3.5);
+for (let r = 0; r < 4; r++) for (let c = 0; c < 6; c++) box(.05, .3, .55, mat(pick(['#e63', '#39f', '#fc3', '#6c3', '#c3c'])), 7.38, .7 + r * .4, 1.95 + c * .62);
+plane(2.6, .45, mat('#ffffff', { map: signTex('LOTTO · PHONE CARDS', '#ffd860', '#13204a', 1024, 160, '800 70px system-ui') }), 7.98, 2.4, 3.5, -Math.PI / 2);
+// coffee machine on the front-left
+solid(-7.9, 2.6, -7.2, 3.8);
+box(.7, .9, 1.2, M.wood, -7.55, .45, 3.2); box(.5, .6, .4, M.dark, -7.6, 1.2, 3.0); box(.5, .6, .4, M.dark, -7.6, 1.2, 3.5);
+plane(1, .3, mat('#ffffff', { map: signTex('HOT COFFEE', '#4a2a14', '#ffe0b0', 512, 128) }), -7.95 + .0, 1.85, 3.2, Math.PI / 2);
+
+// ===================================================================== stockroom
+solid(7.0, -10.7, 8, -6.6);
+for (const z of [-10.6, -6.7]) for (const x of [7.05, 7.9]) box(.05, 2.1, .05, M.metal, x, 1.05, z);
+for (const y of [.15, 1.05, 1.95]) box(.9, .04, 4, M.metal, 7.45, y, -8.65);
+const RACK = [];
+CATS.forEach((cat, i) => {
+  const lv = i < 4 ? 0 : 1, z = -10.1 + (i % 4) * 1.0, y = (lv ? 1.07 : .17) + .25;
+  const lab = mat('#ffffff', { map: signTex(cat.name.toUpperCase(), cat.col, '#fff', 256, 128, '800 54px system-ui') });
+  const b = box(.7, .5, .8, [M.cardboard, lab, M.cardboard, M.cardboard, M.cardboard, M.cardboard], 7.45, y, z);
+  RACK.push({ ci: i, mesh: b, pos: new THREE.Vector3(7.1, y, z) });
+});
+plane(2.4, .35, mat('#ffffff', { map: signTex('RESTOCK BOXES', '#333', '#fff', 512, 96) }), 7.95, 2.35, -8.65, -Math.PI / 2);
+// mop & bucket
+solid(2.25, -7.45, 3.05, -6.75);
+const bucket = new THREE.Group(); bucket.position.set(2.65, 0, -7.1); scene.add(bucket);
+cyl(.3, .25, .45, M.yellow, 0, .25, 0, bucket); cyl(.27, .27, .02, mat('#6a8aa0'), 0, .44, 0, bucket);
+const mopRest = new THREE.Group(); bucket.add(mopRest);
+const mopStick = cyl(.025, .025, 1.5, M.wood, .05, 1.0, 0, mopRest); mopStick.rotation.z = -.25;
+cyl(.12, .14, .2, M.white, -.05, .3, 0, mopRest);
+// boxes stacked for decoration
+for (const [x, z, y] of [[2.5, -10.4, .3], [3.3, -10.4, .3], [2.9, -10.4, .9]]) box(.7, .6, .6, M.cardboard, x, y, z);
+solid(2.1, -10.8, 3.7, -10.0);
+// dumpster
+solid(5.4, -15.9, 7.6, -14.6);
+box(2.2, 1.3, 1.3, M.green, 6.5, .65, -15.25); box(2.3, .08, 1.4, mat('#24502d'), 6.5, 1.34, -15.25);
+plane(1.2, .3, mat('#ffffff', { map: signTex('TRASH', '#24502d', '#fff', 256, 64) }), 6.5, .9, -14.59);
+
+// ===================================================================== trash cans
+const CANS = [];
+function makeCan(x, z, name) {
+  solid(x - .32, z - .32, x + .32, z + .32);
+  const g = new THREE.Group(); g.position.set(x, 0, z); scene.add(g);
+  const shell = new THREE.Mesh(new THREE.CylinderGeometry(.3, .26, .8, 18, 1, true), new THREE.MeshLambertMaterial({ color: 0x5a5f66, side: THREE.DoubleSide })); shell.position.y = .4; g.add(shell);
+  cyl(.26, .26, .02, M.black, 0, .03, 0, g);
+  const fill = cyl(.27, .25, 1, M.black, 0, .5, 0, g, 14);
+  const over = new THREE.Group(); g.add(over);
+  for (let i = 0; i < 5; i++) { const s = new THREE.Mesh(new THREE.SphereGeometry(.12, 8, 6), mat(pick(['#ddd', '#c33', '#ea3', '#555']))); const a = i * 1.26 + rnd(0, .5), rr = rnd(.36, .5); s.position.set(Math.cos(a) * rr, .08, Math.sin(a) * rr); over.add(s); }
+  const c = { name, x, z, g, fill, over, level: name === 'front' ? .45 : .3 };
+  CANS.push(c); return c;
+}
+makeCan(-7.45, 5.35, 'front'); makeCan(7.55, .7, 'counter');
+function canRefresh(c) { const l = Math.min(1, c.level); c.fill.visible = l > .02; c.fill.scale.y = Math.max(.01, l * .78); c.fill.position.y = l * .39 + .02; c.over.visible = c.level >= 1; }
+CANS.forEach(canRefresh);
+
+// ===================================================================== bus stop
+const STOP = { x: -14, z: 8.4 };
+solid(-15.6, 8.75, -12.4, 8.9);
+box(3.2, 2.3, .06, M.glass, -14, 1.25, 8.82).renderOrder = 5;
+box(3.4, .1, 1.3, M.dark, -14, 2.45, 8.4);
+for (const x of [-15.6, -12.4]) for (const z of [7.85, 8.85]) box(.06, 2.4, .06, M.metal, x, 1.2, z);
+box(2.4, .08, .4, M.wood, -14, .48, 8.6); box(.06, .44, .3, M.metal, -15, .22, 8.6); box(.06, .44, .3, M.metal, -13, .22, 8.6);
+cyl(.04, .04, 2.6, M.metal, -11.9, 1.3, 9.0);
+box(.6, .6, .04, mat('#ffffff', { map: signTex('BUS 12', '#1a5fd0', '#fff', 256, 256, '900 70px system-ui') }), -11.9, 2.4, 9.0);
+plight(0xbfd8ff, .5, 6, -14, 2.3, 8.4);
+const stopRing = new THREE.Mesh(new THREE.RingGeometry(.7, .85, 40), new THREE.MeshBasicMaterial({ color: 0xffd860, transparent: true, opacity: .8, side: THREE.DoubleSide }));
+stopRing.rotation.x = -Math.PI / 2; stopRing.position.set(-13.2, .03, 8.0); stopRing.visible = false; scene.add(stopRing);
+
+// ===================================================================== vehicles
+function makeCar(col, police) {
+  const g = new THREE.Group(); scene.add(g);
+  box(4.2, .7, 1.8, mat(col), 0, .55, 0, g);
+  box(2.3, .6, 1.6, police ? mat('#f4f4f4') : mat(col), .1, 1.2, 0, g);
+  box(2.2, .5, 1.62, mat('#203040'), .1, 1.2, 0, g);
+  for (const x of [-1.4, 1.4]) for (const z of [-.85, .85]) { const w = cyl(.33, .33, .25, M.black, x, .33, z, g, 14); w.rotation.x = Math.PI / 2; }
+  box(.05, .15, .35, glow('#fff6d0'), -2.11, .65, .55, g); box(.05, .15, .35, glow('#fff6d0'), -2.11, .65, -.55, g);
+  box(.05, .15, .35, glow('#ff2020'), 2.11, .65, .55, g); box(.05, .15, .35, glow('#ff2020'), 2.11, .65, -.55, g);
+  if (police) {
+    g.userData.red = box(.3, .15, .5, glow('#ff1a1a'), .1, 1.58, -.35, g);
+    g.userData.blue = box(.3, .15, .5, glow('#1a5cff'), .1, 1.58, .35, g);
+    g.userData.light = new THREE.PointLight(0xff2020, 2, 14, 1.3); g.userData.light.position.y = 2.2; g.add(g.userData.light);
+    box(1.5, .3, .02, mat('#ffffff', { map: signTex('POLICE', '#f4f4f4', '#13204a', 512, 128) }), .1, .6, .91, g);
+    const p2 = box(1.5, .3, .02, mat('#ffffff', { map: signTex('POLICE', '#f4f4f4', '#13204a', 512, 128) }), .1, .6, -.91, g); p2.rotation.y = Math.PI;
+  }
+  return g; // front is -x
+}
+const traffic = [];
+let trafficT = 4;
+function makeBus() {
+  const g = new THREE.Group(); scene.add(g);
+  box(11, 2.6, 2.5, mat('#e8eef2'), 0, 1.65, 0, g);
+  box(11.02, .35, 2.52, mat('#1a5fd0'), 0, .9, 0, g);
+  box(9.2, .9, 2.52, glow('#fff1c8'), .6, 2.2, 0, g);
+  box(.05, 1.3, 2.2, glow('#c6d7ff'), -5.52, 2.0, 0, g);
+  box(.06, .5, 1.8, glow('#ff8a2a'), -5.53, 3.1, 0, g);
+  const door = box(.9, 2.2, .06, mat('#203040'), -4.5, 1.45, -1.27, g);
+  for (const x of [-3.5, 3.5]) for (const z of [-1.2, 1.2]) { const w = cyl(.5, .5, .35, M.black, x, .5, z, g, 16); w.rotation.x = Math.PI / 2; }
+  box(1.4, .3, .02, mat('#ffffff', { map: signTex('BUS 12', '#1a5fd0', '#fff', 256, 64) }), 2, 2.9, -1.27, g).rotation.y = Math.PI;
+  g.userData.door = door; g.visible = false;
+  return g;
+}
+const bus = makeBus();
+const BUS = { state: 'none', x: 80 }; // none → coming → stopped → leaving
+const police = makeCar('#13204a', true); police.visible = false;
+const POL = { state: 'none', x: 70, t: 0 };
+
+// ===================================================================== people
+const SKIN = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac', '#a8704a'];
+const SHIRT = ['#c0392b', '#2980b9', '#27ae60', '#8e44ad', '#f39c12', '#16a085', '#7f8c8d', '#e84393', '#2c3e50', '#d35400', '#f5f5f5'];
+const PANTS = ['#1f2a44', '#3b3b3b', '#5a4630', '#2d4a6b', '#6b6b6b', '#1a1a1a'];
+const HAIR = ['#1b1209', '#3b2413', '#7a5230', '#c9a15a', '#222', '#8a8a8a'];
+function makePerson(kind) {
+  const robber = kind === 'robber', clerk = kind === 'clerk';
+  const g = new THREE.Group();
+  const skin = mat(pick(SKIN)), shirt = mat(robber ? '#1c1c1f' : clerk ? '#2f6e5a' : pick(SHIRT)), pants = mat(robber ? '#141414' : pick(PANTS));
+  const legs = [], arms = [];
+  for (const s of [-1, 1]) {
+    const l = new THREE.Group(); l.position.set(s * .11, .9, 0); g.add(l);
+    box(.16, .84, .18, pants, 0, -.42, 0, l); box(.17, .1, .26, M.black, 0, -.85, .04, l);
+    legs.push(l);
+    const a = new THREE.Group(); a.position.set(s * .31, 1.5, 0); g.add(a);
+    box(.13, .58, .15, shirt, 0, -.29, 0, a); box(.11, .12, .12, skin, 0, -.63, 0, a);
+    arms.push(a);
+  }
+  box(.48, .64, .26, shirt, 0, 1.2, 0, g);
+  const head = new THREE.Group(); head.position.y = 1.56; g.add(head);
+  box(.1, .08, .1, skin, 0, .02, 0, head);
+  if (robber) {
+    box(.27, .3, .28, mat('#202024'), 0, .2, 0, head);
+    box(.2, .06, .02, skin, 0, .24, .14, head);
+    box(.04, .04, .02, M.black, -.05, .24, .152, head); box(.04, .04, .02, M.black, .05, .24, .152, head);
+    box(.1, .03, .02, mat('#6a3030'), 0, .1, .142, head);
+  } else {
+    box(.26, .3, .27, skin, 0, .2, 0, head);
+    box(.04, .04, .02, M.black, -.06, .24, .137, head); box(.04, .04, .02, M.black, .06, .24, .137, head);
+    const hair = mat(pick(HAIR));
+    box(.28, .09, .29, hair, 0, .36, 0, head); box(.28, .2, .06, hair, 0, .26, -.12, head);
+    if (Math.random() < .3) box(.3, .05, .34, mat(pick(SHIRT)), 0, .42, .03, head); // cap
+  }
+  if (clerk) box(.12, .08, .01, M.white, -.13, 1.4, .135, g); // name tag
+  // speech bubble
+  const bc = document.createElement('canvas'); bc.width = 512; bc.height = 96;
+  const bt = new THREE.CanvasTexture(bc); bt.encoding = THREE.sRGBEncoding;
+  const bubble = new THREE.Sprite(new THREE.SpriteMaterial({ map: bt, transparent: true, depthTest: false }));
+  bubble.scale.set(1.9, .36, 1); bubble.position.y = 2.15; bubble.visible = false; bubble.renderOrder = 20; g.add(bubble);
+  scene.add(g);
+  return { g, legs, arms, head, bubble, bc, bt };
+}
+function say(c, txt, dur) {
+  const g = c.bc.getContext('2d'), W = 512, Hh = 96;
+  g.clearRect(0, 0, W, Hh); g.font = '700 34px system-ui,sans-serif';
+  const w = Math.min(W - 8, g.measureText(txt).width + 40);
+  g.fillStyle = c.robber ? 'rgba(120,12,12,.92)' : 'rgba(255,255,255,.94)';
+  const x = (W - w) / 2; g.beginPath(); g.roundRect ? g.roundRect(x, 8, w, 70, 18) : g.rect(x, 8, w, 70); g.fill();
+  g.beginPath(); g.moveTo(W / 2 - 12, 76); g.lineTo(W / 2 + 12, 76); g.lineTo(W / 2, 92); g.fill();
+  g.fillStyle = c.robber ? '#fff' : '#111'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt, W / 2, 44, W - 30);
+  c.bt.needsUpdate = true; c.bubble.visible = true; c.sayT = dur || 3;
+}
+
+// ---------- walking graph (customers walk along lanes)
+const NODES = {
+  F0: [LANES[0], FZ], DI: [-5, FZ], F1: [LANES[1], FZ], F2: [LANES[2], FZ], F3: [LANES[3], FZ],
+  B0: [LANES[0], BZ], B1: [LANES[1], BZ], B2: [LANES[2], BZ], B3: [LANES[3], BZ],
+  DO: [-5, 7.4], SL: [-30, 7.4], SR: [30, 7.4],
+};
+const SEGS = [['F0', 'DI'], ['DI', 'F1'], ['F1', 'F2'], ['F2', 'F3'], ['B0', 'B1'], ['B1', 'B2'], ['B2', 'B3'],
+  ['F0', 'B0'], ['F1', 'B1'], ['F2', 'B2'], ['F3', 'B3'], ['DI', 'DO'], ['DO', 'SL'], ['DO', 'SR']];
+function segDist(p, a, b) {
+  const ax = NODES[a][0], az = NODES[a][1], bx = NODES[b][0], bz = NODES[b][1];
+  const vx = bx - ax, vz = bz - az, t = clamp(((p.x - ax) * vx + (p.z - az) * vz) / (vx * vx + vz * vz), 0, 1);
+  return Math.hypot(p.x - (ax + vx * t), p.z - (az + vz * t));
+}
+function nearestSeg(p) { let best = null, bd = 1e9; for (const s of SEGS) { const d = segDist(p, s[0], s[1]); if (d < bd) { bd = d; best = s; } } return best; }
+function route(from, to) {
+  const sa = nearestSeg(from), sb = nearestSeg(to);
+  if (sa === sb) return [{ x: to.x, z: to.z }];
+  const pos = id => id === 'S' ? from : id === 'T' ? to : { x: NODES[id][0], z: NODES[id][1] };
+  const adj = {};
+  const link = (a, b) => { const d = Math.hypot(pos(a).x - pos(b).x, pos(a).z - pos(b).z); (adj[a] = adj[a] || []).push([b, d]); (adj[b] = adj[b] || []).push([a, d]); };
+  for (const s of SEGS) link(s[0], s[1]);
+  link('S', sa[0]); link('S', sa[1]); link('T', sb[0]); link('T', sb[1]);
+  const dist = { S: 0 }, prev = {}, done = new Set();
+  while (true) {
+    let u = null; for (const k in dist) if (!done.has(k) && (u === null || dist[k] < dist[u])) u = k;
+    if (u === null || u === 'T') break; done.add(u);
+    for (const [v, w] of adj[u] || []) if (dist[v] === undefined || dist[u] + w < dist[v]) { dist[v] = dist[u] + w; prev[v] = u; }
+  }
+  const out = []; let k = 'T';
+  while (k && k !== 'S') { out.unshift(pos(k)); k = prev[k]; }
+  return out.map(p => ({ x: p.x, z: p.z }));
+}
+
+// ===================================================================== game state
+const RATE = 1.2;            // game minutes per real second (8-hour shift ≈ 6.7 minutes)
+const SHIFT_END = 30 * 60;   // 6:00 AM (minutes after midnight of the day before)
+const G = {
+  started: false, ended: false, time: 22 * 60, till: 10000, rating: 75, held: null, shiftOver: false,
+  served: 0, sales: 0, mistakes: 0, angry: 0, mopped: 0, restocked: 0, bags: 0, slips: 0, robLog: [], drawerOff: 0,
+};
+const customers = [], queue = [], spills = [];
+let spawnT = 3, spillT = rnd(25, 40), robbery = null, coworker = null;
+const robTimes = [rnd(24 * 60 + 30, 26 * 60 + 30)];
+if (Math.random() < .6) robTimes.push(rnd(27 * 60 + 30, 29 * 60));
+const P = { x: 5.6, z: 3.0, yaw: Math.PI / 2, pitch: -.12, bob: 0, inBus: false };
+const keys = {};
+let locked = false, FORCE = false, mouseDown = false;
+
+// ---------- sound (synthesised, no files)
+let AC = null, MUTE = false, NOISE = null;
+function audioInit() {
+  if (AC) return;
+  try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+  NOISE = AC.createBuffer(1, AC.sampleRate, AC.sampleRate); const d = NOISE.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+}
+function tone(f, t0, dur, type, vol, f2) {
+  const o = AC.createOscillator(), g = AC.createGain(); o.type = type || 'sine';
+  o.frequency.setValueAtTime(f, t0); if (f2) o.frequency.linearRampToValueAtTime(f2, t0 + dur);
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + .01); g.gain.exponentialRampToValueAtTime(.0008, t0 + dur);
+  o.connect(g).connect(AC.destination); o.start(t0); o.stop(t0 + dur + .05);
+}
+function noise(t0, dur, vol, freq) {
+  const s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
+  s.buffer = NOISE; f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = .8;
+  g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(.0008, t0 + dur);
+  s.connect(f).connect(g).connect(AC.destination); s.start(t0); s.stop(t0 + dur + .05);
+}
+function snd(n, v) {
+  if (!AC || MUTE) return; v = v === undefined ? 1 : v; if (v <= .02) return;
+  const t = AC.currentTime;
+  switch (n) {
+    case 'beep': tone(1850, t, .09, 'square', .05 * v); break;
+    case 'ching': tone(1320, t, .3, 'triangle', .14 * v); tone(1760, t + .08, .45, 'triangle', .12 * v); noise(t, .2, .06 * v, 5000); break;
+    case 'chime': tone(988, t, .6, 'sine', .1 * v); tone(784, t + .3, .8, 'sine', .1 * v); break;
+    case 'err': tone(150, t, .25, 'sawtooth', .07 * v); break;
+    case 'coin': tone(2600, t, .05, 'square', .03 * v); tone(3200, t + .03, .05, 'square', .02 * v); break;
+    case 'bill': noise(t, .12, .08 * v, 3000); break;
+    case 'mop': noise(t, .25, .05 * v, 800); break;
+    case 'bag': noise(t, .4, .1 * v, 2500); break;
+    case 'box': noise(t, .12, .12 * v, 400); tone(90, t, .15, 'sine', .15 * v); break;
+    case 'slip': tone(700, t, .35, 'sine', .1 * v, 180); break;
+    case 'happy': tone(660, t, .12, 'sine', .07 * v); tone(880, t + .1, .18, 'sine', .07 * v); break;
+    case 'sting': tone(196, t, .9, 'sawtooth', .08 * v, 160); tone(233, t, .9, 'sawtooth', .06 * v, 190); break;
+    case 'siren': for (let i = 0; i < 4; i++) { tone(650, t + i * .8, .4, 'sawtooth', .04 * v, 950); tone(950, t + i * .8 + .4, .4, 'sawtooth', .04 * v, 650); } break;
+    case 'bus': tone(60, t, 2.2, 'sawtooth', .05 * v, 45); noise(t + 2, .7, .12 * v, 3500); break;
+    case 'hiss': noise(t, .6, .1 * v, 3500); break;
+  }
+}
+function sndAt(n, x, z, v) { snd(n, (v === undefined ? 1 : v) * clamp(1 - Math.hypot(x - P.x, z - P.z) / 22, 0, 1)); }
+
+// ---------- messages
+function toast(msg, kind) {
+  const d = document.createElement('div'); d.className = 'toast ' + (kind || ''); d.textContent = msg;
+  const box = $('toasts'); box.appendChild(d); while (box.children.length > 4) box.firstChild.remove();
+  setTimeout(() => d.remove(), 5000);
+}
+function rate(dx, why) {
+  G.rating = clamp(G.rating + dx, 0, 100);
+  if (why) toast(`${why} (${dx > 0 ? '+' : ''}${dx} rating)`, dx > 0 ? 'good' : 'bad');
+}
+
+// ===================================================================== customers
+function spawnCustomer(kind) {
+  const body = makePerson(kind);
+  const side = Math.random() < .5 ? -1 : 1;
+  const c = Object.assign(body, {
+    kind, robber: kind === 'robber', x: side * 28, z: 7.4, face: side > 0 ? -Math.PI / 2 : Math.PI / 2, phase: 0,
+    speed: kind === 'robber' ? 1.6 : rnd(1.1, 1.5), route: [], state: '', wait: 0, list: [], bought: [], miss: 0,
+    patience: 0, slot: -1, inside: false, sayT: 0, slipped: new Set(), stun: 0,
+  });
+  if (!c.robber) {
+    const n = Math.random() < .5 ? 1 : Math.random() < .7 ? 2 : 3;
+    const opts = [0, 1, 2, 3, 4, 5, 6, 6].sort(() => Math.random() - .5);
+    c.list = [...new Set(opts)].slice(0, n);
+  }
+  customers.push(c);
+  nextTarget(c);
+  return c;
+}
+function faceSpot(f) {
+  if (f.cooler) return { x: rnd(f.x0, f.x1), z: BZ };
+  return { x: f.lane, z: rnd(f.z0, f.z1) };
+}
+function goTo(c, p) { c.route = route(c, p); c.dest = p; }
+function nextTarget(c) {
+  if (c.robber) { c.state = 'toRob'; goTo(c, { x: 3.15, z: 3.9 }); return; }
+  if (c.list.length) { c.cur = c.list.shift(); c.state = 'toShelf'; goTo(c, faceSpot(FACES.find(f => f.ci === c.cur))); return; }
+  if (c.bought.length) joinQueue(c); else leave(c, c.miss > 0 ? 'Nothing I wanted… 😒' : null, c.miss > 0);
+}
+function joinQueue(c) {
+  if (queue.length >= 5) { leave(c, "Line's way too long! 😡", true); return; }
+  queue.push(c); c.state = 'queue'; c.patience = rnd(55, 75); c.slot = -1; c.warned = false;
+}
+function leave(c, msg, angry) {
+  const qi = queue.indexOf(c); if (qi >= 0) queue.splice(qi, 1);
+  if (REG.c === c) closeReg();
+  c.state = 'leave'; c.speed = c.robber ? 3.6 : c.speed;
+  goTo(c, { x: Math.random() < .5 ? -30 : 30, z: 7.4 });
+  if (msg) say(c, msg, 3);
+  if (angry) { G.angry++; rate(-4, 'A customer left unhappy'); }
+  if (!angry && !c.robber && Math.random() < .6) CANS[0].level += rnd(.07, .13);
+}
+function walk(c, dt) {
+  if (!c.route.length) return true;
+  const t = c.route[0], dx = t.x - c.x, dz = t.z - c.z, d = Math.hypot(dx, dz), step = c.speed * dt;
+  if (d <= step) { c.x = t.x; c.z = t.z; c.route.shift(); } else { c.x += dx / d * step; c.z += dz / d * step; }
+  if (d > .01) c.wantFace = Math.atan2(dx, dz);
+  c.phase += dt * c.speed * 5.5; c.moving = true;
+  return !c.route.length;
+}
+function turnTo(c, a) { c.wantFace = a; }
+function updateCustomer(c, dt) {
+  c.moving = false;
+  if (c.sayT > 0 && (c.sayT -= dt) <= 0) c.bubble.visible = false;
+  const frozen = robbery && !c.robber && c.state !== 'leave';
+  if (c.stun > 0) c.stun -= dt;
+  else if (!frozen) switch (c.state) {
+    case 'toShelf':
+      if (walk(c, dt)) { c.state = 'browse'; c.wait = rnd(1.2, 2.6); const f = FACES.find(f => f.ci === c.cur); turnTo(c, f.cooler ? Math.PI : (f.sx > c.x ? Math.PI / 2 : -Math.PI / 2)); }
+      break;
+    case 'browse':
+      if ((c.wait -= dt) <= 0) {
+        const f = FACES.find(f => f.ci === c.cur);
+        if (f.stock > 0) {
+          const n = f.stock > 1 && Math.random() < .25 ? 2 : 1;
+          for (let i = 0; i < n; i++) c.bought.push(c.cur);
+          f.stock -= n; f.refresh();
+        } else { c.miss++; say(c, `No ${f.cat.name.toLowerCase()}?! 😠`, 3); rate(-1); toast(`A customer wanted ${f.cat.name}, but the shelf is empty`, 'bad'); }
+        nextTarget(c);
+      }
+      break;
+    case 'queue': case 'pay': {
+      const i = queue.indexOf(c);
+      if (i !== c.slot) { c.slot = i; goTo(c, { x: 3.15, z: 3.0 - i * .9 }); c.state = 'queue'; }
+      if (walk(c, dt)) {
+        turnTo(c, i === 0 ? Math.PI / 2 : 0);
+        if (i === 0 && c.state !== 'pay') { c.state = 'pay'; if (!REG.c) say(c, 'Ready to check out!', 2.5); }
+      }
+      if (REG.c !== c && !G.shiftOver) {
+        c.patience -= dt;
+        if (c.patience < 15 && !c.warned) { c.warned = true; say(c, 'Hello?? I’m waiting! ⏱', 3); }
+        if (c.patience <= 0) leave(c, 'Forget it! 😡', true);
+      }
+      break;
+    }
+    case 'toRob':
+      if (walk(c, dt)) startRobbery(c);
+      break;
+    case 'rob': break;
+    case 'leave':
+      walk(c, dt);
+      if (!c.route.length) { scene.remove(c.g); customers.splice(customers.indexOf(c), 1); return; }
+      break;
+  }
+  // door chime
+  const inside = c.z < 6;
+  if (inside !== c.inside) { c.inside = inside; if (Math.abs(c.x + 5) < 1.5) sndAt('chime', -5, 6, .8); }
+  // slipping on wet floor
+  if (c.moving && c.inside && !c.robber) for (const s of spills) if (!c.slipped.has(s) && Math.hypot(s.x - c.x, s.z - c.z) < .5) {
+    c.slipped.add(s); c.stun = 1.1; G.slips++; say(c, 'Whoa! Wet floor! 😵', 2.5); sndAt('slip', c.x, c.z); rate(-2, 'A customer slipped on a spill');
+  }
+  // pose
+  let df = (c.wantFace === undefined ? c.face : c.wantFace) - c.face; df = Math.atan2(Math.sin(df), Math.cos(df));
+  c.face += df * Math.min(1, dt * 8);
+  c.g.position.set(c.x, 0, c.z); c.g.rotation.y = c.face;
+  const sw = c.moving ? Math.sin(c.phase) * .5 : 0;
+  c.legs[0].rotation.x = sw; c.legs[1].rotation.x = -sw;
+  c.arms[0].rotation.x = -sw * .8; c.arms[1].rotation.x = sw * .8;
+  if (c.stun > 0) c.g.rotation.z = Math.sin(c.stun * 14) * .15; else c.g.rotation.z = 0;
+  if (c.robber && c.state === 'rob') { c.arms[1].rotation.x = -1.2; c.head.rotation.y += ((robbery && !robbery.watch ? -1.25 : 0) - c.head.rotation.y) * Math.min(1, dt * 6); }
+  else c.head.rotation.y *= .9;
+}
+
+// ===================================================================== robbery
+function startRobbery(c) {
+  if (REG.open) closeReg();
+  c.state = 'rob'; turnTo(c, Math.PI / 2);
+  robbery = { c, t: 0, limit: 16, watch: true, sw: rnd(2.5, 4), resolved: false };
+  say(c, 'This is a robbery! Open the register!', 4);
+  snd('sting'); $('rob').classList.remove('hide');
+  for (const o of customers) if (o !== c && o.inside) say(o, '😨', 3);
+}
+function updateRobbery(dt) {
+  const r = robbery; if (!r || r.resolved) return;
+  r.t += dt; r.sw -= dt;
+  if (r.sw <= 0) { r.watch = !r.watch; r.sw = r.watch ? rnd(2.2, 4) : rnd(1.3, 2); if (!r.watch) say(r.c, '(glances out the window…)', 1.5); }
+  const e = $('robEye'); e.className = r.watch ? 'watch' : 'away';
+  e.textContent = r.watch ? "👁 He's watching you" : "👀 He's looking outside — NOW!";
+  $('robTime').style.width = (100 * (1 - r.t / r.limit)) + '%';
+  if (r.t >= r.limit) robberyEnd('grab');
+}
+function robberyEnd(how) {
+  const r = robbery; if (!r || r.resolved) return; r.resolved = true;
+  const c = r.c; $('rob').classList.add('hide');
+  if (how === 'alarm') {
+    say(c, 'Is that a siren?! I’m outta here!', 3);
+    G.robLog.push('Robber scared off by the silent alarm. Nothing stolen.');
+    rate(8, 'Silent alarm! The police are on the way');
+    callPolice();
+  } else {
+    const took = G.till; G.till = 0;
+    say(c, how === 'give' ? 'Smart choice. 💰' : how === 'caught' ? 'Hey! I saw that! 💰' : 'Too slow! 💰', 3);
+    G.robLog.push(`${how === 'give' ? 'You handed over' : 'Robber grabbed'} ${money(took)}.`);
+    if (how === 'caught') { rate(-3, 'He saw you reach for the alarm'); callPolice(); }
+    else if (how === 'grab') { rate(-2, 'The robber grabbed the cash'); callPolice(); }
+    else toast(`You handed over ${money(took)}. Nobody got hurt.`, '');
+    snd('ching', .7);
+  }
+  setTimeout(() => { leave(c); robbery = null; }, 900);
+}
+function callPolice() { if (POL.state !== 'none') return; POL.state = 'coming'; POL.x = 70; POL.t = 0; police.visible = true; setTimeout(() => snd('siren', .8), 600); }
+
+// ===================================================================== spills & trash
+const SPILLCOL = ['#6b3a1a', '#f2f2f2', '#f39c12', '#3fa9f5', '#c0392b'];
+function addSpill(x, z) {
+  const col = pick(SPILLCOL);
+  const t = ctex(128, 128, (g) => {
+    g.fillStyle = col;
+    for (let i = 0; i < 7; i++) { g.beginPath(); g.arc(64 + rnd(-26, 26), 64 + rnd(-26, 26), rnd(14, 30), 0, 7); g.fill(); }
+  });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.1), new THREE.MeshLambertMaterial({ map: t, transparent: true, opacity: .85, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2; m.rotation.z = rnd(0, 6); m.position.set(x, .012, z); scene.add(m);
+  const s = { x, z, m, prog: 0 }; spills.push(s);
+}
+function updateSpills(dt) {
+  if ((spillT -= dt) > 0) return;
+  const cand = customers.filter(c => c.inside && c.moving && !c.robber && c.z < 5 && c.z > -5.3 && c.x > -7.6 && c.x < 3.4);
+  if (!cand.length || spills.length >= 5 || G.shiftOver) { spillT = 4; return; }
+  const c = pick(cand); addSpill(c.x + rnd(-.3, .3), c.z + rnd(-.3, .3));
+  c.slipped.add(spills[spills.length - 1]);
+  say(c, pick(['Oops! Sorry!', 'Uh oh… spilled my drink', 'My bad! 😬']), 2.5);
+  toast('Someone spilled something. Get the mop!', '');
+  spillT = rnd(30, 55);
+}
+
+// ===================================================================== interactions
+const REACH = 2.3;
+const INTER = [];
+const v3 = new THREE.Vector3();
+const HELD_NAME = h => !h ? '' : h === 'mop' ? 'Mop' : h === 'bag' ? 'Trash bag' : `Box of ${CATS[h.box].name}`;
+const behindCounter = () => P.x > 4.35 && P.z > -6 && P.z < 6;
+// register
+INTER.push({
+  at: () => v3.set(4.05, 1.25, 3.0), r: .35,
+  label() {
+    if (!behindCounter()) return null;
+    if (robbery && robbery.c.state === 'rob' && !robbery.resolved) return 'Open the register and hand over the cash';
+    const c = queue[0];
+    if (c && c.state === 'pay') return 'Check out the customer';
+    return { info: 'Register (nobody is waiting)' };
+  },
+  act() {
+    if (robbery && robbery.c.state === 'rob' && !robbery.resolved) { robberyEnd('give'); return; }
+    if (queue[0] && queue[0].state === 'pay') openReg(queue[0]);
+  },
+});
+// silent alarm
+INTER.push({
+  at: () => v3.set(4.38, .8, 2.3), r: .14,
+  label() { if (!behindCounter()) return null; return robbery && !robbery.resolved && robbery.c.state === 'rob' ? 'Press the silent alarm' : { info: 'Silent alarm (emergencies only)' }; },
+  act() {
+    if (!(robbery && !robbery.resolved && robbery.c.state === 'rob')) return;
+    robberyEnd(robbery.watch ? 'caught' : 'alarm');
+  },
+});
+// shelves
+for (const f of FACES) INTER.push({
+  at() {
+    if (f.cooler) return v3.set(clamp(P.x, f.x0, f.x1), 1.0, -5.45);
+    return v3.set(f.sx + f.d * .45, 1.0, clamp(P.z, f.z0, f.z1));
+  }, r: .55,
+  label() {
+    if (!f.cooler && (P.x - f.sx) * f.d < .3) return null;
+    const h = G.held;
+    if (h && h.box !== undefined) {
+      if (h.box !== f.ci) return { info: `Wrong shelf: this is ${f.cat.name}, you have ${CATS[h.box].name}` };
+      return f.stock >= CAP ? { info: `${f.cat.name} is already full` } : `Restock ${f.cat.name} (${f.stock}/${CAP})`;
+    }
+    return { info: `${f.cat.name} shelf: ${f.stock}/${CAP}${f.stock < 5 ? '. Get a box from the back room' : ''}` };
+  },
+  act() {
+    const h = G.held; if (!h || h.box !== f.ci || f.stock >= CAP) return;
+    f.stock = CAP; f.refresh(); G.held = null; G.restocked++; snd('box'); toast(`${f.cat.name} shelf restocked`, 'good');
+  },
+});
+// restock boxes
+for (const b of RACK) INTER.push({
+  at: () => b.pos, r: .4,
+  label() {
+    const h = G.held;
+    if (!h) return `Take a box of ${CATS[b.ci].name}`;
+    if (h.box !== undefined) return h.box === b.ci ? `Put the ${CATS[b.ci].name} box back` : { info: 'Your hands are full' };
+    return { info: 'Your hands are full' };
+  },
+  act() {
+    const h = G.held;
+    if (!h) { G.held = { box: b.ci }; snd('box'); }
+    else if (h.box === b.ci) { G.held = null; snd('box'); }
+  },
+});
+// mop
+INTER.push({
+  at: () => v3.set(2.65, .7, -7.1), r: .45,
+  label() { return !G.held ? 'Take the mop' : G.held === 'mop' ? 'Put the mop back' : { info: 'Your hands are full' }; },
+  act() { if (!G.held) G.held = 'mop'; else if (G.held === 'mop') G.held = null; },
+});
+// trash cans
+for (const c of CANS) INTER.push({
+  at: () => v3.set(c.x, .85, c.z), r: .4,
+  label() {
+    const pct = Math.round(Math.min(1, c.level) * 100);
+    if (G.held) return { info: `Trash can: ${c.level >= 1 ? 'OVERFLOWING' : pct + '% full'}` };
+    if (c.level < .25) return { info: `Trash can: ${pct}% full. Not worth emptying yet` };
+    return `Take out the trash bag (${c.level >= 1 ? 'overflowing!' : pct + '% full'})`;
+  },
+  act() { if (G.held || c.level < .25) return; c.level = 0; canRefresh(c); G.held = 'bag'; snd('bag'); },
+});
+// dumpster
+INTER.push({
+  at: () => v3.set(6.5, 1.1, -14.6), r: .9,
+  label() { return G.held === 'bag' ? 'Throw the bag in the dumpster' : { info: 'Dumpster' }; },
+  act() { if (G.held !== 'bag') return; G.held = null; G.bags++; snd('box'); snd('bag'); toast('Trash taken out', 'good'); },
+});
+// bus stop & bus
+INTER.push({
+  at: () => v3.set(-11.9, 2.2, 9.0), r: .5,
+  label() {
+    if (!G.shiftOver) return { info: 'Bus 12 stop. The bus comes after your shift (6 AM)' };
+    if (G.held) return { info: 'Put down what you are holding first (Q)' };
+    if (BUS.state === 'none') return 'Wait for the bus home';
+    return { info: BUS.state === 'coming' ? 'The bus is on its way…' : 'Bus 12' };
+  },
+  act() { if (G.shiftOver && !G.held && BUS.state === 'none') callBus(); },
+});
+INTER.push({
+  at: () => v3.set(-14, 1.4, 9.95), r: .7,
+  label() { return BUS.state === 'stopped' ? 'Get on the bus' : null; },
+  act() { if (BUS.state === 'stopped') boardBus(); },
+});
+// spills are added dynamically
+function spillInter(s) {
+  return {
+    at: () => v3.set(s.x, .02, s.z), r: .6, hold: true, spill: s,
+    label() { return G.held === 'mop' ? `Hold E to mop up the spill ${s.prog > 0 ? Math.round(s.prog * 100) + '%' : ''}` : { info: 'A spill. Get the mop from the back room' }; },
+  };
+}
+let target = null;
+const eyeV = new THREE.Vector3(), dirV = new THREE.Vector3(), tmpV = new THREE.Vector3();
+function findTarget() {
+  eyeV.set(P.x, 1.6, P.z);
+  dirV.set(-Math.sin(P.yaw) * Math.cos(P.pitch), Math.sin(P.pitch), -Math.cos(P.yaw) * Math.cos(P.pitch));
+  let best = null, bestA = 1e9, bestL = null;
+  const list = INTER.concat(spills.map(s => s.inter || (s.inter = spillInter(s))));
+  for (const o of list) {
+    const p = o.at(); tmpV.copy(p).sub(eyeV);
+    const d = tmpV.length(); if (d > REACH + (o.spill ? .4 : 0)) continue;
+    const a = tmpV.angleTo(dirV), thr = Math.atan2(o.r, d) + .05;
+    if (a < thr && a < bestA) { const L = o.label(); if (L) { best = o; bestA = a; bestL = L; } }
+  }
+  return best ? { o: best, label: bestL } : null;
+}
+function interact() {
+  if (!target || REG.open) return;
+  const L = target.label;
+  if (typeof L === 'object') return; // info only
+  if (target.o.act) target.o.act();
+}
+function dropHeld() {
+  const h = G.held; if (!h) return;
+  if (h === 'bag') { toast('Take the bag to the dumpster out the back door', ''); return; }
+  G.held = null; toast(h === 'mop' ? 'Mop put back in the bucket' : 'Box put back in the back room', '');
+}
+
+// ---------- held item in your hands
+const HAND = new THREE.Group(); HAND.position.set(.38, -.42, -.7); camera.add(HAND);
+const handMop = new THREE.Group(); HAND.add(handMop);
+{ const s = cyl(.022, .022, 1.5, M.wood, 0, -.2, -.3, handMop); s.rotation.x = -1.0; const hd = cyl(.13, .16, .18, M.white, 0, -.6, -.9, handMop); }
+const handBox = new THREE.Group(); HAND.add(handBox);
+box(.55, .38, .45, M.cardboard, -.25, .05, -.1, handBox);
+const handBoxLab = plane(.4, .2, mat('#ffffff'), 0, 0, 0); handBox.add(handBoxLab); handBoxLab.position.set(-.25, .05, .126);
+const handBag = new THREE.Group(); HAND.add(handBag);
+{ const b = new THREE.Mesh(new THREE.SphereGeometry(.24, 12, 10), mat('#121212')); b.scale.set(1, 1.2, 1); b.position.set(.05, -.15, -.05); handBag.add(b); cyl(.03, .06, .12, mat('#121212'), .05, .17, -.05, handBag); }
+const boxLabMats = CATS.map(c => mat('#ffffff', { map: signTex(c.name.toUpperCase(), c.col, '#fff', 256, 128, '800 54px system-ui') }));
+let mopAnim = 0;
+function updateHands(dt, mopping) {
+  const h = G.held;
+  handMop.visible = h === 'mop'; handBox.visible = !!(h && h.box !== undefined); handBag.visible = h === 'bag';
+  mopRest.visible = h !== 'mop';
+  if (handBox.visible) handBoxLab.material = boxLabMats[h.box];
+  RACK.forEach(b => b.mesh.visible = !(h && h.box === b.ci));
+  mopAnim += dt * (mopping ? 9 : 0);
+  handMop.rotation.z = mopping ? Math.sin(mopAnim) * .35 : 0;
+  handMop.position.x = mopping ? Math.sin(mopAnim) * .08 : 0;
+  HAND.position.y = -.42 + Math.sin(P.bob * 2) * .012;
+}
+
+// ===================================================================== register panel
+const REG = { open: false, c: null, items: [], stage: '', total: 0, paid: 0, given: [] };
+const DENOMS = [1000, 500, 100, 25, 10, 5, 1];
+const dname = d => d >= 100 ? '$' + d / 100 : d + '¢';
+function openReg(c) {
+  REG.open = true; REG.c = c; REG.items = c.bought.map(ci => ({ ci, done: false }));
+  REG.stage = 'scan'; REG.total = 0; REG.paid = 0; REG.given = [];
+  if (document.pointerLockElement) document.exitPointerLock();
+  $('reg').classList.remove('hide'); $('regWho').textContent = `${c.bought.length} item${c.bought.length > 1 ? 's' : ''}`;
+  renderReg();
+}
+function closeReg(relock) {
+  REG.open = false; REG.c = null; $('reg').classList.add('hide');
+  if (relock) lockPointer();
+  if (!locked && G.started && !G.ended && !P.inBus) $('pause').classList.remove('hide');
+}
+function choosePay(total) {
+  const bills = [500, 1000, 2000].filter(b => b >= total);
+  const r = Math.random();
+  if (r < .3 && Math.ceil(total / 100) * 100 > total) return Math.ceil(total / 100) * 100;
+  if (r < .4) return total; // exact change
+  if (r < .8 || bills.length < 2) return bills[0] || 2000;
+  return bills[1];
+}
+const givenSum = () => REG.given.reduce((a, b) => a + b, 0);
+function renderReg() {
+  const b = $('regBody');
+  let h = '<div class="items">';
+  REG.items.forEach((it, i) => {
+    const c = CATS[it.ci];
+    h += `<button class="item ${it.done ? 'done' : ''}" data-scan="${i}"><span>${it.done ? '✓ ' : ''}${c.name}</span><span>${money(c.price)}</span></button>`;
+  });
+  h += '</div>';
+  const scanned = REG.items.filter(i => i.done).reduce((a, i) => a + CATS[i.ci].price, 0);
+  if (REG.stage === 'scan') {
+    h += `<div class="screenTxt">SUBTOTAL ${money(scanned)}<br><span style="opacity:.7">Click each item to scan it.</span></div>`;
+    h += `<div class="row"><span class="grow"></span><button data-act="scanall">Scan all</button></div>`;
+  } else if (REG.stage === 'card') {
+    h += `<div class="screenTxt">TOTAL ${money(REG.total)}<br>💳 Customer tapped their card… APPROVED</div>`;
+    h += `<div class="row"><span class="grow"></span><button class="go" data-act="finish">Print receipt &amp; finish</button></div>`;
+  } else if (REG.stage === 'exact') {
+    h += `<div class="screenTxt">TOTAL ${money(REG.total)}<br>Customer paid ${money(REG.paid)} exactly. No change due.</div>`;
+    h += `<div class="row"><span class="grow"></span><button class="go" data-act="finish">Put cash in drawer &amp; finish</button></div>`;
+  } else if (REG.stage === 'change') {
+    const due = REG.paid - REG.total, g = givenSum();
+    h += `<div class="screenTxt">TOTAL ${money(REG.total)} · PAID ${money(REG.paid)} cash<br>CHANGE DUE <b>${money(due)}</b></div>`;
+    h += `<div>Count out the change from the drawer:</div><div class="denoms">`;
+    for (const d of DENOMS) h += `<button class="${d >= 100 ? 'bill' : 'coin'}" data-d="${d}">${dname(d)}</button>`;
+    h += `</div><div class="row"><span>In your hand: <b style="color:${g === due ? 'var(--green)' : g > due ? 'var(--red)' : 'var(--ink)'}">${money(g)}</b></span>`;
+    h += `<span class="grow" style="color:var(--dim);font-size:13px">${REG.given.length ? REG.given.map(dname).join(' + ') : ''}</span>`;
+    h += `<button data-act="undo">Undo</button><button data-act="clear">Clear</button><button class="go" data-act="give">Give change</button></div>`;
+  }
+  b.innerHTML = h;
+}
+$('regBody').addEventListener('click', e => {
+  const t = e.target.closest('button'); if (!t || !REG.open) return;
+  if (t.dataset.scan !== undefined) scanItem(+t.dataset.scan);
+  const a = t.dataset.act;
+  if (a === 'scanall') REG.items.forEach((it, i) => { if (!it.done) setTimeout(() => scanItem(i), i * 120); });
+  if (t.dataset.d) { REG.given.push(+t.dataset.d); snd(+t.dataset.d >= 100 ? 'bill' : 'coin'); renderReg(); }
+  if (a === 'undo') { REG.given.pop(); renderReg(); }
+  if (a === 'clear') { REG.given = []; renderReg(); }
+  if (a === 'give') finishSale(givenSum());
+  if (a === 'finish') finishSale(0);
+});
+function scanItem(i) {
+  const it = REG.items[i]; if (!it || it.done || REG.stage !== 'scan') return;
+  it.done = true; snd('beep');
+  if (REG.items.every(x => x.done)) {
+    REG.total = REG.items.reduce((a, x) => a + CATS[x.ci].price, 0);
+    if (Math.random() < .3) REG.stage = 'card';
+    else { REG.paid = choosePay(REG.total); REG.stage = REG.paid === REG.total ? 'exact' : 'change'; }
+  }
+  renderReg(); setScreen(REG.items.filter(x => x.done).reduce((a, x) => a + CATS[x.ci].price, 0));
+}
+function setScreen(c) {
+  const t = regScreenM.map, g = t.image.getContext('2d');
+  g.fillStyle = '#07210f'; g.fillRect(0, 0, 256, 128); g.fillStyle = '#8dffb0'; g.font = '800 64px ui-monospace,Menlo,monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(money(c), 128, 66); t.needsUpdate = true;
+}
+function finishSale(given) {
+  const c = REG.c; if (!c) return;
+  const cash = REG.stage === 'change' || REG.stage === 'exact';
+  const due = cash ? REG.paid - REG.total : 0;
+  G.sales += REG.total; G.served++;
+  if (cash) G.till += REG.paid - given;
+  if (REG.stage === 'change' && given !== due) {
+    G.mistakes++; G.drawerOff += given - due;
+    if (given < due) { say(c, `Hey, you shorted me ${money(due - given)}! 😠`, 3); rate(-4, `Wrong change: ${money(due - given)} short`); snd('err'); }
+    else { say(c, 'Uh… thanks for the extra cash! 😏', 3); rate(-2, `Wrong change: gave ${money(given - due)} too much`); snd('err'); }
+  } else {
+    say(c, pick(['Thanks! Have a good night!', 'Thank you! 😊', 'Cheers!', 'Thanks, see ya!']), 2.5);
+    rate(2); snd('ching');
+  }
+  if (Math.random() < .5) CANS[1].level += .06;
+  setScreen(0);
+  closeReg(true);
+  leave(c);
+}
+$('regX').onclick = () => closeReg(true);
+
+// ===================================================================== bus & ending
+function callBus() { BUS.state = 'coming'; BUS.x = 75; bus.visible = true; bus.position.set(BUS.x, 0, 10.9); toast('Waiting for Bus 12…', ''); }
+function boardBus() {
+  BUS.state = 'leaving'; BUS.v = 0; P.inBus = true; snd('hiss');
+  $('hud').classList.add('hide'); if (document.pointerLockElement) document.exitPointerLock();
+  BUS.t = 0;
+}
+function updateVehicles(dt) {
+  // bus
+  if (BUS.state === 'coming') {
+    const stopX = -9.5, d = BUS.x - stopX, v = clamp(d * 1.1, 1.5, 14);
+    BUS.x -= v * dt; if (BUS.x <= stopX + .02) { BUS.x = stopX; BUS.state = 'stopped'; snd('hiss'); toast('The bus is here. Get on!', 'good'); }
+    if (d < 40 && !BUS.hum) { BUS.hum = true; snd('bus', .7); }
+  }
+  if (BUS.state === 'stopped' || BUS.state === 'leaving') {
+    const door = bus.userData.door; door.position.x += ((BUS.state === 'stopped' ? -3.6 : -4.5) - door.position.x) * Math.min(1, dt * 4);
+  }
+  if (BUS.state === 'leaving') {
+    BUS.t += dt;
+    if (BUS.t > 1.2) { BUS.v = Math.min(12, BUS.v + dt * 3); BUS.x -= BUS.v * dt; }
+    if (BUS.t > 4.5 && !BUS.faded) { BUS.faded = true; $('fade').style.opacity = 1; setTimeout(() => endGame(true), 1300); }
+  }
+  bus.position.x = BUS.x;
+  // police
+  if (POL.state !== 'none') {
+    POL.t += dt;
+    if (POL.state === 'coming') { const d = POL.x - (-1), v = clamp(d * 1.2, 1, 16); POL.x -= v * dt; if (d < .05) { POL.state = 'parked'; POL.t = 0; } }
+    else if (POL.state === 'parked' && POL.t > 18) { POL.state = 'going'; POL.v = 0; }
+    else if (POL.state === 'going') { POL.v = Math.min(16, (POL.v || 0) + dt * 5); POL.x -= POL.v * dt; if (POL.x < -80) { POL.state = 'none'; police.visible = false; } }
+    police.position.set(POL.x, 0, 10.9);
+    const on = Math.floor(performance.now() / 180) % 2;
+    police.userData.red.material = on ? glow('#ff1a1a') : mat('#401010');
+    police.userData.blue.material = on ? mat('#101840') : glow('#1a5cff');
+    police.userData.light.color.set(on ? 0xff2020 : 0x2050ff);
+  }
+  // ambient traffic
+  if ((trafficT -= dt) <= 0) {
+    trafficT = rnd(9, 22);
+    const far = BUS.state !== 'none' || POL.state !== 'none' || Math.random() < .5;
+    const car = makeCar(pick(['#7a1010', '#cfcfcf', '#1d3557', '#2b2b2b', '#556b2f', '#b8860b']));
+    const dir = far ? 1 : -1; // far lane drives +x
+    car.rotation.y = far ? Math.PI : 0;
+    traffic.push({ g: car, x: -dir * 80, z: far ? 14.8 : 10.9, v: dir * rnd(10, 14) });
+  }
+  for (let i = traffic.length - 1; i >= 0; i--) {
+    const c = traffic[i]; c.x += c.v * dt; c.g.position.set(c.x, 0, c.z);
+    if (Math.abs(c.x) > 82) { scene.remove(c.g); traffic.splice(i, 1); }
+  }
+}
+function endShift() {
+  G.shiftOver = true;
+  robbery = null;
+  for (const c of [...customers]) if (c.state !== 'leave') leave(c);
+  if (REG.open) closeReg(true);
+  $('rob').classList.add('hide');
+  coworker = Object.assign(makePerson('clerk'), { x: 6.4, z: 2.2 });
+  coworker.g.position.set(6.4, 0, 2.2); coworker.g.rotation.y = -Math.PI / 2; coworker.robber = false;
+  say(coworker, 'Morning! I’ll take it from here. 👋', 6);
+  toast('6:00 AM. Your shift is over! Head out to the bus stop.', 'good');
+  stopRing.visible = true;
+}
+function grade(r) { return r >= 90 ? 'A+' : r >= 80 ? 'A' : r >= 70 ? 'B' : r >= 60 ? 'C' : r >= 45 ? 'D' : 'F'; }
+function endGame(home) {
+  if (G.ended) return; G.ended = true;
+  if (document.pointerLockElement) document.exitPointerLock();
+  $('hud').classList.add('hide'); $('reg').classList.add('hide'); $('pause').classList.add('hide');
+  $('endT').textContent = home ? 'HOME AT LAST' : "YOU'RE FIRED";
+  $('endS').textContent = home ? 'You rode Bus 12 home as the sun came up. Time to sleep.' : 'The store rating hit zero. The manager sent you home early, without your job.';
+  const rows = [
+    ['Store rating', `${Math.round(G.rating)} / 100 (grade ${grade(G.rating)})`],
+    ['Customers checked out', G.served], ['Total sales', money(G.sales)], ['Cash in the drawer', money(G.till)],
+    ['Change mistakes', G.mistakes + (G.drawerOff ? ` (drawer ${G.drawerOff > 0 ? 'short' : 'over'} ${money(Math.abs(G.drawerOff))})` : '')],
+    ['Customers who left unhappy', G.angry], ['Spills mopped', G.mopped], ['Customers who slipped', G.slips],
+    ['Shelves restocked', G.restocked], ['Trash bags taken out', G.bags],
+  ];
+  G.robLog.forEach((r, i) => rows.push([`Robbery ${i + 1}`, r]));
+  if (!G.robLog.length) rows.push(['Robberies', 'None tonight. Lucky!']);
+  $('endStats').innerHTML = rows.map(r => `<span>${r[0]}</span><span>${r[1]}</span>`).join('');
+  $('end').classList.remove('hide');
+  $('fade').style.opacity = 0;
+}
+
+// ===================================================================== input
+function lockPointer() { if (G.ended) return; try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (e) {} }
+document.addEventListener('pointerlockchange', () => {
+  locked = document.pointerLockElement === cv;
+  const showPause = !locked && G.started && !G.ended && !REG.open && !P.inBus;
+  $('pause').classList.toggle('hide', !showPause);
+});
+document.addEventListener('mousemove', e => {
+  if (!locked) return;
+  P.yaw -= e.movementX * .0022; P.pitch = clamp(P.pitch - e.movementY * .0022, -1.45, 1.3);
+});
+cv.addEventListener('mousedown', e => { if (!locked && G.started && !G.ended && !REG.open && !P.inBus) { lockPointer(); return; } if (e.button === 0) { mouseDown = true; if (locked) interact(); } });
+addEventListener('mouseup', () => { mouseDown = false; });
+addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if (REG.open) { if (k === 'escape') closeReg(false); return; }
+  keys[k] = true; if (e.key === 'Shift') keys.shift = true;
+  if (!G.started || G.ended) return;
+  if (k === 'e' && !e.repeat) interact();
+  if (k === 'q') dropHeld();
+  if (k === 'm') { MUTE = !MUTE; toast(MUTE ? 'Sound off' : 'Sound on'); }
+});
+addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; if (e.key === 'Shift') keys.shift = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouseDown = false; });
+$('go').onclick = () => { audioInit(); startGame(); lockPointer(); };
+$('resume').onclick = () => lockPointer();
+function startGame() {
+  G.started = true; $('start').classList.add('hide'); $('hud').classList.remove('hide');
+  setTimeout(() => toast('10:00 PM. You clocked in. Customers pay at the register in front of you.', ''), 400);
+  setTimeout(() => toast('The back room (STAFF ONLY door) has the mop, restock boxes and the exit to the dumpster.', ''), 4500);
+}
+
+// ===================================================================== update loop
+function clockStr(t) {
+  const m = Math.floor(t) % (24 * 60), h = Math.floor(m / 60), mm = m % 60;
+  return { hm: `${(h % 12) || 12}:${String(mm).padStart(2, '0')}`, ap: h < 12 ? 'AM' : 'PM' };
+}
+function spawnInterval() {
+  const h = (G.time / 60) % 24;
+  if (h >= 22 && h < 23.5) return rnd(9, 14);
+  if (h >= 2 && h < 4) return rnd(18, 28);
+  if (h >= 5) return rnd(9, 15);
+  return rnd(13, 20);
+}
+function updatePlayer(dt) {
+  if (REG.open || P.inBus) return;
+  const f = (keys.w || keys.arrowup ? 1 : 0) - (keys.s || keys.arrowdown ? 1 : 0);
+  const s = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
+  if (f || s) {
+    const sp = (keys.shift ? 4.6 : 2.8) * (G.held && G.held.box !== undefined ? .85 : 1);
+    const len = Math.hypot(f, s), fx = -Math.sin(P.yaw), fz = -Math.cos(P.yaw), rx = Math.cos(P.yaw), rz = -Math.sin(P.yaw);
+    P.x += (fx * f + rx * s) / len * sp * dt; P.z += (fz * f + rz * s) / len * sp * dt;
+    P.bob += dt * sp * 2.2;
+  }
+  collide(P, .28);
+  for (const c of customers) { const dx = P.x - c.x, dz = P.z - c.z, d = Math.hypot(dx, dz); if (d < .55 && d > 1e-4) { P.x = c.x + dx / d * .55; P.z = c.z + dz / d * .55; } }
+  if (coworker) { const dx = P.x - coworker.x, dz = P.z - coworker.z, d = Math.hypot(dx, dz); if (d < .55 && d > 1e-4) { P.x = coworker.x + dx / d * .55; P.z = coworker.z + dz / d * .55; } }
+  collide(P, .28);
+}
+let hudCache = {};
+function setHTML(id, h) { if (hudCache[id] !== h) { hudCache[id] = h; $(id).innerHTML = h; } }
+function updateHUD() {
+  const c = clockStr(G.time);
+  setHTML('clock', `${c.hm} <span id="ampm">${c.ap}</span>`);
+  setHTML('till', `Register: ${money(G.till)}`);
+  $('rateFill').style.width = G.rating + '%';
+  $('rateFill').style.background = G.rating < 30 ? 'var(--red)' : G.rating < 55 ? '#f39c12' : 'var(--gold)';
+  const st = clamp(Math.round(G.rating / 20), 0, 5);
+  setHTML('stars', '★'.repeat(st) + '☆'.repeat(5 - st));
+  const t = [];
+  const waiting = queue.length;
+  if (waiting) {
+    const minP = Math.min(...queue.map(q => q.patience));
+    t.push(`<div class="t ${minP < 15 ? 'bad' : 'warn'}">🧍 ${waiting} waiting at the register</div>`);
+  } else t.push('<div class="t ok">🧍 Nobody at the register</div>');
+  if (spills.length) t.push(`<div class="t ${spills.length > 2 ? 'bad' : 'warn'}">💧 ${spills.length} spill${spills.length > 1 ? 's' : ''} to mop</div>`);
+  else t.push('<div class="t ok">💧 Floor is clean</div>');
+  const low = FACES.filter(f => f.stock <= 4);
+  if (low.length) t.push(`<div class="t ${low.some(f => f.stock === 0) ? 'bad' : 'warn'}">📦 Low: ${low.map(f => f.cat.name + (f.stock === 0 ? ' (EMPTY)' : '')).join(', ')}</div>`);
+  else t.push('<div class="t ok">📦 Shelves stocked</div>');
+  for (const cn of CANS) {
+    const p = Math.round(Math.min(1, cn.level) * 100), lab = cn.name === 'front' ? 'Front trash' : 'Counter trash';
+    t.push(`<div class="t ${cn.level >= 1 ? 'bad' : cn.level > .7 ? 'warn' : 'ok'}">🗑 ${lab}: ${cn.level >= 1 ? 'OVERFLOWING' : p + '%'}</div>`);
+  }
+  setHTML('taskList', t.join(''));
+  const g = $('goal');
+  let goal = '';
+  if (G.shiftOver) goal = BUS.state === 'stopped' ? 'The bus is here! Walk up to its door and get on.' : BUS.state === 'coming' ? 'The bus is coming…' : "Shift over! Go out the front door, turn left and walk to the bus stop.";
+  setHTML('goal', goal); g.classList.toggle('hide', !goal);
+  const hd = HELD_NAME(G.held);
+  setHTML('held', hd ? `Holding: <b>${hd}</b> <span style="color:var(--dim)">· Q to put down</span>` : '');
+  $('held').classList.toggle('hide', !hd);
+  const pr = $('prompt');
+  if (target && !REG.open) {
+    const L = target.label;
+    if (typeof L === 'object') { pr.className = 'info'; setHTML('prompt', L.info); }
+    else { pr.className = ''; setHTML('prompt', `<kbd>E</kbd>${L}`); }
+  } else setHTML('prompt', '');
+}
+function update(dt) {
+  G.time += dt * RATE;
+  if (!G.shiftOver && G.time >= SHIFT_END) endShift();
+  // spawning
+  if (!G.shiftOver) {
+    if (robTimes.length && G.time >= robTimes[0] && !robbery && !customers.some(c => c.robber)) {
+      if (customers.filter(c => c.state !== 'leave').length <= 2) { robTimes.shift(); spawnCustomer('robber'); }
+      else robTimes[0] += 3;
+    }
+    if ((spawnT -= dt) <= 0) {
+      spawnT = spawnInterval();
+      if (!robbery && !customers.some(c => c.robber) && customers.length < 6) spawnCustomer('shopper');
+    }
+  }
+  for (const c of [...customers]) updateCustomer(c, dt);
+  if (coworker) { if (coworker.sayT > 0 && (coworker.sayT -= dt) <= 0) coworker.bubble.visible = false; }
+  updateRobbery(dt);
+  updateSpills(dt);
+  // trash fills slowly
+  if (!G.shiftOver) { CANS[0].level += dt * .0016; CANS[1].level += dt * .0011; }
+  CANS.forEach(canRefresh);
+  for (const cn of CANS) if (cn.level >= 1) { if (!cn.warned) { cn.warned = true; toast(`The ${cn.name === 'front' ? 'front' : 'counter'} trash can is overflowing!`, 'bad'); } G.rating -= dt * .12; } else cn.warned = false;
+  if (!G.shiftOver) G.rating -= dt * .05 * spills.length;
+  G.rating = clamp(G.rating, 0, 100);
+  if (G.rating <= 0 && !G.shiftOver) { endGame(false); return; }
+  updatePlayer(dt);
+  target = findTarget();
+  // mopping (hold E or mouse)
+  let mopping = false;
+  if (target && target.o.spill && G.held === 'mop' && (keys.e || mouseDown)) {
+    const s = target.o.spill; mopping = true; s.prog += dt / 1.6; s.m.material.opacity = .85 * (1 - s.prog);
+    if (Math.random() < dt * 4) snd('mop');
+    if (s.prog >= 1) { scene.remove(s.m); spills.splice(spills.indexOf(s), 1); G.mopped++; toast('Spill mopped up', 'good'); target = null; }
+  }
+  updateHands(dt, mopping);
+  // automatic front doors
+  const near = [P, ...customers].some(p => Math.abs(p.x + 5) < 1.6 && Math.abs(p.z - 6.1) < 1.8);
+  doorL.position.x += ((near ? -6.1 : -5.4) - doorL.position.x) * Math.min(1, dt * 6);
+  doorR.position.x += ((near ? -3.9 : -4.6) - doorR.position.x) * Math.min(1, dt * 6);
+  updateVehicles(dt);
+  // sky gets lighter at dawn
+  const dawn = clamp((G.time - 29 * 60) / 75, 0, 1);
+  scene.background.copy(NIGHT).lerp(DAWN, dawn * .8); scene.fog.color.copy(scene.background);
+  hemi.intensity = .45 + dawn * .4;
+  updateHUD();
+}
+function updateCamera() {
+  if (P.inBus) {
+    camera.position.set(-2, 1.7, 7.3);
+    camera.lookAt(bus.position.x - 4, 1.6, 10.5);
+    return;
+  }
+  camera.position.set(P.x, 1.6 + Math.sin(P.bob * 2) * .03, P.z);
+  camera.rotation.set(P.pitch, P.yaw, 0);
+}
+let last = performance.now();
+function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (G.started && !G.ended && (locked || REG.open || FORCE || P.inBus)) update(dt);
+  else if (G.started && !G.ended) updateVehicles(0);
+  updateCamera();
+  renderer.render(scene, camera);
+}
+updateCamera();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
