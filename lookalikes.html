@@ -44,6 +44,7 @@
   .ctl { display:grid; grid-template-columns:auto 1fr; gap:4px 12px; margin:10px 0 18px; color:var(--dim); }
   button { font:inherit; cursor:pointer; border-radius:8px; border:1px solid var(--line); background:#1d2742; color:var(--ink); padding:7px 14px; }
   button:hover { background:#28365c; }
+  button:disabled { opacity:.4; cursor:not-allowed; } button:disabled:hover { background:#1d2742; }
   button.big { background:var(--gold); color:#111; border:none; font-weight:800; font-size:18px; padding:12px 30px; letter-spacing:1px; }
   button.big:hover { filter:brightness(1.08); }
   #reg { position:fixed; right:16px; top:50%; transform:translateY(-50%); width:min(560px,94vw); max-height:96vh; overflow:auto; background:#101828; border:1px solid var(--line); border-radius:14px; padding:16px 18px; box-shadow:0 20px 60px rgba(0,0,0,.6); }
@@ -65,6 +66,11 @@
   .says { margin:10px 0 6px; font-size:18px; font-weight:600; }
   .rec { display:flex; gap:10px; align-items:center; background:#04140a; color:#5dff8f; font:600 14px/1.5 ui-monospace,Menlo,monospace; padding:8px 10px; border-radius:8px; margin-top:8px; }
   .rec.bad, .redtxt { color:#ff6a5a; } #recp { border:1px solid #5dff8f; }
+  .aura { background:#0a0c1c; color:#8fd8ff; border:1px solid #2a3a6a; }
+  .aura.bad { color:#ff6a5a; border-color:#7a1f1a; } .aura.good { color:#7dffc0; border-color:#1f6a4a; }
+  .aura .meter { flex:1; height:8px; background:rgba(255,255,255,.1); border-radius:4px; overflow:hidden; }
+  .aura .meter i { display:block; height:100%; width:0; background:linear-gradient(90deg,#4aa8ff,#c77dff); animation:auraFill 1.6s linear forwards; }
+  @keyframes auraFill { to { width:100%; } }
   #cross.gun { width:14px; height:14px; margin:-7px 0 0 -7px; background:none; border:2px solid #ff5a4e; box-shadow:none; }
   .rules { font-size:13px; color:var(--dim); } .rules ol { margin:4px 0 0; padding-left:20px; }
   .stats { display:grid; grid-template-columns:1fr auto; gap:3px 18px; margin:12px 0 18px; }
@@ -102,7 +108,7 @@
     <p>Something is wrong in town tonight. Some of your customers aren't who they say they are. They look human, but their IDs never quite add up.</p>
     <p><b>Check every customer's ID before you ring them up. Refuse the sale if:</b></p>
     <ul id="rulesStart"></ul>
-    <p>Run IDs through the <b>records computer</b> on the counter. There's also a <b>pistol</b> under the counter. A lookalike you shoot falls apart: bag the pieces (trash bags are behind the counter), dump the bag out back, and mop up the blood before customers see it. Shoot a real person and it's over.</p>
+    <p>Run IDs through the <b>records computer</b> on the counter, or point the <b>aura scanner</b> at a customer: real people glow a calm blue-green, lookalikes flicker red. The scanner only holds <b>3 charges</b> and gets one back every hour, so save it for the customers you're unsure about. There's also a <b>pistol</b> under the counter. A lookalike you shoot falls apart: bag the pieces (trash bags are behind the counter), dump the bag out back, and mop up the blood before customers see it. Shoot a real person and it's over.</p>
     <p>Refuse a real customer and they'll complain to your manager. Let <b>three</b> lookalikes through and… you don't want to find out.</p>
     <p>Make it to 6 AM, then walk to the bus stop and catch the bus home.</p>
     <div class="ctl">
@@ -921,7 +927,9 @@ const G = {
   started: false, ended: false, time: 24 * 60, rating: 75, shiftOver: false, spawned: 0,
   gun: false, mop: false, bag: false, bagCount: 0, bags: 0, witnesses: 0, mopped: 0, shot: 0,
   served: 0, sales: 0, caught: 0, letIn: 0, wrongRefuse: 0, angry: 0, mistakes: 0, drawerOff: 0,
+  auraCharges: 3, auraScans: 0, auraHour: 0,
 };
+const AURA_MAX = 3;
 const customers = [], queue = [], watchers = [];
 let spawnT = 1, coworker = null, flickerT = 0, canFlickT = 0, nextFlicker = rnd(40, 70);
 const P = { x: 5.6, z: 3.0, yaw: Math.PI / 2, pitch: -.12, bob: 0, inBus: false };
@@ -1130,6 +1138,70 @@ function recHTML(c) {
   if (!r.found) return `<div class="rec bad">NO RECORD FOUND FOR ID ${c.id.num}</div>`;
   return `<div class="rec"><canvas id="recp" width="80" height="100"></canvas><div><b>${r.name}</b><br>DOB ${fmt(r.dob)}<br>ID EXPIRES ${fmt(r.exp)}<br>STATUS: <span class="${r.bad ? 'redtxt' : ''}">${r.status}</span></div></div>`;
 }
+// ---------- aura scanner: a handheld reader. Humans give off a steady blue-green aura,
+// lookalikes a flickering red one. Limited charges; one comes back every game hour.
+const AURA_TEX = (() => {
+  const cv = document.createElement('canvas'); cv.width = 64; cv.height = 128;
+  const g = cv.getContext('2d'), gr = g.createRadialGradient(32, 64, 4, 32, 64, 62);
+  gr.addColorStop(0, 'rgba(255,255,255,.9)'); gr.addColorStop(.45, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.save(); g.scale(1, 2); g.translate(0, -32); g.fillStyle = gr; g.fillRect(0, 0, 64, 128); g.restore();
+  return new THREE.CanvasTexture(cv);
+})();
+const auras = [];
+function showAura(c) {
+  if (c.aura) { c.aura.t = 0; return; }
+  const m = new THREE.SpriteMaterial({ map: AURA_TEX, color: c.fake ? 0xff2a1a : 0x40e0b0, transparent: true, opacity: 0,
+    blending: THREE.AdditiveBlending, depthWrite: false });
+  const s = new THREE.Sprite(m); s.position.set(0, .95 * c.spec.sc, 0); s.scale.set(1.25, 2.35, 1);
+  c.g.add(s); c.aura = { s, t: 0, life: 7, fake: c.fake }; auras.push(c);
+}
+function updateAuras(dt) {
+  for (const c of [...auras]) {
+    const a = c.aura; a.t += dt;
+    const fade = Math.min(1, a.t / .4) * clamp((a.life - a.t) / 1.2, 0, 1);
+    const wob = a.fake ? (Math.random() < .12 ? .25 : 1) * (.75 + .25 * Math.sin(a.t * 23)) : .85 + .15 * Math.sin(a.t * 2.4);
+    a.s.material.opacity = fade * wob * .75;
+    const sx = a.fake ? 1.25 + Math.sin(a.t * 17) * .08 : 1.25 + Math.sin(a.t * 2) * .04;
+    a.s.scale.set(sx, 2.35, 1);
+    if (a.t >= a.life || !customers.includes(c)) removeAura(c);
+  }
+  // recharge one charge per game hour
+  const hr = Math.floor(G.time / 60);
+  if (!G.auraHour) G.auraHour = hr;
+  if (hr > G.auraHour) {
+    G.auraHour = hr;
+    if (G.auraCharges < AURA_MAX) { G.auraCharges++; toast(`Aura scanner recharged (${G.auraCharges}/${AURA_MAX})`, 'good'); if (REG.open && REG.stage === 'id') renderReg(); }
+  }
+}
+function removeAura(c) {
+  if (!c.aura) return;
+  c.g.remove(c.aura.s); c.aura.s.material.dispose(); c.aura = null;
+  const i = auras.indexOf(c); if (i >= 0) auras.splice(i, 1);
+}
+function runAura() {
+  const c = REG.c;
+  if (c.auraRead) return;                            // already scanned this customer: free to look again
+  if (G.auraCharges <= 0) { snd('err'); return; }
+  G.auraCharges--; G.auraScans++; REG.aura = 1; renderReg();
+  if (AC) { const t = AC.currentTime; tone(300, t, 1.5, 'sine', .07, 1400); tone(310, t, 1.5, 'triangle', .04, 1450); }
+  setTimeout(() => {
+    if (!customers.includes(c)) return;
+    // the reading lands even if you closed the register mid-scan, so the charge isn't wasted
+    c.auraRead = true; showAura(c);
+    if (AC) { const t = AC.currentTime; if (c.fake) { tone(180, t, .5, 'sawtooth', .08, 120); tone(190, t + .12, .5, 'sawtooth', .06, 110); } else tone(880, t, .35, 'sine', .08); }
+    if (REG.open && REG.c === c) { REG.aura = 2; renderReg(); }
+  }, 1600);
+}
+function auraHTML(c) {
+  const pips = '⚡'.repeat(G.auraCharges) + '<span style="opacity:.25">' + '⚡'.repeat(AURA_MAX - G.auraCharges) + '</span>';
+  if (c.auraRead) {
+    if (c.fake) return `<div class="rec aura bad">📡 AURA: <b>UNSTABLE · RED</b>. Whatever this is, it isn't human.</div>`;
+    return `<div class="rec aura good">📡 AURA: <b>STEADY · BLUE-GREEN</b>. Reads as a normal human.</div>`;
+  }
+  if (REG.aura === 1) return `<div class="rec aura">📡 Scanning aura… <span class="meter"><i></i></span></div>`;
+  return `<div class="rec aura">📡 Aura scanner <span>${pips}</span>${G.auraCharges ? '' : ' <span class="redtxt">· empty, recharges on the hour</span>'}</div>`;
+}
+
 function runLookup() {
   const c = REG.c; REG.look = 1; renderReg();
   for (let i = 0; i < 6; i++) setTimeout(() => snd('key'), i * 140);
@@ -1270,7 +1342,7 @@ function updateCustomer(c, dt) {
   poseWalk(c, dt);
   if (c.state !== 'watch') c.head.rotation.y *= .9;
 }
-function removePerson(c) { scene.remove(c.g); disposePerson(c); const i = customers.indexOf(c); if (i >= 0) customers.splice(i, 1); }
+function removePerson(c) { removeAura(c); scene.remove(c.g); disposePerson(c); const i = customers.indexOf(c); if (i >= 0) customers.splice(i, 1); }
 
 // ---------- flickering lights
 const LIGHT_BASE = STORE_LIGHTS.map(l => l.intensity);
@@ -1533,7 +1605,7 @@ const DENOMS = [1000, 500, 100, 25, 10, 5, 1];
 const dname = d => d >= 100 ? '$' + d / 100 : d + '¢';
 function openReg(c) {
   REG.open = true; REG.c = c; REG.items = c.bought.map(ci => ({ ci, done: false }));
-  REG.stage = 'id'; REG.look = 0; REG.total = 0; REG.paid = 0; REG.given = [];
+  REG.stage = 'id'; REG.look = 0; REG.aura = 0; REG.total = 0; REG.paid = 0; REG.given = [];
   if (document.pointerLockElement) document.exitPointerLock();
   // step beside the register so its screen doesn't hide their face, look at them (a little to the
   // right, so the face shows beside the panel) and zoom in
@@ -1566,7 +1638,8 @@ function renderReg() {
       <div class="says">🗨 “Hi! I'm ${c.id.says}.”</div>
       <div class="rules"><b>Refuse the sale if:</b><ol>${RULES.map(r => `<li>${r}</li>`).join('')}</ol></div>
       ${recHTML(c)}
-      <div class="row"><button class="no" data-act="refuse">✖ Refuse sale</button>${REG.look ? '' : '<button data-act="lookup">🖥 Run ID on computer</button>'}<button data-act="gun">🔫 Grab the pistol</button><span class="grow"></span><button class="go" data-act="accept">✔ ID checks out</button></div>`;
+      ${auraHTML(c)}
+      <div class="row"><button class="no" data-act="refuse">✖ Refuse sale</button>${REG.look ? '' : '<button data-act="lookup">🖥 Run ID on computer</button>'}${c.auraRead || REG.aura ? '' : `<button data-act="aura"${G.auraCharges ? '' : ' disabled'}>📡 Scan aura (${G.auraCharges} left)</button>`}<button data-act="gun">🔫 Grab the pistol</button><span class="grow"></span><button class="go" data-act="accept">✔ ID checks out</button></div>`;
     drawID($('idc'), c);
     if ($('recp')) $('recp').getContext('2d').drawImage(c.photoCnv, 0, 0, 80, 100);
     return;
@@ -1604,6 +1677,7 @@ $('regBody').addEventListener('click', e => {
   const a = t.dataset.act;
   if (a === 'accept') { REG.stage = 'scan'; snd('card'); renderReg(); }
   if (a === 'lookup') runLookup();
+  if (a === 'aura') runAura();
   if (a === 'gun') { closeReg(true); setGun(true); }
   if (a === 'refuse') refuse(REG.c);
   if (a === 'scanall') REG.items.forEach((it, i) => { if (!it.done) setTimeout(() => scanItem(i), i * 120); });
@@ -1723,7 +1797,7 @@ function endGame(how) {
   $('endT').textContent = T[0]; $('endS').textContent = T[1];
   const rows = [
     ['Store rating', `${Math.round(G.rating)} / 100 (grade ${grade(G.rating)})`],
-    ['Customers served', G.served], ['Lookalikes caught at the register', G.caught], ['Lookalikes shot', G.shot], ['Blood puddles mopped', G.mopped], ['Bags taken to the dumpster', G.bags], ['Customers who saw body parts', G.witnesses], ['Lookalikes let through', `${G.letIn} / ${MAX_LETIN}`],
+    ['Customers served', G.served], ['Lookalikes caught at the register', G.caught], ['Aura scans used', G.auraScans], ['Lookalikes shot', G.shot], ['Blood puddles mopped', G.mopped], ['Bags taken to the dumpster', G.bags], ['Customers who saw body parts', G.witnesses], ['Lookalikes let through', `${G.letIn} / ${MAX_LETIN}`],
     ['Real customers you refused', G.wrongRefuse], ['Customers who left unhappy', G.angry], ['Total sales', money(G.sales)],
     ['Change mistakes', G.mistakes + (G.drawerOff ? ` (drawer ${G.drawerOff > 0 ? 'short' : 'over'} ${money(Math.abs(G.drawerOff))})` : '')],
   ];
@@ -1838,6 +1912,7 @@ function update(dt) {
   updateLights(dt);
   updateGun(dt);
   updateCleanup(dt);
+  updateAuras(dt);
   if (G.rating <= 0 && !G.shiftOver && !G.dark) { endGame('fired'); return; }
   updatePlayer(dt);
   target = findTarget();
