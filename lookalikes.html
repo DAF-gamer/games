@@ -101,15 +101,15 @@
     <p>Something is wrong in town tonight. Some of your customers aren't who they say they are. They look human, but their IDs never quite add up.</p>
     <p><b>Check every customer's ID before you ring them up. Refuse the sale if:</b></p>
     <ul id="rulesStart"></ul>
-    <p>Run IDs through the <b>records computer</b> on the counter. There's also a <b>shotgun</b> under the counter. A lookalike you shoot turns to smoke. Shoot a real person and it's over.</p>
+    <p>Run IDs through the <b>records computer</b> on the counter. There's also a <b>pistol</b> under the counter. A lookalike you shoot turns to smoke. Shoot a real person and it's over.</p>
     <p>Refuse a real customer and they'll complain to your manager. Let <b>three</b> lookalikes through and… you don't want to find out.</p>
     <p>Make it to 6 AM, then walk to the bus stop and catch the bus home.</p>
     <div class="ctl">
       <span class="k">WASD</span><span>walk (hold Shift to hurry)</span>
       <span class="k">Mouse</span><span>look around</span>
       <span class="k">E</span><span>use the register (or left click)</span>
-      <span class="k">G</span><span>take / put back the shotgun (behind the counter)</span>
-      <span class="k">Click</span><span>shoot, while holding the shotgun</span>
+      <span class="k">G</span><span>take / put back the pistol (behind the counter)</span>
+      <span class="k">Click</span><span>shoot, while holding the pistol</span>
       <span class="k">Hold E</span><span>mop (the mop is in the back room)</span>
       <span class="k">M</span><span>sound on / off</span>
       <span class="k">Esc</span><span>pause</span>
@@ -566,19 +566,19 @@ const pcScreenM = mat('#ffffff', { map: ctex(256, 192, (g, W, Hh) => {
 pcScreenM.emissive = new THREE.Color('#ffffff'); pcScreenM.emissiveMap = pcScreenM.map; pcScreenM.emissiveIntensity = .8;
 plane(.32, .24, pcScreenM, 4.335, 1.22, 1.75, Math.PI / 2);
 box(.14, .025, .36, mat('#d8d2c0'), 4.3, 1.025, 1.75);
-// pump shotgun on a shelf under the counter (clerk side)
-function makeShotgun() {
-  const g = new THREE.Group(), steel = mat('#2b2d31'), wood = mat('#6b4428');
-  cyl(.018, .018, .72, steel, 0, 0, -.38, g, 10).rotation.x = Math.PI / 2;               // barrel
-  cyl(.016, .016, .5, steel, 0, -.036, -.3, g, 10).rotation.x = Math.PI / 2;             // magazine tube
-  box(.05, .05, .17, wood, 0, -.036, -.42, g);                                            // pump
-  box(.05, .085, .22, steel, 0, -.01, 0, g);                                              // receiver
-  box(.012, .04, .06, steel, 0, -.06, .06, g);                                            // trigger guard
-  const st = box(.045, .09, .34, wood, 0, -.05, .27, g); st.rotation.x = .12;           // stock
+// pistol on a little shelf under the counter (clerk side)
+function makePistol() {
+  const g = new THREE.Group(), steel = mat('#2b2d31'), poly = mat('#151517');
+  box(.032, .036, .19, steel, 0, .028, -.045, g);                                         // slide
+  box(.028, .022, .15, poly, 0, -.002, -.03, g);                                          // frame
+  cyl(.007, .007, .02, M.black, 0, .024, -.145, g, 8).rotation.x = Math.PI / 2;           // muzzle
+  box(.006, .01, .008, steel, 0, .05, -.13, g); box(.012, .01, .008, steel, 0, .05, .04, g); // sights
+  const grip = box(.03, .11, .05, poly, 0, -.06, .035, g); grip.rotation.x = -.22;        // grip
+  box(.006, .03, .045, poly, 0, -.025, -.01, g);                                          // trigger guard
   return g;
 }
-box(.32, .03, 1.2, M.wood, 4.53, .7, 4.4);
-const shelfGun = makeShotgun(); shelfGun.position.set(4.53, .74, 4.4); shelfGun.rotation.z = Math.PI / 2; scene.add(shelfGun);
+box(.32, .03, .5, M.wood, 4.53, .7, 4.4);
+const shelfGun = makePistol(); shelfGun.position.set(4.53, .73, 4.4); shelfGun.rotation.z = Math.PI / 2; scene.add(shelfGun);
 // impulse rack on the customer side
 box(.25, .5, .6, mat(CATS[1].col), 3.5, 1.25, 4.6);
 // behind the clerk
@@ -923,8 +923,8 @@ function snd(n, v) {
     case 'dark': tone(80, t, 3, 'sawtooth', .09 * v, 40); noise(t, 2.5, .08 * v, 200); break;
     case 'bus': tone(60, t, 2.2, 'sawtooth', .05 * v, 45); noise(t + 2, .7, .12 * v, 3500); break;
     case 'hiss': noise(t, .6, .1 * v, 3500); break;
-    case 'shot': noise(t, .6, .6 * v, 500); noise(t, .15, .5 * v, 3000); tone(70, t, .35, 'sine', .5 * v, 30); break;
-    case 'pump': noise(t, .07, .15 * v, 1600); noise(t + .16, .08, .15 * v, 1100); break;
+    case 'shot': noise(t, .28, .55 * v, 1200); noise(t, .08, .5 * v, 4000); tone(150, t, .15, 'square', .2 * v, 60); break;
+    case 'rack': noise(t, .05, .15 * v, 2500); noise(t + .09, .06, .15 * v, 1800); break;
     case 'shriek': tone(900, t, 1.0, 'sawtooth', .06 * v, 2600); tone(1400, t, .9, 'square', .03 * v, 500); noise(t, 1.1, .06 * v, 3000); break;
     case 'siren': for (let i = 0; i < 3; i++) { tone(650, t + i * .8, .4, 'sawtooth', .04 * v, 950); tone(950, t + i * .8 + .4, .4, 'sawtooth', .04 * v, 650); } break;
     case 'key': noise(t, .03, .06 * v, 4000); break;
@@ -1285,22 +1285,22 @@ function interact() {
   if (target.o.act) target.o.act();
 }
 
-// ---------- the shotgun
-const GUN = makeShotgun(); GUN.position.set(.24, -.27, -.5); GUN.visible = false; camera.add(GUN);
-const muzzle = new THREE.PointLight(0xffc070, 0, 8, 2); muzzle.position.set(.24, -.2, -1.2); camera.add(muzzle);
+// ---------- the pistol
+const GUN = makePistol(); GUN.position.set(.18, -.17, -.38); GUN.visible = false; camera.add(GUN);
+const muzzle = new THREE.PointLight(0xffc070, 0, 8, 2); muzzle.position.set(.18, -.13, -.65); camera.add(muzzle);
 const ray = new THREE.Raycaster(); ray.camera = camera; ray.far = 45;
 const smoke = [];
 let gunCD = 0, recoil = 0;
 INTER.push({
   at: () => v3.set(4.53, .8, 4.4), r: .4,
-  label() { return behindCounter() ? (G.gun ? 'Put the shotgun back' : 'Take the shotgun') : null; },
+  label() { return behindCounter() ? (G.gun ? 'Put the pistol back' : 'Take the pistol') : null; },
   act() { setGun(!G.gun); },
 });
 function setGun(on) {
   if (on === G.gun) return;
   if (on && G.mop) setMop(false);
-  G.gun = on; GUN.visible = on; shelfGun.visible = !on; snd('pump');
-  if (on) toast('Shotgun out. Click to shoot. Only shoot lookalikes!', 'bad');
+  G.gun = on; GUN.visible = on; shelfGun.visible = !on; snd('rack');
+  if (on) toast('Pistol out. Click to shoot. Only shoot lookalikes!', 'bad');
 }
 const shown = o => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
 const onCamera = o => { for (; o; o = o.parent) if (o === camera) return true; return false; };
@@ -1311,7 +1311,7 @@ function ownerOf(o) {
 }
 function fire() {
   if (!G.gun || gunCD > 0 || REG.open || G.dark) return;
-  gunCD = 1.0; recoil = 1; muzzle.intensity = 4; snd('shot'); setTimeout(() => snd('pump'), 450);
+  gunCD = .45; recoil = 1; muzzle.intensity = 3; snd('shot');
   scene.updateMatrixWorld(); ray.setFromCamera({ x: 0, y: 0 }, camera);
   const hit = ray.intersectObjects(scene.children, true).find(h => h.object.isMesh && !h.object.material.transparent && !onCamera(h.object) && shown(h.object));
   const c = hit && ownerOf(hit.object);
@@ -1344,7 +1344,7 @@ function arrested() {
 function updateGun(dt) {
   gunCD = Math.max(0, gunCD - dt); recoil = Math.max(0, recoil - dt * 4);
   muzzle.intensity = Math.max(0, muzzle.intensity - dt * 60);
-  GUN.position.z = -.5 + recoil * .09; GUN.rotation.x = recoil * .3;
+  GUN.position.z = -.38 + recoil * .05; GUN.rotation.x = recoil * .45;
   for (let i = smoke.length - 1; i >= 0; i--) {
     const p = smoke[i]; p.t += dt; p.m.position.addScaledVector(p.v, dt); p.m.scale.setScalar(p.s * (1 + p.t * 2));
     p.m.material.opacity = .85 * (1 - p.t / p.life);
@@ -1447,7 +1447,7 @@ function renderReg() {
       <div class="says">🗨 “Hi! I'm ${c.id.says}.”</div>
       <div class="rules"><b>Refuse the sale if:</b><ol>${RULES.map(r => `<li>${r}</li>`).join('')}</ol></div>
       ${recHTML(c)}
-      <div class="row"><button class="no" data-act="refuse">✖ Refuse sale</button>${REG.look ? '' : '<button data-act="lookup">🖥 Run ID on computer</button>'}<button data-act="gun">🔫 Grab the shotgun</button><span class="grow"></span><button class="go" data-act="accept">✔ ID checks out</button></div>`;
+      <div class="row"><button class="no" data-act="refuse">✖ Refuse sale</button>${REG.look ? '' : '<button data-act="lookup">🖥 Run ID on computer</button>'}<button data-act="gun">🔫 Grab the pistol</button><span class="grow"></span><button class="go" data-act="accept">✔ ID checks out</button></div>`;
     drawID($('idc'), c);
     if ($('recp')) $('recp').getContext('2d').drawImage(c.photoCnv, 0, 0, 80, 100);
     return;
@@ -1690,7 +1690,7 @@ function updateHUD() {
   t.push('<div class="t ok" style="margin-top:4px;font-size:12px">Check: photo · name · expiry · birth date · seal · computer</div>');
   if (goo.length) t.push(`<div class="t bad">🧽 ${goo.length} puddle${goo.length > 1 ? 's' : ''} of black goo to mop</div>`);
   if (G.mop) t.push('<div class="t ok">🧽 Holding the mop: hold E on the goo</div>');
-  if (G.gun) t.push('<div class="t bad">🔫 Shotgun out: click to shoot · G to put it back</div>');
+  if (G.gun) t.push('<div class="t bad">🔫 Pistol out: click to shoot · G to put it back</div>');
   $('cross').classList.toggle('gun', G.gun);
   setHTML('taskList', t.join(''));
   const g = $('goal');
