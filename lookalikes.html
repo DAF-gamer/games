@@ -111,7 +111,7 @@
       <span class="k">E</span><span>use the register (or left click)</span>
       <span class="k">G</span><span>take / put back the pistol (behind the counter)</span>
       <span class="k">Click</span><span>shoot, while holding the pistol</span>
-      <span class="k">Hold E</span><span>mop (the mop is in the back room)</span>
+      <span class="k">Hold E</span><span>mop (the mop bucket is behind the counter, next to the register)</span>
       <span class="k">M</span><span>sound on / off</span>
       <span class="k">Esc</span><span>pause</span>
     </div>
@@ -639,12 +639,12 @@ CATS.forEach((cat, i) => {
   const lab = mat('#ffffff', { map: signTex(cat.name.toUpperCase(), cat.col, '#fff', 256, 128, '800 54px system-ui') });
   box(.7, .5, .8, [M.cardboard, lab, M.cardboard, M.cardboard, M.cardboard, M.cardboard], 7.45, y, z);
 });
-// mop & bucket
-solid(2.25, -7.45, 3.05, -6.75);
-cyl(.3, .25, .45, M.yellow, 2.65, .25, -7.1); cyl(.27, .27, .02, mat('#6a8aa0'), 2.65, .44, -7.1);
+// mop & bucket, in the corner behind the counter near the register
+solid(4.6, 5.2, 5.4, 6.0);
+cyl(.3, .25, .45, M.yellow, 5.0, .25, 5.6); cyl(.27, .27, .02, mat('#6a8aa0'), 5.0, .44, 5.6);
 const mopRest = new THREE.Group(); scene.add(mopRest);
-cyl(.025, .025, 1.5, M.wood, 2.7, 1.0, -7.1, mopRest).rotation.z = -.25;
-cyl(.12, .14, .2, M.white, 2.6, .3, -7.1, mopRest);
+cyl(.025, .025, 1.5, M.wood, 5.05, 1.0, 5.6, mopRest).rotation.z = -.25;
+cyl(.12, .14, .2, M.white, 4.95, .3, 5.6, mopRest);
 // boxes stacked for decoration
 for (const [x, z, y] of [[2.5, -10.4, .3], [3.3, -10.4, .3], [2.9, -10.4, .9]]) box(.7, .6, .6, M.cardboard, x, y, z);
 solid(2.1, -10.8, 3.7, -10.0);
@@ -1421,7 +1421,7 @@ cyl(.13, .16, .16, M.white, 0, -.52, -.86, mopHand);
 const goo = [];
 let mopAnim = 0, mopping = false;
 INTER.push({
-  at: () => v3.set(2.65, .7, -7.1), r: .45,
+  at: () => v3.set(5.0, .7, 5.6), r: .45,
   label() { return G.mop ? 'Put the mop back' : 'Take the mop'; },
   act() { setMop(!G.mop); },
 });
@@ -1440,7 +1440,7 @@ function addGoo(x, z) {
   const p = { x, z, m, tex: t, prog: 0, seen: new Set() };
   p.inter = {
     at: () => v3.set(x, .02, z), r: .8, goo: p,
-    label() { return G.mop ? `Hold E to mop up the black goo${p.prog > 0 ? ' ' + Math.round(p.prog * 100) + '%' : ''}` : { info: 'Black goo. Get the mop from the back room' }; },
+    label() { return G.mop ? `Hold E to mop up the black goo${p.prog > 0 ? ' ' + Math.round(p.prog * 100) + '%' : ''}` : { info: 'Black goo. Grab the mop from the bucket behind the counter' }; },
   };
   goo.push(p);
   setTimeout(() => toast('It left black goo on the floor. Mop it up before customers see it!', 'bad'), 900);
