@@ -89,7 +89,7 @@
     <div id="clock">12:00 <span id="ampm">AM</span></div>
     <div id="date">NOV 26 2026</div>
     <div id="rateRow"><span id="stars">★★★★☆</span><div id="rateBar"><div id="rateFill"></div></div></div>
-    <div id="auraHud" title="Aura scanner: use it at the register">📡 Aura scanner <span id="auraPips"></span></div>
+    <div id="auraHud" title="Aura tablet: press T behind the counter">📱 Aura tablet <span id="auraPips"></span></div>
   </div>
   <div id="goal" class="box hide"></div>
   <div id="tasks" class="box"><h4>TONIGHT</h4><div id="taskList"></div></div>
@@ -110,7 +110,7 @@
     <p>Something is wrong in town tonight. Some of your customers aren't who they say they are. They look human, but their IDs never quite add up.</p>
     <p><b>Check every customer's ID before you ring them up. Refuse the sale if:</b></p>
     <ul id="rulesStart"></ul>
-    <p>Run IDs through the <b>records computer</b> on the counter, or point the <b>aura scanner</b> at a customer: real people glow a calm blue-green, lookalikes flicker red. The scanner only holds <b>3 charges</b> and gets one back every hour, so save it for the customers you're unsure about. There's also a <b>pistol</b> under the counter. A lookalike you shoot falls apart: bag the pieces (trash bags are behind the counter), dump the bag out back, and mop up the blood before customers see it. Shoot a real person and it's over.</p>
+    <p>Run IDs through the <b>records computer</b> on the counter, or pick up the <b>aura tablet</b> next to it and point it at a customer: real people glow a calm blue-green, lookalikes flicker red. Its battery only holds <b>3 scans</b> and gets one back every hour, so save it for the customers you're unsure about. There's also a <b>pistol</b> under the counter. A lookalike you shoot falls apart: bag the pieces (trash bags are behind the counter), dump the bag out back, and mop up the blood before customers see it. Shoot a real person and it's over.</p>
     <p>Refuse a real customer and they'll complain to your manager. Let <b>three</b> lookalikes through and… you don't want to find out.</p>
     <p>Make it to 6 AM, then walk to the bus stop and catch the bus home.</p>
     <div class="ctl">
@@ -118,6 +118,7 @@
       <span class="k">Mouse</span><span>look around</span>
       <span class="k">E</span><span>use the register (or left click)</span>
       <span class="k">G</span><span>take / put back the pistol (behind the counter)</span>
+      <span class="k">T</span><span>take / put back the aura tablet (on the counter). Click to scan whoever you point it at</span>
       <span class="k">Click</span><span>shoot, while holding the pistol</span>
       <span class="k">Hold E</span><span>mop (the mop bucket is behind the counter, next to the register)</span>
       <span class="k">M</span><span>sound on / off</span>
@@ -929,7 +930,7 @@ const G = {
   started: false, ended: false, time: 24 * 60, rating: 75, shiftOver: false, spawned: 0,
   gun: false, mop: false, bag: false, bagCount: 0, bags: 0, witnesses: 0, mopped: 0, shot: 0,
   served: 0, sales: 0, caught: 0, letIn: 0, wrongRefuse: 0, angry: 0, mistakes: 0, drawerOff: 0,
-  auraCharges: 3, auraScans: 0, auraHour: 0,
+  auraCharges: 3, auraScans: 0, auraHour: 0, tablet: false,
 };
 const AURA_MAX = 3;
 const customers = [], queue = [], watchers = [];
@@ -1175,7 +1176,7 @@ function updateAuras(dt) {
   if (!G.auraHour) G.auraHour = hr;
   if (hr > G.auraHour) {
     G.auraHour = hr;
-    if (G.auraCharges < AURA_MAX) { G.auraCharges++; toast(`Aura scanner recharged (${G.auraCharges}/${AURA_MAX})`, 'good'); if (REG.open && REG.stage === 'id') renderReg(); }
+    if (G.auraCharges < AURA_MAX) { G.auraCharges++; toast(`Aura tablet recharged (${G.auraCharges}/${AURA_MAX})`, 'good'); drawTablet(); if (REG.open && REG.stage === 'id') renderReg(); }
   }
 }
 function removeAura(c) {
@@ -1183,29 +1184,95 @@ function removeAura(c) {
   c.g.remove(c.aura.s); c.aura.s.material.dispose(); c.aura = null;
   const i = auras.indexOf(c); if (i >= 0) auras.splice(i, 1);
 }
-function runAura() {
-  const c = REG.c;
-  if (c.auraRead) return;                            // already scanned this customer: free to look again
-  if (G.auraCharges <= 0) { snd('err'); return; }
-  G.auraCharges--; G.auraScans++; REG.aura = 1; renderReg();
-  if (AC) { const t = AC.currentTime; tone(300, t, 1.5, 'sine', .07, 1400); tone(310, t, 1.5, 'triangle', .04, 1450); }
-  setTimeout(() => {
-    if (!customers.includes(c)) return;
-    // the reading lands even if you closed the register mid-scan, so the charge isn't wasted
-    c.auraRead = true; showAura(c);
-    if (AC) { const t = AC.currentTime; if (c.fake) { tone(180, t, .5, 'sawtooth', .08, 120); tone(190, t + .12, .5, 'sawtooth', .06, 110); } else tone(880, t, .35, 'sine', .08); }
-    if (REG.open && REG.c === c) { REG.aura = 2; renderReg(); }
-  }, 1600);
-}
 function auraHTML(c) {
   const pips = '⚡'.repeat(G.auraCharges) + '<span style="opacity:.25">' + '⚡'.repeat(AURA_MAX - G.auraCharges) + '</span>';
   if (c.auraRead) {
-    if (c.fake) return `<div class="rec aura bad">📡 AURA: <b>UNSTABLE · RED</b>. Whatever this is, it isn't human.</div>`;
-    return `<div class="rec aura good">📡 AURA: <b>STEADY · BLUE-GREEN</b>. Reads as a normal human.</div>`;
+    if (c.fake) return `<div class="rec aura bad">📱 TABLET: aura <b>UNSTABLE · RED</b>. Whatever this is, it isn't human.</div>`;
+    return `<div class="rec aura good">📱 TABLET: aura <b>STEADY · BLUE-GREEN</b>. Reads as a normal human.</div>`;
   }
-  if (REG.aura === 1) return `<div class="rec aura">📡 Scanning aura… <span class="meter"><i></i></span></div>`;
-  return `<div class="rec aura">📡 Aura scanner <span>${pips}</span>${G.auraCharges ? '' : ' <span class="redtxt">· empty, recharges on the hour</span>'}</div>`;
+  if (TABS.scan === c) return `<div class="rec aura">📱 Tablet is scanning them… <span class="meter"><i></i></span></div>`;
+  return `<div class="rec aura">📱 Aura not scanned. Close the register (Esc), take the tablet (T) and point it at them. <span>${pips}</span></div>`;
 }
+
+// ---------- the aura tablet: lies on the counter; hold it up, point it at someone and click
+const TAB_CV = document.createElement('canvas'); TAB_CV.width = 320; TAB_CV.height = 220;
+const TAB_TEX = new THREE.CanvasTexture(TAB_CV);
+const TAB_SCREEN_M = new THREE.MeshBasicMaterial({ map: TAB_TEX });
+const TABS = { scan: null, t: 0, res: null };
+function makeTablet() {
+  const g = new THREE.Group();
+  box(.25, .17, .012, mat('#1a1c22'), 0, 0, 0, g);                                   // case
+  const scr = new THREE.Mesh(new THREE.PlaneGeometry(.228, .152), TAB_SCREEN_M); scr.position.z = .0065; g.add(scr);
+  box(.012, .012, .004, mat('#30343c'), 0, .078, .006, g);                           // camera dot
+  return g;
+}
+const TAB = makeTablet(); TAB.position.set(0, -.2, -.42); TAB.rotation.x = -.3; TAB.visible = false; camera.add(TAB);
+const shelfTab = makeTablet(); shelfTab.position.set(4.2, 1.017, 2.4); shelfTab.rotation.set(-Math.PI / 2, 0, Math.PI / 2); scene.add(shelfTab);
+function drawTablet() {
+  const g = TAB_CV.getContext('2d'), W = TAB_CV.width, H = TAB_CV.height;
+  g.fillStyle = '#070a18'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#8fd8ff'; g.font = '800 20px system-ui,sans-serif'; g.textBaseline = 'alphabetic'; g.fillText('AURA SCANNER', 16, 34);
+  for (let i = 0; i < AURA_MAX; i++) { g.fillStyle = i < G.auraCharges ? '#ffd860' : 'rgba(255,255,255,.15)'; g.fillRect(W - 30 - (AURA_MAX - 1 - i) * 20, 16, 13, 22); }
+  g.fillStyle = 'rgba(143,216,255,.25)'; g.fillRect(16, 46, W - 32, 2);
+  const line = (t, y, col, font) => { g.fillStyle = col; g.font = font || '700 22px system-ui,sans-serif'; g.fillText(t, 16, y); };
+  if (TABS.scan) {
+    const k = clamp(TABS.t / 1.6, 0, 1);
+    line('SCANNING…', 96, '#8fd8ff');
+    g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(16, 116, W - 32, 16);
+    const gr = g.createLinearGradient(16, 0, W - 16, 0); gr.addColorStop(0, '#4aa8ff'); gr.addColorStop(1, '#c77dff');
+    g.fillStyle = gr; g.fillRect(16, 116, (W - 32) * k, 16);
+    line('Hold steady', 170, '#6f7790', '600 17px system-ui,sans-serif');
+  } else if (TABS.res) {
+    const f = TABS.res.fake;
+    g.fillStyle = f ? 'rgba(255,42,26,.18)' : 'rgba(64,224,176,.15)'; g.fillRect(0, 50, W, H - 50);
+    line(f ? 'UNSTABLE · RED' : 'STEADY · BLUE-GREEN', 96, f ? '#ff6a5a' : '#7dffc0', '800 25px system-ui,sans-serif');
+    line(f ? 'NOT HUMAN' : 'HUMAN', 136, f ? '#ff6a5a' : '#7dffc0', '800 30px system-ui,sans-serif');
+    line(`Says they're ${TABS.res.id.says}`, 180, '#a9b0c2', '600 17px system-ui,sans-serif');
+  } else if (!G.auraCharges) {
+    line('BATTERY EMPTY', 100, '#ff6a5a');
+    line('Recharges on the hour', 140, '#a9b0c2', '600 18px system-ui,sans-serif');
+  } else {
+    line('Point at a customer', 100, '#f4f1e8');
+    line('and click to scan', 134, '#f4f1e8');
+  }
+  TAB_TEX.needsUpdate = true;
+}
+function setTablet(on) {
+  if (on === G.tablet || (on && bagFull())) return;
+  if (on) { setGun(false); setMop(false); setBag(false); }
+  G.tablet = on; TAB.visible = on; shelfTab.visible = !on; snd('click');
+  if (on) { drawTablet(); toast('Tablet out. Point it at a customer and click to read their aura.'); }
+}
+// returns false if the tablet wasn't pointed at anyone, so the click can do something else instead
+function tabletScan() {
+  if (!G.tablet || REG.open || G.dark) return true;
+  if (TABS.scan) return true;
+  scene.updateMatrixWorld(); ray.setFromCamera({ x: 0, y: 0 }, camera);
+  const hit = ray.intersectObjects(scene.children, true).find(h => h.object.isMesh && !h.object.material.transparent && !onCamera(h.object) && shown(h.object) && !h.object.userData.part);
+  const c = hit && hit.distance < 14 ? ownerOf(hit.object) : null;
+  if (!c || c === coworker) return false;
+  if (c.auraRead) { TABS.res = c; showAura(c); drawTablet(); return true; }   // already scanned: free to look again
+  if (G.auraCharges <= 0) { snd('err'); toast('Tablet battery is empty. It gets a charge back on the hour.', 'bad'); drawTablet(); return true; }
+  G.auraCharges--; G.auraScans++; TABS.scan = c; TABS.t = 0; TABS.res = null;
+  if (AC) { const t = AC.currentTime; tone(300, t, 1.5, 'sine', .07, 1400); tone(310, t, 1.5, 'triangle', .04, 1450); }
+  drawTablet();
+  if (REG.open && REG.c === c) renderReg();
+  return true;
+}
+function updateTablet(dt) {
+  if (TABS.res && !customers.includes(TABS.res)) { TABS.res = null; drawTablet(); }
+  if (!TABS.scan) return;
+  TABS.t += dt; drawTablet();
+  if (TABS.t < 1.6) return;
+  const c = TABS.scan; TABS.scan = null;
+  if (customers.includes(c)) {
+    c.auraRead = true; showAura(c); TABS.res = c;
+    if (AC) { const t = AC.currentTime; if (c.fake) { tone(180, t, .5, 'sawtooth', .08, 120); tone(190, t + .12, .5, 'sawtooth', .06, 110); } else tone(880, t, .35, 'sine', .08); }
+    if (REG.open && REG.c === c) renderReg();
+  }
+  drawTablet();
+}
+drawTablet();
 
 function runLookup() {
   const c = REG.c; REG.look = 1; renderReg();
@@ -1438,24 +1505,29 @@ function bagFull() {
 }
 function setGun(on) {
   if (on === G.gun || (on && bagFull())) return;
-  if (on) { setMop(false); setBag(false); }
+  if (on) { setMop(false); setBag(false); setTablet(false); }
   G.gun = on; GUN.visible = on; shelfGun.visible = !on; snd(on ? 'reload' : 'click');
   if (on) toast('Pistol out. Click to shoot. Only shoot lookalikes!', 'bad');
 }
 function setMop(on) {
   if (on === G.mop || (on && bagFull())) return;
-  if (on) { setGun(false); setBag(false); }
+  if (on) { setGun(false); setBag(false); setTablet(false); }
   G.mop = on; mopHand.visible = on; mopRest.visible = !on;
 }
 function setBag(on) {
   if (on === G.bag) return;
-  if (on) { setGun(false); setMop(false); }
+  if (on) { setGun(false); setMop(false); setTablet(false); }
   G.bag = on; G.bagCount = 0; bagHand.visible = on; snd('bag');
 }
 INTER.push({
   at: () => v3.set(4.53, .8, 4.4), r: .4,
   label() { return behindCounter() ? (G.gun ? 'Put the pistol back' : 'Take the pistol') : null; },
   act() { setGun(!G.gun); },
+});
+INTER.push({
+  at: () => v3.set(4.2, 1.03, 2.4), r: .25,
+  label() { return behindCounter() ? (G.tablet ? 'Put the tablet back' : 'Take the aura tablet') : null; },
+  act() { setTablet(!G.tablet); },
 });
 INTER.push({
   at: () => v3.set(5.0, .7, 5.6), r: .45,
@@ -1610,7 +1682,7 @@ const DENOMS = [1000, 500, 100, 25, 10, 5, 1];
 const dname = d => d >= 100 ? '$' + d / 100 : d + '¢';
 function openReg(c) {
   REG.open = true; REG.c = c; REG.items = c.bought.map(ci => ({ ci, done: false }));
-  REG.stage = 'id'; REG.look = 0; REG.aura = 0; REG.total = 0; REG.paid = 0; REG.given = [];
+  REG.stage = 'id'; REG.look = 0; REG.total = 0; REG.paid = 0; REG.given = [];
   if (document.pointerLockElement) document.exitPointerLock();
   // step beside the register so its screen doesn't hide their face, look at them (a little to the
   // right, so the face shows beside the panel) and zoom in
@@ -1644,7 +1716,7 @@ function renderReg() {
       <div class="rules"><b>Refuse the sale if:</b><ol>${RULES.map(r => `<li>${r}</li>`).join('')}</ol></div>
       ${recHTML(c)}
       ${auraHTML(c)}
-      <div class="row"><button class="no" data-act="refuse">✖ Refuse sale</button>${REG.look ? '' : '<button data-act="lookup">🖥 Run ID on computer</button>'}${c.auraRead || REG.aura ? '' : `<button data-act="aura"${G.auraCharges ? '' : ' disabled'}>📡 Scan aura (${G.auraCharges} left)</button>`}<button data-act="gun">🔫 Grab the pistol</button><span class="grow"></span><button class="go" data-act="accept">✔ ID checks out</button></div>`;
+      <div class="row"><button class="no" data-act="refuse">✖ Refuse sale</button>${REG.look ? '' : '<button data-act="lookup">🖥 Run ID on computer</button>'}<button data-act="gun">🔫 Grab the pistol</button><span class="grow"></span><button class="go" data-act="accept">✔ ID checks out</button></div>`;
     drawID($('idc'), c);
     if ($('recp')) $('recp').getContext('2d').drawImage(c.photoCnv, 0, 0, 80, 100);
     return;
@@ -1682,7 +1754,6 @@ $('regBody').addEventListener('click', e => {
   const a = t.dataset.act;
   if (a === 'accept') { REG.stage = 'scan'; snd('card'); renderReg(); }
   if (a === 'lookup') runLookup();
-  if (a === 'aura') runAura();
   if (a === 'gun') { closeReg(true); setGun(true); }
   if (a === 'refuse') refuse(REG.c);
   if (a === 'scanall') REG.items.forEach((it, i) => { if (!it.done) setTimeout(() => scanItem(i), i * 120); });
@@ -1822,7 +1893,7 @@ document.addEventListener('mousemove', e => {
   if (!locked) return;
   P.yaw -= e.movementX * .0022; P.pitch = clamp(P.pitch - e.movementY * .0022, -1.45, 1.3);
 });
-cv.addEventListener('mousedown', e => { if (!locked && G.started && !G.ended && !REG.open && !P.inBus) { lockPointer(); return; } if (e.button === 0 && locked) { mouseDown = true; if (G.gun) fire(); else interact(); } });
+cv.addEventListener('mousedown', e => { if (!locked && G.started && !G.ended && !REG.open && !P.inBus) { lockPointer(); return; } if (e.button === 0 && locked) { mouseDown = true; if (G.gun) fire(); else if (G.tablet) { if (!tabletScan()) { if (target && typeof target.label !== 'object') interact(); else toast('Point the tablet at a customer, then click.'); } } else interact(); } });
 addEventListener('mouseup', () => { mouseDown = false; });
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
@@ -1831,6 +1902,7 @@ addEventListener('keydown', e => {
   if (!G.started || G.ended) return;
   if (k === 'e' && !e.repeat) interact();
   if (k === 'g' && !e.repeat && (G.gun || behindCounter())) setGun(!G.gun);
+  if (k === 't' && !e.repeat && (G.tablet || behindCounter())) setTablet(!G.tablet);
   if (k === 'm') { MUTE = !MUTE; if (HUM) HUM.gain.value = MUTE ? 0 : HUM_VOL; toast(MUTE ? 'Sound off' : 'Sound on'); }
 });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -1918,6 +1990,7 @@ function update(dt) {
   updateGun(dt);
   updateCleanup(dt);
   updateAuras(dt);
+  updateTablet(dt);
   if (G.rating <= 0 && !G.shiftOver && !G.dark) { endGame('fired'); return; }
   updatePlayer(dt);
   target = findTarget();
