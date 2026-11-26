@@ -130,9 +130,9 @@ const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 renderer.outputEncoding = THREE.sRGBEncoding;
 const scene = new THREE.Scene();
-const NIGHT = new THREE.Color(0x070b18), DAWN = new THREE.Color(0xd99a78);
+const NIGHT = new THREE.Color(0x0e121a), DAWN = new THREE.Color(0xd99a78);
 scene.background = NIGHT.clone();
-scene.fog = new THREE.Fog(0x070b18, 30, 90);
+scene.fog = new THREE.Fog(0x0e121a, 9, 46);
 const camera = new THREE.PerspectiveCamera(70, 1, 0.05, 200);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
@@ -229,13 +229,11 @@ const M = {
 floor(-8, -6, 8, 6, M.floor);
 T.concreteS = T.concrete.clone(); T.concreteS.repeat.set(6, 5); T.concreteS.needsUpdate = true;
 floor(2, -11, 8, -6, mat('#ffffff', { map: T.concreteS }));
-T.side = T.concrete.clone(); T.side.repeat.set(30, 2); T.side.needsUpdate = true;
-floor(-60, 6, 60, 9.2, mat('#ffffff', { map: T.side }));
-floor(-80, 9.2, 80, 17, M.road, -0.12);
-box(160, 0.12, 0.25, mat('#9a9a96'), 0, -0.06, 9.2); // curb
-floor(-80, 17, 80, 20, mat('#ffffff', { map: T.side }));
-floor(2, -16, 10, -11, mat('#3a3c40'));
-floor(-80, -40, 80, 6, mat('#15171b'), -0.02); // ground under everything else
+floor(-95, -50, 95, 90, mat('#1a2116'), -0.06); // grass and dirt under everything
+T.lot = T.concrete.clone(); T.lot.repeat.set(24, 5); T.lot.needsUpdate = true;
+floor(-40, 6, 40, 23.2, mat('#9a9a9a', { map: T.lot }));       // forecourt
+floor(-95, 23.2, 95, 31, M.road, -0.03);                             // the highway
+floor(2, -16, 10, -11, mat('#3a3c40'));                            // back alley
 plane(16, 12, M.ceiling, 0, 3.2, 0, 0, Math.PI / 2);
 plane(6, 5, M.ceiling, 5, 3.0, -8.5, 0, Math.PI / 2);
 for (const x of [-5.5, -1.5, 2.5, 6]) for (const z of [-3.5, 0, 3.5]) box(1.2, .05, .5, M.lamp, x, 3.18, z);
@@ -263,7 +261,7 @@ const doorMat = mat('#e0e0e0', { transparent: true, opacity: .25, depthWrite: fa
 const doorL = box(.8, 2.35, .04, doorMat, -5.4, 1.18, 6.05), doorR = box(.8, 2.35, .04, doorMat, -4.6, 1.18, 6.05);
 doorL.renderOrder = doorR.renderOrder = 6;
 // storefront exterior: sign band + roof
-box(16.6, 1.4, .3, M.brick, 0, H + .7, 6.25);
+box(16.6, 1.4, .3, mat('#ecebe6'), 0, H + .7, 6.25); box(16.7, .16, .34, M.red, 0, H + .08, 6.25);
 const signM = mat('#ffffff', { map: signTex('LATE NITE MART', '#13204a', '#ffd860', 1024, 128), emissive: '#ffffff', emissiveMap: null });
 signM.emissiveMap = signM.map; signM.emissiveIntensity = .9;
 plane(9, 1.1, signM, 0, H + .7, 6.41);
@@ -282,29 +280,75 @@ plane(1.2, .3, mat('#ffffff', { map: signTex('EXIT', '#0d3b1c', '#7dff9b', 512, 
 wall(1.8, -16.2, 2, -11, 3.5, M.brick);
 wall(10, -16.2, 10.2, -11, 3.5, M.brick);
 wall(1.8, -16.2, 10.2, -16, 3.5, M.brick);
-// neighbours
-box(22, 7, 22, M.brick, -19.2, 3.5, -5);  solid(-30.2, -16, -8.2, 6);
-box(22, 6, 17, M.brick, 19.2, 3, -2.5); solid(8.2, -11, 30.2, 6);
-box(10, 6, 10, M.brick, -3, 3, -11.2);
-for (const [x, w] of [[-14, 3], [-24, 3], [14, 3], [24, 3]]) plane(w, 1.6, mat('#1a2430'), x, 1.7, 6.01, 0);
-// across the street: dark buildings with a few lit windows
-T.far = ctex(512, 256, (g, W, Hh) => {
-  g.fillStyle = '#14161c'; g.fillRect(0, 0, W, Hh);
-  for (let r = 0; r < 4; r++) for (let c = 0; c < 10; c++) { g.fillStyle = Math.random() < .25 ? '#e9c77a' : '#0c0e13'; g.fillRect(c * 51 + 12, r * 60 + 18, 28, 34); }
-}, [1, 1]);
-for (let i = 0; i < 6; i++) { const w = rnd(14, 22), h = rnd(6, 12); box(w, h, 8, mat('#ffffff', { map: T.far }), -60 + i * 24, h / 2, 24); }
-solid(-80, 9.3, 80, 9.5); solid(-26.2, 6, -26, 9.5); solid(26, 6, 26.2, 9.5);
+// ---------- the gas station outside: forecourt, fuel canopy, price sign, woods
+// siding on the outside of the store
+const siding = mat('#d9d3c5');
+box(.25, 3.6, 12.3, siding, -8.33, 1.8, -.15); box(.25, 3.6, 17.2, siding, 8.33, 1.8, -2.6); box(10.25, 3.6, .25, siding, -3.2, 1.8, -6.33);
+// parking spaces + a car somebody left here
+for (const x of [9.6, 12.4, 15.2, 18]) plane(.12, 4, mat('#d8d8d0'), x, .015, 8.4, 0, -Math.PI / 2);
+{ const car = makeCar('#5a6470'); car.position.set(13.8, 0, 8.6); car.rotation.y = -Math.PI / 2; solid(12.9, 6.4, 14.7, 10.8); }
+// ice chest and propane cage by the front windows
+solid(-3.2, 6.25, -1.6, 7.05); box(1.5, 1.0, .75, M.white, -2.4, .5, 6.65);
+plane(1.1, .4, mat('#ffffff', { map: signTex('ICE', '#2a7de1', '#fff', 256, 96) }), -2.4, .62, 7.03);
+solid(1.2, 6.25, 2.8, 7.05); box(1.5, 1.4, .75, mat('#3d4248'), 2.0, .7, 6.65);
+for (let i = 0; i < 3; i++) cyl(.17, .17, .55, mat('#d7d7d7'), 1.55 + i * .45, .3, 6.65);
+// fuel canopy
+const canopyLamp = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0xeef6ff, emissiveIntensity: 1 });
+box(11, .5, 7, mat('#ecebe6'), 2.5, 4.75, 12.5);
+box(11.1, .32, 7.1, M.red, 2.5, 4.62, 12.5);
+const gasSign = mat('#ffffff', { map: signTex('LATE NITE GAS', '#b3261e', '#ffffff', 1024, 128) }); gasSign.emissive = new THREE.Color('#ffffff'); gasSign.emissiveMap = gasSign.map; gasSign.emissiveIntensity = .7;
+plane(6, .3, gasSign, 2.5, 4.62, 16.06); plane(6, .3, gasSign, 2.5, 4.62, 8.94, Math.PI);
+for (const x of [-1, 2.5, 6]) for (const z of [10.5, 14.5]) box(1.3, .04, .7, canopyLamp, x, 4.48, z);
+for (const x of [0, 5]) {
+  for (const z of [10, 15]) { box(.35, 4.5, .35, M.white, x, 2.25, z); }
+  box(1.2, .22, 5.6, mat('#9a9a96'), x, .11, 12.5); solid(x - .6, 9.7, x + .6, 15.3);
+  for (const z of [11.4, 13.6]) {
+    box(.55, 1.55, .8, mat('#ecebe6'), x, 1.0, z); box(.57, .35, .82, M.red, x, 1.62, z);
+    for (const s of [-1, 1]) {
+      box(.02, .2, .34, glow('#9ff2c0'), x + s * .285, 1.28, z);
+      box(.06, .22, .1, M.black, x + s * .3, .95, z + .3);                          // nozzle in its holster
+      const hose = cyl(.022, .022, .7, M.black, x + s * .33, 1.25, z + .3); hose.rotation.z = s * .15;
+    }
+  }
+}
+// price sign by the road
+cyl(.14, .14, 6.4, M.dark, 17, 3.2, 22.4); solid(16.8, 22.2, 17.2, 22.6);
+const priceM = mat('#ffffff', { map: ctex(256, 320, (g, W, Hh) => {
+  g.fillStyle = '#b3261e'; g.fillRect(0, 0, W, 70); g.fillStyle = '#fff'; g.font = '900 34px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('LATE NITE', W / 2, 24); g.font = '800 24px system-ui'; g.fillText('GAS · MART', W / 2, 54);
+  g.fillStyle = '#111'; g.fillRect(0, 70, W, Hh - 70);
+  [['REGULAR', '3.49'], ['PLUS', '3.79'], ['DIESEL', '3.99']].forEach(([n, p], i) => {
+    const y = 110 + i * 72; g.textAlign = 'left'; g.fillStyle = '#ddd'; g.font = '700 20px system-ui'; g.fillText(n, 16, y);
+    g.textAlign = 'right'; g.fillStyle = '#ff3b2a'; g.font = '700 44px ui-monospace,Menlo,monospace'; g.fillText(p, W - 34, y + 2); g.font = '700 22px ui-monospace'; g.fillText('9', W - 14, y - 10);
+  });
+}) });
+priceM.emissive = new THREE.Color('#ffffff'); priceM.emissiveMap = priceM.map; priceM.emissiveIntensity = .75;
+{ const s = box(2.4, 3, .3, [M.dark, M.dark, M.dark, M.dark, priceM, M.dark], 17, 7.6, 22.4); s.rotation.y = Math.PI + .5; }
+// the woods all around, as instanced trees
+{
+  const pts = [], add = (x0, x1, z0, z1, n) => { for (let i = 0; i < n; i++) pts.push([rnd(x0, x1), rnd(z0, z1), rnd(.8, 1.5)]); };
+  add(-70, -10, -45, 4, 120); add(11, 70, -45, 4, 120); add(-10, 11, -50, -18, 30);
+  add(-70, -42, 5, 22, 30); add(42, 70, 5, 22, 30); add(-95, 95, 34, 80, 240);
+  const parts = [[new THREE.CylinderGeometry(.18, .26, 2, 6), '#33261a', 1], [new THREE.ConeGeometry(1.7, 3.6, 7), '#0f2216', 3.2], [new THREE.ConeGeometry(1.2, 2.8, 7), '#13291a', 4.9]];
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), sv = new THREE.Vector3(), pv = new THREE.Vector3();
+  for (const [g, col, y] of parts) {
+    const im = new THREE.InstancedMesh(g, mat(col), pts.length);
+    pts.forEach(([x, z, s], i) => { q.setFromEuler(e.set(0, x * 7.3 + z, 0)); m4.compose(pv.set(x, y * s, z), q, sv.set(s, s, s)); im.setMatrixAt(i, m4); });
+    scene.add(im);
+  }
+}
+solid(-40, -45, -8.2, 6); solid(8.2, -11, 40, 6); solid(10.2, -45, 40, -11);
+solid(-90, 23.3, 90, 23.5); solid(-38.2, 6, -38, 23.5); solid(38, 6, 38.2, 23.5);
 
 // ---------- lights
-const hemi = new THREE.HemisphereLight(0xcfd8ff, 0x30302c, .45); scene.add(hemi);
+const hemi = new THREE.HemisphereLight(0xcfd8ff, 0x30302c, .3); scene.add(hemi);
 function plight(c, i, d, x, y, z) { const l = new THREE.PointLight(c, i, d, 1.2); l.position.set(x, y, z); scene.add(l); return l; }
 const STORE_LIGHTS = [plight(0xfff6e6, 1.1, 14, -4, 2.9, 0), plight(0xfff6e6, 1.1, 14, 2.5, 2.9, 0), plight(0xfff6e6, .7, 10, 5, 2.6, -8.5)];
 plight(0xdfe8ff, .8, 12, 0, 2.6, 8); plight(0xffcf8a, .7, 10, 6, 3, -13.5);
-const stLights = [];
-for (const x of [-20, -7, 7, 20]) {
-  cyl(.06, .08, 5, M.dark, x, 2.5, 9); box(.9, .1, .3, M.dark, x, 5, 9.4); box(.5, .06, .25, glow('#ffd9a0'), x, 4.95, 9.5);
-  stLights.push(plight(0xffc98a, .9, 13, x, 4.7, 9.6));
-}
+// outside lights: the canopy and a lone pole light at the lot entrance (all go dark at lights-out)
+const CANOPY_LIGHTS = [plight(0xeaf4ff, 1.3, 16, 0.5, 4.2, 11), plight(0xeaf4ff, 1.3, 16, 4.5, 4.2, 14)];
+cyl(.08, .1, 6, M.dark, -8, 3, 22.6); box(1, .1, .35, M.dark, -7.6, 6, 22.6); box(.5, .06, .25, glow('#ffd9a0'), -7.4, 5.95, 22.6);
+const stLights = [...CANOPY_LIGHTS, plight(0xffc98a, .8, 14, -7.4, 5.6, 22.6)];
+const OUT_GLOW = [canopyLamp, gasSign, priceM, signM, open24];
 
 // ===================================================================== products & shelves
 const CATS = [
@@ -439,17 +483,16 @@ for (const [x, z] of [[-7.45, 5.35], [7.55, .7]]) {
 }
 
 // ===================================================================== bus stop
-const STOP = { x: -14, z: 8.4 };
-solid(-15.6, 8.75, -12.4, 8.9);
-box(3.2, 2.3, .06, M.glass, -14, 1.25, 8.82).renderOrder = 5;
-box(3.4, .1, 1.3, M.dark, -14, 2.45, 8.4);
-for (const x of [-15.6, -12.4]) for (const z of [7.85, 8.85]) box(.06, 2.4, .06, M.metal, x, 1.2, z);
-box(2.4, .08, .4, M.wood, -14, .48, 8.6); box(.06, .44, .3, M.metal, -15, .22, 8.6); box(.06, .44, .3, M.metal, -13, .22, 8.6);
-cyl(.04, .04, 2.6, M.metal, -11.9, 1.3, 9.0);
-box(.6, .6, .04, mat('#ffffff', { map: signTex('BUS 12', '#1a5fd0', '#fff', 256, 256, '900 70px system-ui') }), -11.9, 2.4, 9.0);
-plight(0xbfd8ff, .5, 6, -14, 2.3, 8.4);
+solid(-15.6, 22.95, -12.4, 23.10);
+box(3.2, 2.3, .06, M.glass, -14, 1.25, 23.02).renderOrder = 5;
+box(3.4, .1, 1.3, M.dark, -14, 2.45, 22.60);
+for (const x of [-15.6, -12.4]) for (const z of [22.05, 23.05]) box(.06, 2.4, .06, M.metal, x, 1.2, z);
+box(2.4, .08, .4, M.wood, -14, .48, 22.80); box(.06, .44, .3, M.metal, -15, .22, 22.80); box(.06, .44, .3, M.metal, -13, .22, 22.80);
+cyl(.04, .04, 2.6, M.metal, -11.9, 1.3, 23.20);
+box(.6, .6, .04, mat('#ffffff', { map: signTex('BUS 12', '#1a5fd0', '#fff', 256, 256, '900 70px system-ui') }), -11.9, 2.4, 23.20);
+plight(0xbfd8ff, .5, 6, -14, 2.3, 22.60);
 const stopRing = new THREE.Mesh(new THREE.RingGeometry(.7, .85, 40), new THREE.MeshBasicMaterial({ color: 0xffd860, transparent: true, opacity: .8, side: THREE.DoubleSide }));
-stopRing.rotation.x = -Math.PI / 2; stopRing.position.set(-13.2, .03, 8.0); stopRing.visible = false; scene.add(stopRing);
+stopRing.rotation.x = -Math.PI / 2; stopRing.position.set(-13.2, .03, 22.20); stopRing.visible = false; scene.add(stopRing);
 
 // ===================================================================== vehicles
 function makeCar(col) {
@@ -650,10 +693,10 @@ function say(c, txt, dur) {
 const NODES = {
   F0: [LANES[0], FZ], DI: [-5, FZ], F1: [LANES[1], FZ], F2: [LANES[2], FZ], F3: [LANES[3], FZ],
   B0: [LANES[0], BZ], B1: [LANES[1], BZ], B2: [LANES[2], BZ], B3: [LANES[3], BZ],
-  DO: [-5, 7.4], SL: [-30, 7.4], SR: [30, 7.4],
+  DO: [-5, 7.4], LOT: [-5, 21.4], SL: [-40, 21.4], SR: [40, 21.4],
 };
 const SEGS = [['F0', 'DI'], ['DI', 'F1'], ['F1', 'F2'], ['F2', 'F3'], ['B0', 'B1'], ['B1', 'B2'], ['B2', 'B3'],
-  ['F0', 'B0'], ['F1', 'B1'], ['F2', 'B2'], ['F3', 'B3'], ['DI', 'DO'], ['DO', 'SL'], ['DO', 'SR']];
+  ['F0', 'B0'], ['F1', 'B1'], ['F2', 'B2'], ['F3', 'B3'], ['DI', 'DO'], ['DO', 'LOT'], ['LOT', 'SL'], ['LOT', 'SR']];
 function segDist(p, a, b) {
   const ax = NODES[a][0], az = NODES[a][1], bx = NODES[b][0], bz = NODES[b][1];
   const vx = bx - ax, vz = bz - az, t = clamp(((p.x - ax) * vx + (p.z - az) * vz) / (vx * vx + vz * vz), 0, 1);
@@ -698,7 +741,7 @@ const G = {
   served: 0, sales: 0, caught: 0, letIn: 0, wrongRefuse: 0, angry: 0, mistakes: 0, drawerOff: 0,
 };
 const customers = [], queue = [], watchers = [];
-let spawnT = 4, coworker = null, flickerT = 0, nextFlicker = rnd(40, 70);
+let spawnT = 1, coworker = null, flickerT = 0, canFlickT = 0, nextFlicker = rnd(40, 70);
 const P = { x: 5.6, z: 3.0, yaw: Math.PI / 2, pitch: -.12, bob: 0, inBus: false };
 const keys = {};
 let locked = false, FORCE = false;
@@ -855,7 +898,7 @@ function spawnCustomer() {
   const fake = G.spawned === 0 ? false : drawFake(); G.spawned++;
   const spec = randomSpec(), side = Math.random() < .5 ? -1 : 1;
   const c = Object.assign(makePerson('shopper', spec), {
-    spec, fake, id: makeID(spec, fake), x: side * 28, z: 7.4, face: side > 0 ? -Math.PI / 2 : Math.PI / 2, phase: 0,
+    spec, fake, id: makeID(spec, fake), x: side * 30, z: 21.4, face: side > 0 ? -Math.PI / 2 : Math.PI / 2, phase: 0,
     speed: rnd(1.1, 1.5), route: [], state: '', wait: 0, list: [], bought: [], miss: 0, patience: 0, slot: -1, inside: false, sayT: 0,
   });
   const n = Math.random() < .5 ? 1 : Math.random() < .7 ? 2 : 3;
@@ -887,7 +930,7 @@ function leave(c, msg, angry) {
     return;
   }
   c.state = 'leave';
-  goTo(c, { x: Math.random() < .5 ? -30 : 30, z: 7.4 });
+  goTo(c, { x: Math.random() < .5 ? -40 : 40, z: 21.4 });
   if (msg) say(c, msg, 3);
   if (angry) { c.carry.visible = false; G.angry++; rate(-4, 'A customer left unhappy'); }
 }
@@ -991,6 +1034,10 @@ function flicker(sec) { flickerT = Math.max(flickerT, sec); snd('buzz'); }
 function updateLights(dt) {
   if (G.dark) return;
   if ((nextFlicker -= dt) <= 0) { flicker(rnd(.3, .9) + G.letIn * .3); nextFlicker = rnd(30, 60) / (1 + G.letIn * .7); }
+  // one canopy light out front is on its way out
+  if (Math.random() < dt * .08) canFlickT = rnd(.15, .6);
+  let k2 = 1; if (canFlickT > 0) { canFlickT -= dt; k2 = Math.random() < .5 ? .1 : 1; }
+  CANOPY_LIGHTS[0].intensity = 1.3 * k2; canopyLamp.emissiveIntensity = k2;
   let k = 1;
   if (flickerT > 0) { flickerT -= dt; k = Math.random() < .45 ? .08 : 1; }
   STORE_LIGHTS.forEach((l, i) => l.intensity = LIGHT_BASE[i] * k);
@@ -999,7 +1046,7 @@ function updateLights(dt) {
 function lightsOut() {
   G.dark = true; snd('dark');
   STORE_LIGHTS.forEach(l => l.intensity = 0); M.lamp.emissiveIntensity = 0; hemi.intensity = .05;
-  stLights.forEach(l => l.intensity = 0);
+  stLights.forEach(l => l.intensity = 0); OUT_GLOW.forEach(m => m.emissiveIntensity = 0);
   for (const w of watchers) say(w, '…', 4);
   if (REG.open) closeReg();
   setTimeout(() => endGame('taken'), 3500);
@@ -1021,7 +1068,7 @@ INTER.push({
   act() { if (queue[0] && queue[0].state === 'pay') openReg(queue[0]); },
 });
 INTER.push({
-  at: () => v3.set(-11.9, 2.2, 9.0), r: .5,
+  at: () => v3.set(-11.9, 2.2, 23.2), r: .5,
   label() {
     if (!G.shiftOver) return { info: 'Bus 12 stop. The bus comes after your shift (6 AM)' };
     if (BUS.state === 'none') return 'Wait for the bus home';
@@ -1030,7 +1077,7 @@ INTER.push({
   act() { if (G.shiftOver && BUS.state === 'none') callBus(); },
 });
 INTER.push({
-  at: () => v3.set(-14, 1.4, 9.95), r: .7,
+  at: () => v3.set(-14, 1.4, 23.9), r: .7,
   label() { return BUS.state === 'stopped' ? 'Get on the bus' : null; },
   act() { if (BUS.state === 'stopped') boardBus(); },
 });
@@ -1187,7 +1234,7 @@ function finishSale(given) {
 $('regX').onclick = () => closeReg(true);
 
 // ===================================================================== bus & ending
-function callBus() { BUS.state = 'coming'; BUS.x = 75; bus.visible = true; bus.position.set(BUS.x, 0, 10.9); toast('Waiting for Bus 12…', ''); }
+function callBus() { BUS.state = 'coming'; BUS.x = 75; bus.visible = true; bus.position.set(BUS.x, 0, 25.1); toast('Waiting for Bus 12…', ''); }
 function boardBus() {
   BUS.state = 'leaving'; BUS.v = 0; P.inBus = true; snd('hiss');
   $('hud').classList.add('hide'); if (document.pointerLockElement) document.exitPointerLock();
@@ -1215,7 +1262,7 @@ function updateVehicles(dt) {
     const car = makeCar(pick(['#7a1010', '#cfcfcf', '#1d3557', '#2b2b2b', '#556b2f', '#b8860b']));
     const dir = far ? 1 : -1; // far lane drives +x
     car.rotation.y = far ? Math.PI : 0;
-    traffic.push({ g: car, x: -dir * 80, z: far ? 14.8 : 10.9, v: dir * rnd(10, 14) });
+    traffic.push({ g: car, x: -dir * 80, z: far ? 29 : 25.1, v: dir * rnd(10, 14) });
   }
   for (let i = traffic.length - 1; i >= 0; i--) {
     const c = traffic[i]; c.x += c.v * dt; c.g.position.set(c.x, 0, c.z);
@@ -1328,7 +1375,7 @@ function updateHUD() {
   setHTML('taskList', t.join(''));
   const g = $('goal');
   let goal = '';
-  if (G.shiftOver) goal = BUS.state === 'stopped' ? 'The bus is here! Walk up to its door and get on.' : BUS.state === 'coming' ? 'The bus is coming…' : "Shift over! Go out the front door, turn left and walk to the bus stop.";
+  if (G.shiftOver) goal = BUS.state === 'stopped' ? 'The bus is here! Walk up to its door and get on.' : BUS.state === 'coming' ? 'The bus is coming…' : "Shift over! Go out the front door, walk across the lot to the bus stop by the road (on the left).";
   else if (watchers.length) goal = `${watchers.length === 1 ? 'Something is' : watchers.length + ' things are'} standing outside the window, watching you.`;
   setHTML('goal', goal); g.classList.toggle('hide', !goal);
   const pr = $('prompt');
@@ -1359,13 +1406,13 @@ function update(dt) {
   // sky gets lighter at dawn
   const dawn = clamp((G.time - 29 * 60) / 75, 0, 1);
   scene.background.copy(NIGHT).lerp(DAWN, dawn * .8); scene.fog.color.copy(scene.background);
-  if (!G.dark) hemi.intensity = .45 + dawn * .4;
+  if (!G.dark) hemi.intensity = .3 + dawn * .5;
   updateHUD();
 }
 function updateCamera() {
   if (P.inBus) {
-    camera.position.set(-2, 1.7, 7.3);
-    camera.lookAt(bus.position.x - 4, 1.6, 10.5);
+    camera.position.set(-2, 1.7, 21.5);
+    camera.lookAt(bus.position.x - 4, 1.6, 24.7);
     return;
   }
   camera.position.set(P.x, 1.6 + Math.sin(P.bob * 2) * .03, P.z);
