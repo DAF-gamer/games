@@ -200,10 +200,6 @@ function collide(p, r) {
 
 // ===================================================================== world
 const T = {};
-T.tile = ctex(256, 256, (g, W) => {
-  for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { g.fillStyle = (i + j) % 2 ? '#d9d6cc' : '#ece9e0'; g.fillRect(i * 128, j * 128, 128, 128); }
-  g.strokeStyle = 'rgba(0,0,0,.18)'; g.lineWidth = 3; for (let i = 0; i <= 2; i++) { g.beginPath(); g.moveTo(i * 128, 0); g.lineTo(i * 128, W); g.moveTo(0, i * 128); g.lineTo(W, i * 128); g.stroke(); }
-}, [8, 6]);
 T.concrete = ctex(256, 256, (g, W) => { g.fillStyle = '#7d7f82'; g.fillRect(0, 0, W, W); for (let i = 0; i < 2500; i++) { g.fillStyle = `rgba(${Math.random() < .5 ? '0,0,0' : '255,255,255'},.06)`; g.fillRect(Math.random() * W, Math.random() * W, 2, 2); } g.strokeStyle = 'rgba(0,0,0,.3)'; g.lineWidth = 2; g.strokeRect(0, 0, W, W); }, [1, 1]);
 T.asphalt = ctex(512, 256, (g, W, H) => {
   g.fillStyle = '#26282c'; g.fillRect(0, 0, W, H);
@@ -214,15 +210,49 @@ T.brick = ctex(256, 256, (g, W) => {
   g.fillStyle = '#3a2420'; g.fillRect(0, 0, W, W);
   for (let r = 0; r < 16; r++) for (let c = -1; c < 8; c++) { g.fillStyle = `hsl(10,${30 + Math.random() * 15}%,${20 + Math.random() * 8}%)`; g.fillRect(c * 32 + (r % 2) * 16 + 1, r * 16 + 1, 30, 14); }
 }, [6, 2]);
-T.wallIn = ctex(64, 256, (g, W, H) => { g.fillStyle = '#e9e4d8'; g.fillRect(0, 0, W, H); g.fillStyle = '#2f6e5a'; g.fillRect(0, H - 40, W, 40); g.fillStyle = '#c9c2b2'; g.fillRect(0, H - 44, W, 4); }, [12, 1]);
+// grime helper: soft dark blotches and speckles over a canvas
+function grime(g, W, H, n, a) {
+  for (let i = 0; i < n; i++) {
+    const x = Math.random() * W, y = Math.random() * H, r = 6 + Math.random() * 40, gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, `rgba(40,38,20,${a * Math.random()})`); gr.addColorStop(1, 'rgba(40,38,20,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  for (let i = 0; i < n * 30; i++) { g.fillStyle = `rgba(0,0,0,${Math.random() * .08})`; g.fillRect(Math.random() * W, Math.random() * H, 2, 2); }
+}
+// dirty checkered floor (0.5 m tiles)
+T.tile = ctex(512, 512, (g, W) => {
+  const n = 4, s = W / n;
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { g.fillStyle = (i + j) % 2 ? '#56604f' : '#cfc8ae'; g.fillRect(i * s, j * s, s, s); }
+  g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 3; for (let i = 0; i <= n; i++) { g.beginPath(); g.moveTo(i * s, 0); g.lineTo(i * s, W); g.moveTo(0, i * s); g.lineTo(W, i * s); g.stroke(); }
+  grime(g, W, W, 60, .35);
+}, [8, 6]);
+// two-tone painted walls: grey-green on top, dark green below, with stains running down
+T.wallIn = ctex(256, 256, (g, W, H) => {
+  g.fillStyle = '#8f9683'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#3d4b39'; g.fillRect(0, H * .62, W, H * .38);
+  g.fillStyle = '#2c3729'; g.fillRect(0, H * .62 - 5, W, 5);
+  for (let i = 0; i < 14; i++) { const x = Math.random() * W, y = Math.random() * H * .5, l = 20 + Math.random() * 90; const gr = g.createLinearGradient(0, y, 0, y + l); gr.addColorStop(0, 'rgba(60,55,30,.28)'); gr.addColorStop(1, 'rgba(60,55,30,0)'); g.fillStyle = gr; g.fillRect(x, y, 2 + Math.random() * 5, l); }
+  grime(g, W, H, 30, .3);
+}, [6, 1]);
+// stained drop-ceiling tiles
+T.ceil = ctex(256, 256, (g, W) => {
+  g.fillStyle = '#b7b4a4'; g.fillRect(0, 0, W, W);
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) if (Math.random() < .25) { const gr = g.createRadialGradient(i * 64 + 32, j * 64 + 32, 2, i * 64 + 32, j * 64 + 32, 30); gr.addColorStop(0, 'rgba(120,95,40,.45)'); gr.addColorStop(1, 'rgba(120,95,40,0)'); g.fillStyle = gr; g.fillRect(i * 64, j * 64, 64, 64); }
+  g.strokeStyle = '#6f6c60'; g.lineWidth = 4; for (let i = 0; i <= 4; i++) { g.beginPath(); g.moveTo(i * 64, 0); g.lineTo(i * 64, W); g.moveTo(0, i * 64); g.lineTo(W, i * 64); g.stroke(); }
+}, [7, 5]);
+// pegboard for the shelf backs
+T.peg = ctex(128, 128, (g, W) => {
+  g.fillStyle = '#c2ad84'; g.fillRect(0, 0, W, W); g.fillStyle = '#4a3c26';
+  for (let x = 8; x < W; x += 16) for (let y = 8; y < W; y += 16) { g.beginPath(); g.arc(x, y, 2.4, 0, 7); g.fill(); }
+  grime(g, W, W, 8, .2);
+}, [14, 5]);
 
 const M = {
   floor: mat('#ffffff', { map: T.tile }), conc: mat('#ffffff', { map: T.concrete }), road: mat('#ffffff', { map: T.asphalt }),
   wallIn: mat('#ffffff', { map: T.wallIn }), wallBack: mat('#b9b3a4'), brick: mat('#ffffff', { map: T.brick }),
-  ceiling: mat('#d8d6cf'), metal: mat('#8f969e'), dark: mat('#2a2d33'), wood: mat('#8a6140'), white: mat('#f2f2f2'),
+  ceiling: mat('#ffffff', { map: T.ceil }), peg: mat('#ffffff', { map: T.peg }), metal: mat('#8f969e'), dark: mat('#2a2d33'), wood: mat('#8a6140'), white: mat('#f2f2f2'),
   glass: new THREE.MeshLambertMaterial({ color: 0x9fc6d8, transparent: true, opacity: .18, depthWrite: false }),
-  shelf: mat('#c9ccd1'), shelfDark: mat('#5b6068'), cardboard: mat('#b68a55'), green: mat('#2e6b3b'), yellow: mat('#f2c230'),
-  black: mat('#151515'), red: mat('#c8281e'), lamp: glow('#fffbea'), counterFront: mat('#2f6e5a'),
+  shelf: mat('#c9ccd1'), shelfDark: mat('#4c5247'), cardboard: mat('#b68a55'), green: mat('#2e6b3b'), yellow: mat('#f2c230'),
+  black: mat('#151515'), red: mat('#c8281e'), lamp: glow('#eef4d6'), counterFront: mat('#3d4b39'),
 };
 
 // ---------- floors & ceilings
@@ -342,7 +372,7 @@ solid(-90, 23.3, 90, 23.5); solid(-38.2, 6, -38, 23.5); solid(38, 6, 38.2, 23.5)
 // ---------- lights
 const hemi = new THREE.HemisphereLight(0xcfd8ff, 0x30302c, .3); scene.add(hemi);
 function plight(c, i, d, x, y, z) { const l = new THREE.PointLight(c, i, d, 1.2); l.position.set(x, y, z); scene.add(l); return l; }
-const STORE_LIGHTS = [plight(0xfff6e6, 1.1, 14, -4, 2.9, 0), plight(0xfff6e6, 1.1, 14, 2.5, 2.9, 0), plight(0xfff6e6, .7, 10, 5, 2.6, -8.5)];
+const STORE_LIGHTS = [plight(0xe9f0cf, .95, 14, -4, 2.9, 0), plight(0xe9f0cf, .95, 14, 2.5, 2.9, 0), plight(0xe9f0cf, .6, 10, 5, 2.6, -8.5)];
 plight(0xdfe8ff, .8, 12, 0, 2.6, 8); plight(0xffcf8a, .7, 10, 6, 3, -13.5);
 // outside lights: the canopy and a lone pole light at the lot entrance (all go dark at lights-out)
 const CANOPY_LIGHTS = [plight(0xeaf4ff, 1.3, 16, 0.5, 4.2, 11), plight(0xeaf4ff, 1.3, 16, 4.5, 4.2, 14)];
@@ -404,7 +434,7 @@ function shelfUnit(sx, left, right) {
   const z0 = -3.3, z1 = 2.5, L = z1 - z0, zc = (z0 + z1) / 2;
   solid(sx - .45, z0, sx + .45, z1);
   box(.9, .15, L, M.shelfDark, sx, .075, zc);
-  box(.06, 2.2, L, M.shelf, sx, 1.1, zc);
+  box(.06, 2.2, L, M.peg, sx, 1.1, zc);
   for (const y of [.33, .83, 1.33]) box(.9, .04, L, M.shelf, sx, y, zc);
   box(.9, 2.2, .05, M.shelfDark, sx, 1.1, z0); box(.9, 2.2, .05, M.shelfDark, sx, 1.1, z1);
   for (const [ci, d] of [[left, -1], [right, 1]]) {
@@ -423,13 +453,91 @@ for (const [x, a, b] of [[-4.5, 0, 1], [-1.5, 2, 3], [1.5, 4, 5]]) {
 solid(-7.3, -6, 1.2, -5.4);
 box(8.5, .4, .6, M.dark, -3.05, .2, -5.7); box(8.5, .1, .6, M.dark, -3.05, 2.25, -5.7);
 box(.1, 2.3, .6, M.dark, -7.3, 1.15, -5.7); box(.1, 2.3, .6, M.dark, 1.2, 1.15, -5.7);
-box(8.3, 2.0, .05, glow('#dfefff'), -3.05, 1.15, -5.98);
+box(8.3, 2.0, .05, glow('#c9dccf'), -3.05, 1.15, -5.98);
 for (const y of [.43, .98, 1.53]) box(8.3, .03, .5, M.metal, -3.05, y, -5.7);
 const cg = box(8.4, 2.1, .03, M.glass, -3.05, 1.15, -5.41); cg.renderOrder = 5;
 for (let i = 0; i <= 4; i++) box(.06, 2.1, .06, M.metal, -7.25 + i * 2.1, 1.15, -5.4);
 box(8.5, .3, .62, mat('#ffffff', { map: signTex('ICE COLD DRINKS', '#1c4fa0', '#fff', 1024, 64, '800 40px system-ui') }), -3.05, 2.45, -5.7);
 addFace(6, { cooler: true, lane: null, x0: -6.6, x1: .6 });
 FACES.forEach(f => f.refresh());
+
+// ===================================================================== run-down store details
+// restroom door on the left wall
+{
+  const doorM = mat('#a7a79c');
+  box(.06, 2.15, 1.0, doorM, -7.96, 1.075, -3.4);
+  for (const z of [-3.95, -2.85]) box(.08, 2.25, .08, M.dark, -7.95, 1.12, z);
+  box(.08, .08, 1.18, M.dark, -7.95, 2.26, -3.4);
+  box(.07, .25, .9, mat('#7e7e74'), -7.94, .14, -3.4);                              // kick plate
+  box(.1, .04, .14, M.metal, -7.88, 1.0, -3.05);                                   // handle
+  plane(1.0, .28, mat('#ffffff', { map: signTex('RESTROOM', '#2f5a3a', '#e8f3e0', 512, 140, '800 70px system-ui') }), -7.92, 2.55, -3.4, Math.PI / 2);
+  plane(.42, .42, mat('#ffffff', { map: ctex(128, 128, (g, W) => {
+    g.fillStyle = '#2f5a3a'; g.fillRect(0, 0, W, W); g.fillStyle = '#e8f3e0';
+    for (const [cx, dress] of [[38, true], [90, false]]) {
+      g.beginPath(); g.arc(cx, 30, 9, 0, 7); g.fill();
+      if (dress) { g.beginPath(); g.moveTo(cx - 6, 42); g.lineTo(cx + 6, 42); g.lineTo(cx + 16, 86); g.lineTo(cx - 16, 86); g.fill(); g.fillRect(cx - 8, 86, 5, 26); g.fillRect(cx + 3, 86, 5, 26); }
+      else { g.fillRect(cx - 11, 42, 22, 44); g.fillRect(cx - 10, 86, 8, 28); g.fillRect(cx + 2, 86, 8, 28); }
+    }
+    g.fillRect(63, 20, 2, 94);
+  }) }), -7.92, 1.55, -2.35, Math.PI / 2);
+}
+// eating counter with stools along the front windows
+solid(-3.9, 5.4, 1.1, 6);
+box(5, .06, .5, mat('#d6d0bd'), -1.4, 1.05, 5.68);
+for (const x of [-3.6, -1.4, .8]) box(.05, .3, .05, M.dark, x, .9, 5.85);
+{
+  const seat = mat('#b39a63'), leg = mat('#3d4b39');
+  for (const x of [-3.3, -2.1, -.9, .3]) {
+    solid(x - .22, 4.85, x + .22, 5.3);
+    cyl(.2, .2, .06, seat, x, .74, 5.08);
+    for (const [dx, dz] of [[-.13, -.13], [.13, -.13], [-.13, .13], [.13, .13]]) cyl(.018, .024, .72, leg, x + dx, .36, 5.08 + dz, null, 6);
+    box(.3, .02, .02, leg, x, .28, 5.08 - .13); box(.3, .02, .02, leg, x, .28, 5.08 + .13);
+  }
+  cyl(.04, .04, .18, M.red, -2.6, 1.17, 5.75); cyl(.04, .04, .18, M.yellow, -2.5, 1.17, 5.75);  // ketchup & mustard
+  box(.12, .14, .1, M.metal, -.2, 1.15, 5.78);                                                    // napkins
+}
+// hanging sale banners
+function banner(x, y, z, w, h, tex, ry) {
+  const m = new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide });
+  plane(w, h, m, x, y, z, ry || 0);
+  for (const s of [-1, 1]) { cyl(.006, .006, 3.2 - (y + h / 2), M.dark, x + Math.cos(ry || 0) * s * w * .4, (3.2 + y + h / 2) / 2, z - Math.sin(ry || 0) * s * w * .4, null, 4); }
+}
+const bannerTex = (top, bot, bg, fg) => ctex(256, 384, (g, W, Hh) => {
+  g.fillStyle = bg; g.fillRect(0, 0, W, Hh); g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = '900 88px system-ui'; g.fillText(top, W / 2, 110); g.fillStyle = 'rgba(255,255,255,.85)'; g.fillRect(30, 200, W - 60, 120);
+  g.fillStyle = bg; g.font = '900 54px system-ui'; g.fillText(bot, W / 2, 262); grime(g, W, Hh, 10, .25);
+});
+banner(-3, 2.5, 1.6, .7, 1.0, bannerTex('SALE', '2 FOR $3', '#f2c230', '#b3261e'), Math.PI / 2);
+banner(0, 2.5, -2.2, .7, 1.0, bannerTex('HOT', 'DEALS', '#c8281e', '#ffe08a'), Math.PI / 2);
+banner(-6.3, 2.55, 2.0, .6, .9, bannerTex('NEW', 'FLAVORS', '#2a7de1', '#ffffff'), Math.PI / 2);
+// a "we check ID" notice facing customers on the counter front, and another behind the clerk
+plane(.6, .3, mat('#ffffff', { map: signTex('ID REQUIRED', '#f4f1e6', '#b3261e', 512, 256, '900 80px system-ui') }), 3.64, .65, 2.4, -Math.PI / 2);
+plane(1.1, .7, mat('#ffffff', { map: ctex(512, 320, (g, W, Hh) => {
+  g.fillStyle = '#f4f1e6'; g.fillRect(0, 0, W, Hh); g.fillStyle = '#b3261e'; g.fillRect(0, 0, W, 80);
+  g.fillStyle = '#fff'; g.font = '900 50px system-ui'; g.textAlign = 'center'; g.fillText('NOTICE TO STAFF', W / 2, 56);
+  g.fillStyle = '#222'; g.font = '700 34px system-ui'; ['CHECK EVERY ID.', 'COMPARE THE PHOTO.', 'TRUST NOBODY.'].forEach((t, i) => g.fillText(t, W / 2, 140 + i * 56));
+  grime(g, W, Hh, 14, .25);
+}) }), 7.97, 1.7, -1.6, -Math.PI / 2);
+// litter on the floor
+for (let i = 0; i < 16; i++) {
+  const x = rnd(-7.6, 3.2), z = rnd(-5, 5.6);
+  const m = box(rnd(.05, .12), .012, rnd(.04, .1), mat(pick(['#e8e2cf', '#e0b23a', '#c0392b', '#9a9a9a', '#f2f2f2'])), x, .006, z); m.rotation.y = rnd(0, 3);
+}
+// wall clock above the coffee machine (its hands follow the game clock)
+const clockTex = ctex(256, 256, () => {});
+plane(.55, .55, new THREE.MeshLambertMaterial({ map: clockTex, transparent: true }), -7.96, 2.55, 1.4, Math.PI / 2);
+let clockMin = -1;
+function drawClock(t) {
+  const m = Math.floor(t); if (m === clockMin) return; clockMin = m;
+  const g = clockTex.image.getContext('2d'), c = 128;
+  g.clearRect(0, 0, 256, 256);
+  g.fillStyle = '#2a2d33'; g.beginPath(); g.arc(c, c, 124, 0, 7); g.fill();
+  g.fillStyle = '#ecead8'; g.beginPath(); g.arc(c, c, 110, 0, 7); g.fill();
+  g.fillStyle = '#222'; for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; g.fillRect(c + Math.sin(a) * 92 - 3, c - Math.cos(a) * 92 - 3, 6, 6); }
+  const hand = (a, l, w) => { g.lineWidth = w; g.lineCap = 'round'; g.beginPath(); g.moveTo(c, c); g.lineTo(c + Math.sin(a) * l, c - Math.cos(a) * l); g.stroke(); };
+  g.strokeStyle = '#222'; hand((m % 720) / 720 * Math.PI * 2, 55, 9); hand((m % 60) / 60 * Math.PI * 2, 85, 5);
+  clockTex.needsUpdate = true;
+}
 
 // ===================================================================== counter & clerk area
 solid(3.65, 1.2, 4.35, 5.2);
@@ -866,6 +974,20 @@ function portrait(spec) {
   PSCENE.remove(p.g); disposePerson(p);
   return cnv;
 }
+// "MISSING" flyers taped to the wall: real ID-style photos of people who never came home
+function missingPoster(x, y, z, ry) {
+  const photo = portrait(randomSpec()), name = `${pick(FIRSTN)} ${pick(LAST)}`.toUpperCase();
+  const tex = ctex(256, 360, (g, W, Hh) => {
+    g.fillStyle = '#f1eee2'; g.fillRect(0, 0, W, Hh); g.fillStyle = '#b3261e'; g.textAlign = 'center'; g.font = '900 52px system-ui'; g.fillText('MISSING', W / 2, 56);
+    g.drawImage(photo, 48, 74, 160, 200); g.fillStyle = '#222'; g.font = '800 20px system-ui'; g.fillText(name, W / 2, 300);
+    g.font = '600 15px system-ui'; g.fillText('Last seen at Late Nite Mart', W / 2, 326); g.fillText('If you see them, do NOT approach', W / 2, 346);
+    grime(g, W, Hh, 12, .3);
+  });
+  const p = plane(.48, .68, mat('#ffffff', { map: tex }), x, y, z, ry); p.rotation.z = rnd(-.05, .05);
+}
+missingPoster(-7.95, 1.62, -.7, Math.PI / 2);
+missingPoster(-7.95, 1.55, -4.85, Math.PI / 2);
+missingPoster(7.95, 1.65, -3.0, -Math.PI / 2);
 function drawID(cnv, c) {
   const g = cnv.getContext('2d'), W = cnv.width, H = cnv.height, id = c.id;
   if (!c.photoCnv) c.photoCnv = portrait(id.photo);
@@ -1359,6 +1481,7 @@ function setHTML(id, h) { if (hudCache[id] !== h) { hudCache[id] = h; $(id).inne
 function updateHUD() {
   const c = clockStr(G.time);
   setHTML('clock', `${c.hm} <span id="ampm">${c.ap}</span>`);
+  drawClock(G.time);
   $('rateFill').style.width = G.rating + '%';
   $('rateFill').style.background = G.rating < 30 ? 'var(--red)' : G.rating < 55 ? '#f39c12' : 'var(--gold)';
   const st = clamp(Math.round(G.rating / 20), 0, 5);
@@ -1426,6 +1549,7 @@ function loop(now) {
   updateCamera();
   renderer.render(scene, camera);
 }
+drawClock(G.time);
 updateCamera();
 requestAnimationFrame(loop);
 </script>
