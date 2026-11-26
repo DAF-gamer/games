@@ -523,46 +523,161 @@ const police = makeCar('#13204a', true); police.visible = false;
 const POL = { state: 'none', x: 70, t: 0 };
 
 // ===================================================================== people
-const SKIN = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac', '#a8704a'];
-const SHIRT = ['#c0392b', '#2980b9', '#27ae60', '#8e44ad', '#f39c12', '#16a085', '#7f8c8d', '#e84393', '#2c3e50', '#d35400', '#f5f5f5'];
-const PANTS = ['#1f2a44', '#3b3b3b', '#5a4630', '#2d4a6b', '#6b6b6b', '#1a1a1a'];
-const HAIR = ['#1b1209', '#3b2413', '#7a5230', '#c9a15a', '#222', '#8a8a8a'];
+const SKIN = ['#f3d2b3', '#eac096', '#d9a273', '#b97c50', '#8d5a36', '#6b4026', '#f6dcc8'];
+const SHIRT = ['#b8322a', '#2e6da4', '#3a8f5a', '#6f4a9a', '#e0a030', '#1f7f78', '#7d858c', '#d0567e', '#27384d', '#c4622a', '#ececec', '#4a4a4a', '#8a6d4a'];
+const PANTS = ['#2b3346', '#3a3a3a', '#6b5a43', '#4b5d73', '#5e6266', '#1c1c1c', '#7c7058'];
+const JEANS = ['#3c5a80', '#2f4766', '#56739a', '#252f44'];
+const HAIR = ['#1b1209', '#2e1d10', '#5a3a1e', '#8a6038', '#c9a15a', '#d8c08a', '#7a2e16', '#8a8a8a', '#d6d6d6'];
+const SHOES = ['#222222', '#e8e8e8', '#6b4228', '#a83232', '#2c3a5a', '#555555'];
+const GEO = {};
+const geo = (k, f) => GEO[k] || (GEO[k] = f());
+const G_SPH = () => geo('sph', () => new THREE.SphereGeometry(1, 18, 14));
+const G_CAP = (r, l) => geo(`cap${r}_${l}`, () => new THREE.CapsuleGeometry(r, l, 4, 12));
+const G_PART = (k, ...a) => geo(k, () => new THREE.SphereGeometry(...a));
+const G_TORSO = () => geo('torso', () => new THREE.LatheGeometry(
+  [[0, 0], [.135, 0], [.14, .06], [.148, .18], [.165, .3], [.178, .39], [.172, .45], [.13, .5], [.06, .53], [0, .535]].map(p => new THREE.Vector2(p[0], p[1])), 22));
+function mesh(g, m, x, y, z, parent, sx, sy, sz) {
+  const me = new THREE.Mesh(g, m); me.position.set(x, y, z);
+  if (sx !== undefined) me.scale.set(sx, sy, sz);
+  parent.add(me); return me;
+}
+// Merge every joint's parts into one vertex-coloured mesh: ~12 draw calls per person instead of ~70.
+const PERSON_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
+function bakePerson(root) {
+  const groups = [];
+  root.traverse(o => { if (o.isGroup || o === root) groups.push(o); });
+  for (const grp of groups) {
+    const ms = grp.children.filter(o => o.isMesh && !o.userData.keep);
+    if (!ms.length) continue;
+    const pos = [], nor = [], col = [];
+    for (const m of ms) {
+      m.updateMatrix();
+      const gm = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+      gm.applyMatrix4(m.matrix);
+      const p = gm.attributes.position.array, n = gm.attributes.normal.array, c = m.material.color;
+      for (let i = 0; i < p.length; i++) { pos.push(p[i]); nor.push(n[i]); }
+      for (let i = 0; i < p.length / 3; i++) col.push(c.r, c.g, c.b);
+      gm.dispose(); grp.remove(m);
+    }
+    const bg = new THREE.BufferGeometry();
+    bg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    bg.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    bg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    grp.add(new THREE.Mesh(bg, PERSON_MAT));
+  }
+}
+function disposePerson(c) {
+  c.g.traverse(o => { if (o.isMesh && o.material === PERSON_MAT) o.geometry.dispose(); });
+  c.bt.dispose(); c.bubble.material.dispose();
+}
 function makePerson(kind) {
   const robber = kind === 'robber', clerk = kind === 'clerk';
-  const g = new THREE.Group();
-  const skin = mat(pick(SKIN)), shirt = mat(robber ? '#1c1c1f' : clerk ? '#2f6e5a' : pick(SHIRT)), pants = mat(robber ? '#141414' : pick(PANTS));
-  const legs = [], arms = [];
+  const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+  const sc = robber ? 1.02 : rnd(.92, 1.06), b = rnd(.92, 1.18);
+  body.scale.setScalar(sc);
+  const skinC = pick(SKIN), skin = mat(skinC);
+  const top = robber ? 'hoodie' : clerk ? 'polo' : pick(['tee', 'tee', 'long', 'hoodie', 'jacket']);
+  const bottom = robber ? 'pants' : clerk ? 'pants' : pick(['pants', 'jeans', 'jeans', 'shorts']);
+  const shirtC = robber ? '#1d1d21' : clerk ? '#2f6e5a' : pick(SHIRT), shirt = mat(shirtC);
+  const pants = mat(robber ? '#16161a' : clerk ? '#b9a27a' : bottom === 'jeans' ? pick(JEANS) : pick(PANTS));
+  const shoe = mat(robber ? '#111111' : pick(SHOES));
+  const hairM = mat(pick(HAIR));
+  const longSleeve = top !== 'tee' && top !== 'polo';
+  // ---- legs: hip pivot → thigh, knee pivot → shin + shoe
+  const legs = [], knees = [], arms = [], elbows = [];
   for (const s of [-1, 1]) {
-    const l = new THREE.Group(); l.position.set(s * .11, .9, 0); g.add(l);
-    box(.16, .84, .18, pants, 0, -.42, 0, l); box(.17, .1, .26, M.black, 0, -.85, .04, l);
-    legs.push(l);
-    const a = new THREE.Group(); a.position.set(s * .31, 1.5, 0); g.add(a);
-    box(.13, .58, .15, shirt, 0, -.29, 0, a); box(.11, .12, .12, skin, 0, -.63, 0, a);
-    arms.push(a);
+    const hip = new THREE.Group(); hip.position.set(s * .085 * b, .93, 0); body.add(hip);
+    mesh(G_CAP(.076, .32), pants, 0, -.2, 0, hip, b, 1, 1);
+    mesh(G_SPH(), bottom === 'shorts' ? skin : pants, 0, -.43, .005, hip, .06, .06, .062);   // knee
+    const knee = new THREE.Group(); knee.position.y = -.43; hip.add(knee);
+    mesh(G_CAP(.056, .34), bottom === 'shorts' ? skin : pants, 0, -.22, 0, knee);
+    if (bottom === 'shorts') mesh(G_CAP(.05, .05), mat('#f2f2f2'), 0, -.43, 0, knee);
+    const sh = mesh(G_CAP(.046, .13), shoe, 0, -.466, .035, knee, .95, 1, .75); sh.rotation.x = Math.PI / 2;
+    legs.push(hip); knees.push(knee);
   }
-  box(.48, .64, .26, shirt, 0, 1.2, 0, g);
-  const head = new THREE.Group(); head.position.y = 1.56; g.add(head);
-  box(.1, .08, .1, skin, 0, .02, 0, head);
+  if (bottom === 'shorts') for (const s of [-1, 1]) mesh(G_CAP(.08, .1), pants, s * .085 * b, .8, 0, body, b, 1, 1);
+  mesh(G_SPH(), pants, 0, .96, 0, body, .15 * 1.05 * b, .093, .108);                      // pelvis
+  // ---- torso
+  mesh(G_TORSO(), shirt, 0, .95, 0, body, b, 1, .64);
+  if (top === 'jacket') {
+    mesh(new THREE.BoxGeometry(.07, .42, .01), mat(pick(SHIRT)), 0, 1.2, .112, body);
+    mesh(new THREE.BoxGeometry(.008, .44, .012), mat('#999999'), 0, 1.2, .118, body);
+  }
+  if (top === 'hoodie') {
+    mesh(G_SPH(), shirt, 0, 1.46, -.085, body, .13 * b, .07, .09);                         // hood bunched behind the neck
+    mesh(new THREE.BoxGeometry(.2 * b, .09, .015), mat(new THREE.Color(shirtC).multiplyScalar(.72).getStyle()), 0, 1.06, .098, body);
+    if (!robber) for (const s of [-1, 1]) mesh(new THREE.BoxGeometry(.008, .12, .008), M.white, s * .035, 1.36, .118, body);
+  }
+  if (top === 'tee' && Math.random() < .35) mesh(new THREE.BoxGeometry(.09, .07, .01), mat(pick(SHIRT)), .0, 1.28, .116, body);
+  if (top === 'polo' || top === 'tee') mesh(new THREE.TorusGeometry(.05, .012, 6, 16), shirt, 0, 1.49, .01, body, 1, 1, 1).rotation.x = Math.PI / 2;
+  if (clerk) mesh(new THREE.BoxGeometry(.07, .035, .01), M.white, -.08, 1.33, .118, body);  // name tag
+  // ---- arms: shoulder pivot → upper arm, elbow pivot → forearm + hand
+  for (const s of [-1, 1]) {
+    mesh(G_SPH(), shirt, s * .165 * b, 1.415, 0, body, .058, .056, .064);                  // shoulder
+    const sho = new THREE.Group(); sho.position.set(s * (.17 * b + .045), 1.43, 0); sho.rotation.z = s * .07; body.add(sho);
+    if (longSleeve) mesh(G_CAP(.052, .2), shirt, 0, -.13, 0, sho);
+    else { mesh(G_CAP(.058, .07), shirt, 0, -.05, 0, sho); mesh(G_CAP(.046, .2), skin, 0, -.14, 0, sho); }
+    const el = new THREE.Group(); el.position.y = -.27; el.rotation.x = -.15; sho.add(el);
+    mesh(G_CAP(.043, .18), longSleeve ? shirt : skin, 0, -.12, 0, el);
+    mesh(G_SPH(), robber ? mat('#111111') : skin, 0, -.27, 0, el, .034, .052, .022);       // hand (gloved for the robber)
+    arms.push(sho); elbows.push(el);
+  }
+  // something they picked up, held in the right hand
+  const carry = mesh(new THREE.BoxGeometry(.1, .14, .05), M.white, 0, -.3, .045, elbows[0]); carry.visible = false; carry.userData.keep = true;
+  // ---- neck & head
+  mesh(G_CAP(.044, .06), skin, 0, 1.53, 0, body);
+  const head = new THREE.Group(); head.position.y = 1.53; body.add(head);
+  const headM = robber ? mat('#1f1f23') : skin;
+  mesh(G_SPH(), headM, 0, .13, 0, head, .1, .118, .108);
+  mesh(G_SPH(), headM, 0, .07, .018, head, .07, .058, .068);                                // jaw / chin
+  for (const s of [-1, 1]) mesh(G_SPH(), headM, s * .099, .125, -.005, head, .012, .026, .02); // ears
+  if (robber) mesh(new THREE.BoxGeometry(.1, .032, .02), skin, 0, .145, .093, head);      // eye hole in the balaclava
+  const eyeW = mat('#f4f1ea'), iris = mat(pick(['#3b2a1a', '#2a4a6a', '#3a5a2a', '#1a1a1a', '#5a3a1a']));
+  for (const s of [-1, 1]) {
+    mesh(G_SPH(), eyeW, s * .034, .145, .093, head, .016, .011, .008);
+    mesh(G_SPH(), iris, s * .034, .145, .1, head, .008, .008, .004);
+    if (!robber) { const br = mesh(new THREE.BoxGeometry(.034, .007, .008), hairM, s * .035, .168, .099, head); br.rotation.z = -s * .08; }
+  }
+  if (!robber) {
+    mesh(G_SPH(), skin, 0, .118, .107, head, .014, .024, .016);                              // nose
+    mesh(new THREE.BoxGeometry(.036, .006, .006), mat(pick(['#a05a4a', '#8a4a3a', '#6a3a30'])), 0, .078, .098, head);
+  }
+  // ---- hair / hats
+  const hc = new THREE.Group(); hc.position.y = .13; hc.scale.set(1, 1.12, 1); head.add(hc);
+  const capTop = G_PART('hairTop', .108, 20, 10, 0, Math.PI * 2, 0, 1.05);
+  const capBack = l => G_PART('hairBack' + l, .108, 20, 12, Math.PI, Math.PI, 0, l);
   if (robber) {
-    box(.27, .3, .28, mat('#202024'), 0, .2, 0, head);
-    box(.2, .06, .02, skin, 0, .24, .14, head);
-    box(.04, .04, .02, M.black, -.05, .24, .152, head); box(.04, .04, .02, M.black, .05, .24, .152, head);
-    box(.1, .03, .02, mat('#6a3030'), 0, .1, .142, head);
+    const hood = mat('#1d1d21');
+    mesh(G_PART('hoodTop', .122, 20, 10, 0, Math.PI * 2, 0, 1.0), hood, 0, 0, 0, hc);
+    mesh(G_PART('hoodBack', .122, 20, 12, Math.PI, Math.PI, 0, 2.4), hood, 0, 0, 0, hc);
   } else {
-    box(.26, .3, .27, skin, 0, .2, 0, head);
-    box(.04, .04, .02, M.black, -.06, .24, .137, head); box(.04, .04, .02, M.black, .06, .24, .137, head);
-    const hair = mat(pick(HAIR));
-    box(.28, .09, .29, hair, 0, .36, 0, head); box(.28, .2, .06, hair, 0, .26, -.12, head);
-    if (Math.random() < .3) box(.3, .05, .34, mat(pick(SHIRT)), 0, .42, .03, head); // cap
+    const style = clerk ? 'short' : pick(['short', 'short', 'long', 'pony', 'bun', 'buzz', 'bald', 'cap', 'curly']);
+    if (style === 'buzz') { mesh(G_PART('buzz', .102, 20, 10, 0, Math.PI * 2, 0, 1.15), hairM, 0, 0, 0, hc); mesh(G_PART('buzzB', .102, 20, 12, Math.PI, Math.PI, 0, 2.0), hairM, 0, 0, 0, hc); }
+    else if (style === 'bald') mesh(G_PART('fringe', .103, 20, 12, Math.PI, Math.PI, 1.3, .7), hairM, 0, 0, 0, hc);
+    else if (style === 'curly') { for (let i = 0; i < 14; i++) { const a = i / 14 * Math.PI * 2, r = .085; mesh(G_SPH(), hairM, Math.cos(a) * r, .05 + (i % 2) * .02, Math.sin(a) * r - .01, hc, .045, .04, .045); } mesh(G_SPH(), hairM, 0, .07, -.01, hc, .1, .055, .1); }
+    else {
+      mesh(capTop, hairM, 0, 0, 0, hc);
+      mesh(capBack(style === 'long' ? 2.5 : 2.05), hairM, 0, 0, 0, hc);
+      if (style === 'long') mesh(G_CAP(.05, .14), hairM, 0, -.1, -.065, hc, 1.9, 1, .9);
+      if (style === 'pony') { const p = mesh(G_CAP(.028, .14), hairM, 0, -.02, -.13, hc); p.rotation.x = -.35; }
+      if (style === 'bun') mesh(G_SPH(), hairM, 0, .1, -.07, hc, .045, .04, .045);
+      if (style === 'cap') {
+        const capM = mat(pick(SHIRT));
+        mesh(G_PART('hatTop', .114, 20, 10, 0, Math.PI * 2, 0, 1.2), capM, 0, .005, 0, hc);
+        mesh(new THREE.CylinderGeometry(.075, .075, .008, 16, 1, false, -Math.PI / 2, Math.PI), capM, 0, .045, .09, hc, 1.1, 1, 1);
+      }
+    }
+    if (!clerk && style !== 'long' && style !== 'pony' && style !== 'bun' && Math.random() < .18)  // beard
+      mesh(G_PART('beard', .106, 18, 10, 0, Math.PI, 2.15, .7), hairM, 0, .118, .004, head, 1, 1.05, 1);
   }
-  if (clerk) box(.12, .08, .01, M.white, -.13, 1.4, .135, g); // name tag
   // speech bubble
   const bc = document.createElement('canvas'); bc.width = 512; bc.height = 96;
   const bt = new THREE.CanvasTexture(bc); bt.encoding = THREE.sRGBEncoding;
   const bubble = new THREE.Sprite(new THREE.SpriteMaterial({ map: bt, transparent: true, depthTest: false }));
+  bakePerson(body);
   bubble.scale.set(1.9, .36, 1); bubble.position.y = 2.15; bubble.visible = false; bubble.renderOrder = 20; g.add(bubble);
   scene.add(g);
-  return { g, legs, arms, head, bubble, bc, bt };
+  return { g, body, legs, knees, arms, elbows, head, carry, bubble, bc, bt };
 }
 function say(c, txt, dur) {
   const g = c.bc.getContext('2d'), W = 512, Hh = 96;
@@ -714,6 +829,7 @@ function leave(c, msg, angry) {
   c.state = 'leave'; c.speed = c.robber ? 3.6 : c.speed;
   goTo(c, { x: Math.random() < .5 ? -30 : 30, z: 7.4 });
   if (msg) say(c, msg, 3);
+  if (angry) c.carry.visible = false;
   if (angry) { G.angry++; rate(-4, 'A customer left unhappy'); }
   if (!angry && !c.robber && Math.random() < .6) CANS[0].level += rnd(.07, .13);
 }
@@ -726,6 +842,21 @@ function walk(c, dt) {
   return !c.route.length;
 }
 function turnTo(c, a) { c.wantFace = a; }
+function poseWalk(c, dt) {
+  // walk cycle: thighs swing, the swinging leg bends at the knee, arms swing against the legs, body bobs
+  const mv = c.moving, ph = c.phase;
+  const k = Math.min(1, dt * 10); c.walkAmt = (c.walkAmt || 0) + ((mv ? 1 : 0) - (c.walkAmt || 0)) * k;
+  const w = c.walkAmt, sw = Math.sin(ph) * w, cw = Math.cos(ph);
+  c.legs[0].rotation.x = -sw * .42; c.legs[1].rotation.x = sw * .42;
+  c.knees[0].rotation.x = .03 + Math.max(0, cw) * .8 * w; c.knees[1].rotation.x = .03 + Math.max(0, -cw) * .8 * w;
+  const hold = c.carry.visible ? .55 : 0;
+  c.arms[0].rotation.x = sw * .35 * (1 - hold); c.arms[1].rotation.x = -sw * .35;
+  c.elbows[0].rotation.x = -(.15 + hold + Math.max(0, -sw) * .35);
+  c.elbows[1].rotation.x = -(.15 + Math.max(0, sw) * .35);
+  c.breath = (c.breath || rnd(0, 6)) + dt * 1.6;
+  c.body.position.y = (Math.abs(cw) - .6) * .035 * w + Math.sin(c.breath) * .003 * (1 - w);
+  c.body.rotation.y = sw * .05;
+}
 function updateCustomer(c, dt) {
   c.moving = false;
   if (c.sayT > 0 && (c.sayT -= dt) <= 0) c.bubble.visible = false;
@@ -742,6 +873,7 @@ function updateCustomer(c, dt) {
           const n = f.stock > 1 && Math.random() < .25 ? 2 : 1;
           for (let i = 0; i < n; i++) c.bought.push(c.cur);
           f.stock -= n; f.refresh();
+          c.carry.material = mat(CATS[c.bought[0]].col); c.carry.visible = true;
         } else { c.miss++; say(c, `No ${f.cat.name.toLowerCase()}?! 😠`, 3); rate(-1); toast(`A customer wanted ${f.cat.name}, but the shelf is empty`, 'bad'); }
         nextTarget(c);
       }
@@ -766,7 +898,7 @@ function updateCustomer(c, dt) {
     case 'rob': break;
     case 'leave':
       walk(c, dt);
-      if (!c.route.length) { scene.remove(c.g); customers.splice(customers.indexOf(c), 1); return; }
+      if (!c.route.length) { scene.remove(c.g); disposePerson(c); customers.splice(customers.indexOf(c), 1); return; }
       break;
   }
   // door chime
@@ -780,11 +912,9 @@ function updateCustomer(c, dt) {
   let df = (c.wantFace === undefined ? c.face : c.wantFace) - c.face; df = Math.atan2(Math.sin(df), Math.cos(df));
   c.face += df * Math.min(1, dt * 8);
   c.g.position.set(c.x, 0, c.z); c.g.rotation.y = c.face;
-  const sw = c.moving ? Math.sin(c.phase) * .5 : 0;
-  c.legs[0].rotation.x = sw; c.legs[1].rotation.x = -sw;
-  c.arms[0].rotation.x = -sw * .8; c.arms[1].rotation.x = sw * .8;
+  poseWalk(c, dt);
   if (c.stun > 0) c.g.rotation.z = Math.sin(c.stun * 14) * .15; else c.g.rotation.z = 0;
-  if (c.robber && c.state === 'rob') { c.arms[1].rotation.x = -1.2; c.head.rotation.y += ((robbery && !robbery.watch ? -1.25 : 0) - c.head.rotation.y) * Math.min(1, dt * 6); }
+  if (c.robber && c.state === 'rob') { c.arms[1].rotation.x = -1.3; c.elbows[1].rotation.x = -.1; c.head.rotation.y += ((robbery && !robbery.watch ? -1.25 : 0) - c.head.rotation.y) * Math.min(1, dt * 6); }
   else c.head.rotation.y *= .9;
 }
 
