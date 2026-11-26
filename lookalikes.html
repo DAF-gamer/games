@@ -15,6 +15,7 @@
   #tl { position:fixed; left:14px; top:14px; min-width:190px; }
   #clock { font:700 28px/1 ui-monospace,Menlo,monospace; letter-spacing:1px; }
   #ampm { font-size:15px; color:var(--dim); }
+  #auraHud { margin-top:6px; font:600 13px system-ui,sans-serif; color:#8fd8ff; }
   #date { margin-top:4px; color:var(--dim); font:600 13px ui-monospace,Menlo,monospace; letter-spacing:1px; }
   #rateRow { margin-top:6px; display:flex; align-items:center; gap:8px; }
   #rateBar { flex:1; height:8px; background:rgba(255,255,255,.12); border-radius:4px; overflow:hidden; }
@@ -88,6 +89,7 @@
     <div id="clock">12:00 <span id="ampm">AM</span></div>
     <div id="date">NOV 26 2026</div>
     <div id="rateRow"><span id="stars">★★★★☆</span><div id="rateBar"><div id="rateFill"></div></div></div>
+    <div id="auraHud" title="Aura scanner: use it at the register">📡 Aura scanner <span id="auraPips"></span></div>
   </div>
   <div id="goal" class="box hide"></div>
   <div id="tasks" class="box"><h4>TONIGHT</h4><div id="taskList"></div></div>
@@ -1165,6 +1167,9 @@ function updateAuras(dt) {
     a.s.scale.set(sx, 2.35, 1);
     if (a.t >= a.life || !customers.includes(c)) removeAura(c);
   }
+  // top-left readout, so you can always see the scanner and its charges
+  const pips = '⚡'.repeat(G.auraCharges) + '<span style="opacity:.25">' + '⚡'.repeat(AURA_MAX - G.auraCharges) + '</span>';
+  if (pips !== updateAuras.last) { updateAuras.last = pips; $('auraPips').innerHTML = pips; }
   // recharge one charge per game hour
   const hr = Math.floor(G.time / 60);
   if (!G.auraHour) G.auraHour = hr;
