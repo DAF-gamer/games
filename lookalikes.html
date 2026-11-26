@@ -110,6 +110,7 @@
       <span class="k">E</span><span>use the register (or left click)</span>
       <span class="k">G</span><span>take / put back the shotgun (behind the counter)</span>
       <span class="k">Click</span><span>shoot, while holding the shotgun</span>
+      <span class="k">Hold E</span><span>mop (the mop is in the back room)</span>
       <span class="k">M</span><span>sound on / off</span>
       <span class="k">Esc</span><span>pause</span>
     </div>
@@ -599,10 +600,12 @@ CATS.forEach((cat, i) => {
   const lab = mat('#ffffff', { map: signTex(cat.name.toUpperCase(), cat.col, '#fff', 256, 128, '800 54px system-ui') });
   box(.7, .5, .8, [M.cardboard, lab, M.cardboard, M.cardboard, M.cardboard, M.cardboard], 7.45, y, z);
 });
-// mop & bucket (decoration)
+// mop & bucket
 solid(2.25, -7.45, 3.05, -6.75);
 cyl(.3, .25, .45, M.yellow, 2.65, .25, -7.1); cyl(.27, .27, .02, mat('#6a8aa0'), 2.65, .44, -7.1);
-cyl(.025, .025, 1.5, M.wood, 2.7, 1.0, -7.1).rotation.z = -.25;
+const mopRest = new THREE.Group(); scene.add(mopRest);
+cyl(.025, .025, 1.5, M.wood, 2.7, 1.0, -7.1, mopRest).rotation.z = -.25;
+cyl(.12, .14, .2, M.white, 2.6, .3, -7.1, mopRest);
 // boxes stacked for decoration
 for (const [x, z, y] of [[2.5, -10.4, .3], [3.3, -10.4, .3], [2.9, -10.4, .9]]) box(.7, .6, .6, M.cardboard, x, y, z);
 solid(2.1, -10.8, 3.7, -10.0);
@@ -872,14 +875,14 @@ const RULES = [
 const MAX_LETIN = 3;
 const G = {
   started: false, ended: false, time: 24 * 60, rating: 75, shiftOver: false, spawned: 0,
-  gun: false, shot: 0,
+  gun: false, mop: false, mopped: 0, shot: 0,
   served: 0, sales: 0, caught: 0, letIn: 0, wrongRefuse: 0, angry: 0, mistakes: 0, drawerOff: 0,
 };
 const customers = [], queue = [], watchers = [];
 let spawnT = 1, coworker = null, flickerT = 0, canFlickT = 0, nextFlicker = rnd(40, 70);
 const P = { x: 5.6, z: 3.0, yaw: Math.PI / 2, pitch: -.12, bob: 0, inBus: false };
 const keys = {};
-let locked = false, FORCE = false;
+let locked = false, FORCE = false, mouseDown = false;
 
 // ---------- sound (synthesised, no files)
 let AC = null, MUTE = false, NOISE = null, HUM = null;
@@ -925,6 +928,7 @@ function snd(n, v) {
     case 'shriek': tone(900, t, 1.0, 'sawtooth', .06 * v, 2600); tone(1400, t, .9, 'square', .03 * v, 500); noise(t, 1.1, .06 * v, 3000); break;
     case 'siren': for (let i = 0; i < 3; i++) { tone(650, t + i * .8, .4, 'sawtooth', .04 * v, 950); tone(950, t + i * .8 + .4, .4, 'sawtooth', .04 * v, 650); } break;
     case 'key': noise(t, .03, .06 * v, 4000); break;
+    case 'mop': noise(t, .25, .05 * v, 800); break;
   }
 }
 function sndAt(n, x, z, v) { snd(n, (v === undefined ? 1 : v) * clamp(1 - Math.hypot(x - P.x, z - P.z) / 22, 0, 1)); }
@@ -1267,9 +1271,9 @@ function findTarget() {
   eyeV.set(P.x, 1.6, P.z);
   dirV.set(-Math.sin(P.yaw) * Math.cos(P.pitch), Math.sin(P.pitch), -Math.cos(P.yaw) * Math.cos(P.pitch));
   let best = null, bestA = 1e9, bestL = null;
-  for (const o of INTER) {
+  for (const o of INTER.concat(goo.map(p => p.inter))) {
     const p = o.at(); tmpV.copy(p).sub(eyeV);
-    const d = tmpV.length(); if (d > REACH) continue;
+    const d = tmpV.length(); if (d > REACH + (o.goo ? .4 : 0)) continue;
     const a = tmpV.angleTo(dirV), thr = Math.atan2(o.r, d) + .05;
     if (a < thr && a < bestA) { const L = o.label(); if (L) { best = o; bestA = a; bestL = L; } }
   }
@@ -1278,7 +1282,7 @@ function findTarget() {
 function interact() {
   if (!target || REG.open) return;
   if (typeof target.label === 'object') return; // info only
-  target.o.act();
+  if (target.o.act) target.o.act();
 }
 
 // ---------- the shotgun
@@ -1294,6 +1298,7 @@ INTER.push({
 });
 function setGun(on) {
   if (on === G.gun) return;
+  if (on && G.mop) setMop(false);
   G.gun = on; GUN.visible = on; shelfGun.visible = !on; snd('pump');
   if (on) toast('Shotgun out. Click to shoot. Only shoot lookalikes!', 'bad');
 }
@@ -1321,6 +1326,7 @@ function shoot(c) {
   if (REG.c === c) closeReg(true);
   removePerson(c); G.shot++;
   rate(5, `Lookalike destroyed. ${c.id.why}`);
+  addGoo(c.x, c.z);
 }
 function puff(x, z) {
   for (let i = 0; i < 40; i++) {
@@ -1351,6 +1357,54 @@ function updateGun(dt) {
     if (c.aimed || c.state === 'watch') continue;
     tmpV.set(c.x, 1.3 * c.spec.sc, c.z).sub(eyeV);
     if (tmpV.length() < 7 && tmpV.angleTo(dirV) < .12) { c.aimed = true; say(c, pick(['Whoa! Easy with that thing!', 'Hey, hey, put that down!', 'What are you doing?!', 'Please don’t shoot!']), 3); }
+  }
+}
+
+// ---------- the mop, and the black goo a shot lookalike leaves behind
+const mopHand = new THREE.Group(); mopHand.position.set(.3, -.3, -.6); mopHand.visible = false; camera.add(mopHand);
+cyl(.022, .022, 1.04, M.wood, 0, -.2, -.425, mopHand).rotation.x = .956;
+cyl(.13, .16, .16, M.white, 0, -.52, -.86, mopHand);
+const goo = [];
+let mopAnim = 0, mopping = false;
+INTER.push({
+  at: () => v3.set(2.65, .7, -7.1), r: .45,
+  label() { return G.mop ? 'Put the mop back' : 'Take the mop'; },
+  act() { setMop(!G.mop); },
+});
+function setMop(on) {
+  if (on) setGun(false);
+  G.mop = on; mopHand.visible = on; mopRest.visible = !on;
+}
+function addGoo(x, z) {
+  const t = ctex(256, 256, g => {
+    for (let i = 0; i < 9; i++) { g.fillStyle = i % 3 ? '#0b0910' : '#1a1024'; g.beginPath(); g.arc(128 + rnd(-55, 55), 128 + rnd(-55, 55), rnd(22, 52), 0, 7); g.fill(); }
+    for (let i = 0; i < 26; i++) { const a = rnd(0, 7), r = rnd(80, 122); g.fillStyle = '#0b0910'; g.beginPath(); g.arc(128 + Math.cos(a) * r, 128 + Math.sin(a) * r, rnd(3, 9), 0, 7); g.fill(); }
+    g.fillStyle = 'rgba(120,90,160,.25)'; for (let i = 0; i < 6; i++) { g.beginPath(); g.arc(128 + rnd(-40, 40), 128 + rnd(-40, 40), rnd(4, 10), 0, 7); g.fill(); }
+  });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.7), new THREE.MeshPhongMaterial({ map: t, transparent: true, opacity: 1, depthWrite: false, shininess: 90, specular: 0x555566 }));
+  m.rotation.x = -Math.PI / 2; m.rotation.z = rnd(0, 6); m.position.set(x, .014, z); scene.add(m);
+  const p = { x, z, m, tex: t, prog: 0, seen: new Set() };
+  p.inter = {
+    at: () => v3.set(x, .02, z), r: .8, goo: p,
+    label() { return G.mop ? `Hold E to mop up the black goo${p.prog > 0 ? ' ' + Math.round(p.prog * 100) + '%' : ''}` : { info: 'Black goo. Get the mop from the back room' }; },
+  };
+  goo.push(p);
+  setTimeout(() => toast('It left black goo on the floor. Mop it up before customers see it!', 'bad'), 900);
+}
+function updateGoo(dt) {
+  mopping = false;
+  if (target && target.o.goo && G.mop && (keys.e || mouseDown)) {
+    const p = target.o.goo; mopping = true; p.prog += dt / 2.5; p.m.material.opacity = 1 - p.prog;
+    if (Math.random() < dt * 4) snd('mop');
+    if (p.prog >= 1) { scene.remove(p.m); p.m.geometry.dispose(); p.m.material.dispose(); p.tex.dispose(); goo.splice(goo.indexOf(p), 1); G.mopped++; toast('Goo mopped up', 'good'); target = null; }
+  }
+  mopAnim += dt * (mopping ? 9 : 0);
+  mopHand.rotation.z = mopping ? Math.sin(mopAnim) * .35 : 0; mopHand.position.x = .3 + (mopping ? Math.sin(mopAnim) * .08 : 0);
+  // customers who walk past it are disgusted, and a dirty floor hurts the store
+  if (!G.shiftOver) G.rating -= dt * .08 * goo.length;
+  for (const p of goo) for (const c of customers) {
+    if (c.state === 'watch' || p.seen.has(c) || Math.hypot(c.x - p.x, c.z - p.z) > 1.6) continue;
+    p.seen.add(c); say(c, pick(['Ew! What IS that?! 🤢', 'Is that… oil? Gross.', 'Something died in here…']), 3); rate(-2, 'A customer saw the black goo');
   }
 }
 
@@ -1550,7 +1604,7 @@ function endGame(how) {
   $('endT').textContent = T[0]; $('endS').textContent = T[1];
   const rows = [
     ['Store rating', `${Math.round(G.rating)} / 100 (grade ${grade(G.rating)})`],
-    ['Customers served', G.served], ['Lookalikes caught at the register', G.caught], ['Lookalikes shot', G.shot], ['Lookalikes let through', `${G.letIn} / ${MAX_LETIN}`],
+    ['Customers served', G.served], ['Lookalikes caught at the register', G.caught], ['Lookalikes shot', G.shot], ['Goo puddles mopped', G.mopped], ['Lookalikes let through', `${G.letIn} / ${MAX_LETIN}`],
     ['Real customers you refused', G.wrongRefuse], ['Customers who left unhappy', G.angry], ['Total sales', money(G.sales)],
     ['Change mistakes', G.mistakes + (G.drawerOff ? ` (drawer ${G.drawerOff > 0 ? 'short' : 'over'} ${money(Math.abs(G.drawerOff))})` : '')],
   ];
@@ -1570,7 +1624,8 @@ document.addEventListener('mousemove', e => {
   if (!locked) return;
   P.yaw -= e.movementX * .0022; P.pitch = clamp(P.pitch - e.movementY * .0022, -1.45, 1.3);
 });
-cv.addEventListener('mousedown', e => { if (!locked && G.started && !G.ended && !REG.open && !P.inBus) { lockPointer(); return; } if (e.button === 0 && locked) { if (G.gun) fire(); else interact(); } });
+cv.addEventListener('mousedown', e => { if (!locked && G.started && !G.ended && !REG.open && !P.inBus) { lockPointer(); return; } if (e.button === 0 && locked) { mouseDown = true; if (G.gun) fire(); else interact(); } });
+addEventListener('mouseup', () => { mouseDown = false; });
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if (REG.open) { if (k === 'escape') closeReg(false); return; }
@@ -1581,7 +1636,7 @@ addEventListener('keydown', e => {
   if (k === 'm') { MUTE = !MUTE; if (HUM) HUM.gain.value = MUTE ? 0 : .018; toast(MUTE ? 'Sound off' : 'Sound on'); }
 });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
-addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouseDown = false; });
 $('go').onclick = () => { audioInit(); startGame(); lockPointer(); };
 $('resume').onclick = () => lockPointer();
 $('rulesStart').innerHTML = RULES.map(r => `<li>${r}</li>`).join('');
@@ -1633,6 +1688,8 @@ function updateHUD() {
   t.push(`<div class="t ${G.letIn ? 'bad' : 'ok'}">👁 Lookalikes let through: ${G.letIn} / ${MAX_LETIN}</div>`);
   t.push(`<div class="t ok">✔ Lookalikes caught: ${G.caught}</div>`);
   t.push('<div class="t ok" style="margin-top:4px;font-size:12px">Check: photo · name · expiry · birth date · seal · computer</div>');
+  if (goo.length) t.push(`<div class="t bad">🧽 ${goo.length} puddle${goo.length > 1 ? 's' : ''} of black goo to mop</div>`);
+  if (G.mop) t.push('<div class="t ok">🧽 Holding the mop: hold E on the goo</div>');
   if (G.gun) t.push('<div class="t bad">🔫 Shotgun out: click to shoot · G to put it back</div>');
   $('cross').classList.toggle('gun', G.gun);
   setHTML('taskList', t.join(''));
@@ -1659,6 +1716,7 @@ function update(dt) {
   if (coworker && coworker.sayT > 0 && (coworker.sayT -= dt) <= 0) coworker.bubble.visible = false;
   updateLights(dt);
   updateGun(dt);
+  updateGoo(dt);
   if (G.rating <= 0 && !G.shiftOver && !G.dark) { endGame('fired'); return; }
   updatePlayer(dt);
   target = findTarget();
