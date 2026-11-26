@@ -102,7 +102,7 @@
     <p>Something is wrong in town tonight. Some of your customers aren't who they say they are. They look human, but their IDs never quite add up.</p>
     <p><b>Check every customer's ID before you ring them up. Refuse the sale if:</b></p>
     <ul id="rulesStart"></ul>
-    <p>Run IDs through the <b>records computer</b> on the counter. There's also a <b>pistol</b> under the counter. A lookalike you shoot turns to smoke. Shoot a real person and it's over.</p>
+    <p>Run IDs through the <b>records computer</b> on the counter. There's also a <b>pistol</b> under the counter. A lookalike you shoot falls apart: bag the pieces (trash bags are behind the counter), dump the bag out back, and mop up the blood before customers see it. Shoot a real person and it's over.</p>
     <p>Refuse a real customer and they'll complain to your manager. Let <b>three</b> lookalikes through and… you don't want to find out.</p>
     <p>Make it to 6 AM, then walk to the bus stop and catch the bus home.</p>
     <div class="ctl">
@@ -639,6 +639,11 @@ CATS.forEach((cat, i) => {
   const lab = mat('#ffffff', { map: signTex(cat.name.toUpperCase(), cat.col, '#fff', 256, 128, '800 54px system-ui') });
   box(.7, .5, .8, [M.cardboard, lab, M.cardboard, M.cardboard, M.cardboard, M.cardboard], 7.45, y, z);
 });
+// box of trash bags next to the mop bucket
+solid(5.55, 5.35, 6.25, 6.0);
+box(.6, .32, .5, M.cardboard, 5.9, .16, 5.68);
+plane(.5, .14, mat('#ffffff', { map: signTex('TRASH BAGS', '#1d1d21', '#ffffff', 512, 140, '800 70px system-ui') }), 5.9, .2, 5.425, Math.PI);
+for (let i = 0; i < 3; i++) cyl(.07, .07, .14, M.black, 5.75 + i * .14, .36, 5.7, null, 10).rotation.z = Math.PI / 2;
 // mop & bucket, in the corner behind the counter near the register
 solid(4.6, 5.2, 5.4, 6.0);
 cyl(.3, .25, .45, M.yellow, 5.0, .25, 5.6); cyl(.27, .27, .02, mat('#6a8aa0'), 5.0, .44, 5.6);
@@ -914,7 +919,7 @@ const RULES = [
 const MAX_LETIN = 3;
 const G = {
   started: false, ended: false, time: 24 * 60, rating: 75, shiftOver: false, spawned: 0,
-  gun: false, mop: false, mopped: 0, shot: 0,
+  gun: false, mop: false, bag: false, bagCount: 0, bags: 0, witnesses: 0, mopped: 0, shot: 0,
   served: 0, sales: 0, caught: 0, letIn: 0, wrongRefuse: 0, angry: 0, mistakes: 0, drawerOff: 0,
 };
 const customers = [], queue = [], watchers = [];
@@ -960,7 +965,6 @@ function noise(t0, dur, vol, freq) {
 function snd(n, v) {
   if (!AC || MUTE) return; v = v === undefined ? 1 : v; if (v <= .02) return;
   const t = AC.currentTime;
-  const any = (base, k) => base + (1 + Math.floor(Math.random() * k));
   switch (n) {
     case 'beep': play('beep', .3 * v); break;
     case 'ching': play('ching', .5 * v); break;
@@ -982,6 +986,8 @@ function snd(n, v) {
     case 'key': play(any('key', 3), .5 * v, rnd(.9, 1.1)); break;
     case 'mop': play(any('mop', 2), .3 * v, rnd(.9, 1.15)); break;
     case 'groan': play(any('groan', 6), .55 * v, rnd(.8, 1.05)); break;
+    case 'bag': play('bill', .6 * v, rnd(.5, .65)); noise(t, .35, .08 * v, 2200); break;   // plastic bag rustle
+    case 'thud': tone(70, t, .35, 'sine', .5 * v, 40); noise(t, .25, .3 * v, 400); break;    // dumpster lid
   }
 }
 function sndAt(n, x, z, v) { snd(n, (v === undefined ? 1 : v) * clamp(1 - Math.hypot(x - P.x, z - P.z) / 22, 0, 1)); }
@@ -1325,9 +1331,9 @@ function findTarget() {
   eyeV.set(P.x, 1.6, P.z);
   dirV.set(-Math.sin(P.yaw) * Math.cos(P.pitch), Math.sin(P.pitch), -Math.cos(P.yaw) * Math.cos(P.pitch));
   let best = null, bestA = 1e9, bestL = null;
-  for (const o of INTER.concat(goo.map(p => p.inter))) {
+  for (const o of INTER.concat(blood.map(p => p.inter), parts.map(p => p.inter))) {
     const p = o.at(); tmpV.copy(p).sub(eyeV);
-    const d = tmpV.length(); if (d > REACH + (o.goo ? .4 : 0)) continue;
+    const d = tmpV.length(); if (d > REACH + (o.blood ? .4 : 0)) continue;
     const a = tmpV.angleTo(dirV), thr = Math.atan2(o.r, d) + .05;
     if (a < thr && a < bestA) { const L = o.label(); if (L) { best = o; bestA = a; bestL = L; } }
   }
@@ -1339,23 +1345,60 @@ function interact() {
   if (target.o.act) target.o.act();
 }
 
-// ---------- the pistol
+// ---------- what's in your hands: the pistol, the mop or a trash bag (one at a time)
 const GUN = makePistol(); GUN.position.set(.18, -.17, -.38); GUN.visible = false; camera.add(GUN);
 const muzzle = new THREE.PointLight(0xffc070, 0, 8, 2); muzzle.position.set(.18, -.13, -.65); camera.add(muzzle);
 const ray = new THREE.Raycaster(); ray.camera = camera; ray.far = 45;
-const smoke = [];
-let gunCD = 0, recoil = 0;
+const mopHand = new THREE.Group(); mopHand.position.set(.3, -.3, -.6); mopHand.visible = false; camera.add(mopHand);
+cyl(.022, .022, 1.04, M.wood, 0, -.2, -.425, mopHand).rotation.x = .956;
+cyl(.13, .16, .16, M.white, 0, -.52, -.86, mopHand);
+const bagHand = new THREE.Mesh(G_SPH(), mat('#121214')); bagHand.position.set(.32, -.42, -.62); bagHand.visible = false; camera.add(bagHand);
+let gunCD = 0, recoil = 0, mopAnim = 0, mopping = false;
+// a full bag has to go to the dumpster before you can pick anything else up
+function bagFull() {
+  if (G.bag && G.bagCount > 0) { toast('Take the bag out to the dumpster first (out the back door).', 'bad'); return true; }
+  return false;
+}
+function setGun(on) {
+  if (on === G.gun || (on && bagFull())) return;
+  if (on) { setMop(false); setBag(false); }
+  G.gun = on; GUN.visible = on; shelfGun.visible = !on; snd(on ? 'reload' : 'click');
+  if (on) toast('Pistol out. Click to shoot. Only shoot lookalikes!', 'bad');
+}
+function setMop(on) {
+  if (on === G.mop || (on && bagFull())) return;
+  if (on) { setGun(false); setBag(false); }
+  G.mop = on; mopHand.visible = on; mopRest.visible = !on;
+}
+function setBag(on) {
+  if (on === G.bag) return;
+  if (on) { setGun(false); setMop(false); }
+  G.bag = on; G.bagCount = 0; bagHand.visible = on; snd('bag');
+}
 INTER.push({
   at: () => v3.set(4.53, .8, 4.4), r: .4,
   label() { return behindCounter() ? (G.gun ? 'Put the pistol back' : 'Take the pistol') : null; },
   act() { setGun(!G.gun); },
 });
-function setGun(on) {
-  if (on === G.gun) return;
-  if (on && G.mop) setMop(false);
-  G.gun = on; GUN.visible = on; shelfGun.visible = !on; snd(on ? 'reload' : 'click');
-  if (on) toast('Pistol out. Click to shoot. Only shoot lookalikes!', 'bad');
-}
+INTER.push({
+  at: () => v3.set(5.0, .7, 5.6), r: .45,
+  label() { return G.mop ? 'Put the mop back' : 'Take the mop'; },
+  act() { setMop(!G.mop); },
+});
+INTER.push({
+  at: () => v3.set(5.9, .35, 5.65), r: .35,
+  label() { return !G.bag ? 'Take a trash bag' : G.bagCount ? { info: 'Your bag is full of… pieces. Dumpster, out back.' } : 'Put the bag back'; },
+  act() { if (!G.bag) setBag(true); else if (!G.bagCount) setBag(false); },
+});
+INTER.push({
+  at: () => v3.set(6.5, 1.1, -14.6), r: .9,
+  label() { return G.bag && G.bagCount ? 'Throw the bag in the dumpster' : { info: 'Dumpster' }; },
+  act() {
+    if (!(G.bag && G.bagCount)) return;
+    G.bags++; G.bag = false; G.bagCount = 0; bagHand.visible = false; snd('thud');
+    toast('Bag thrown in the dumpster. Nobody will ever know.', 'good');
+  },
+});
 const shown = o => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
 const onCamera = o => { for (; o; o = o.parent) if (o === camera) return true; return false; };
 function ownerOf(o) {
@@ -1367,43 +1410,26 @@ function fire() {
   if (!G.gun || gunCD > 0 || REG.open || G.dark) return;
   gunCD = .45; recoil = 1; muzzle.intensity = 3; snd('shot');
   scene.updateMatrixWorld(); ray.setFromCamera({ x: 0, y: 0 }, camera);
-  const hit = ray.intersectObjects(scene.children, true).find(h => h.object.isMesh && !h.object.material.transparent && !onCamera(h.object) && shown(h.object));
+  const hit = ray.intersectObjects(scene.children, true).find(h => h.object.isMesh && !h.object.material.transparent && !onCamera(h.object) && shown(h.object) && !h.object.userData.part);
   const c = hit && ownerOf(hit.object);
   if (c) shoot(c);
 }
 function shoot(c) {
   if (!c.fake) { arrested(); return; }
-  // a lookalike: it shrieks and comes apart into black smoke
-  snd('shriek'); puff(c.x, c.z);
+  snd('shriek');
   const qi = queue.indexOf(c); if (qi >= 0) queue.splice(qi, 1);
   const wi = watchers.indexOf(c); if (wi >= 0) { watchers.splice(wi, 1); G.letIn--; }
   if (REG.c === c) closeReg(true);
-  removePerson(c); G.shot++;
-  rate(5, `Lookalike destroyed. ${c.id.why}`);
-  addGoo(c.x, c.z);
-}
-function puff(x, z) {
-  for (let i = 0; i < 40; i++) {
-    const m = new THREE.Mesh(G_SPH(), new THREE.MeshBasicMaterial({ color: 0x0a0a0c, transparent: true, opacity: .85, depthWrite: false }));
-    const s = rnd(.06, .16); m.scale.setScalar(s); m.position.set(x + rnd(-.2, .2), rnd(.2, 1.8), z + rnd(-.2, .2)); scene.add(m);
-    smoke.push({ m, v: new THREE.Vector3(rnd(-.5, .5), rnd(.3, 1.2), rnd(-.5, .5)), t: 0, life: rnd(1.2, 2), s });
-  }
-}
-function arrested() {
-  G.dark = true; setGun(false); snd('siren');
-  if (REG.open) closeReg();
-  $('fade').style.opacity = 1;
-  setTimeout(() => endGame('arrested'), 1800);
+  G.shot++;
+  rate(5, `Lookalike down. ${c.id.why}`);
+  addBlood(c.x, c.z);
+  dismember(c);
+  setTimeout(() => toast('Now clean it up: bag the pieces (trash bags behind the counter), dump the bag out back, and mop the blood.', 'bad'), 900);
 }
 function updateGun(dt) {
   gunCD = Math.max(0, gunCD - dt); recoil = Math.max(0, recoil - dt * 4);
   muzzle.intensity = Math.max(0, muzzle.intensity - dt * 60);
   GUN.position.z = -.38 + recoil * .05; GUN.rotation.x = recoil * .45;
-  for (let i = smoke.length - 1; i >= 0; i--) {
-    const p = smoke[i]; p.t += dt; p.m.position.addScaledVector(p.v, dt); p.m.scale.setScalar(p.s * (1 + p.t * 2));
-    p.m.material.opacity = .85 * (1 - p.t / p.life);
-    if (p.t >= p.life) { scene.remove(p.m); p.m.material.dispose(); smoke.splice(i, 1); }
-  }
   if (!G.gun) return;
   // anyone you point it at reacts, human or not
   eyeV.set(P.x, 1.6, P.z); dirV.set(-Math.sin(P.yaw) * Math.cos(P.pitch), Math.sin(P.pitch), -Math.cos(P.yaw) * Math.cos(P.pitch));
@@ -1413,52 +1439,91 @@ function updateGun(dt) {
     if (tmpV.length() < 7 && tmpV.angleTo(dirV) < .12) { c.aimed = true; say(c, pick(['Whoa! Easy with that thing!', 'Hey, hey, put that down!', 'What are you doing?!', 'Please don’t shoot!']), 3); }
   }
 }
-
-// ---------- the mop, and the black goo a shot lookalike leaves behind
-const mopHand = new THREE.Group(); mopHand.position.set(.3, -.3, -.6); mopHand.visible = false; camera.add(mopHand);
-cyl(.022, .022, 1.04, M.wood, 0, -.2, -.425, mopHand).rotation.x = .956;
-cyl(.13, .16, .16, M.white, 0, -.52, -.86, mopHand);
-const goo = [];
-let mopAnim = 0, mopping = false;
-INTER.push({
-  at: () => v3.set(5.0, .7, 5.6), r: .45,
-  label() { return G.mop ? 'Put the mop back' : 'Take the mop'; },
-  act() { setMop(!G.mop); },
-});
-function setMop(on) {
-  if (on) setGun(false);
-  G.mop = on; mopHand.visible = on; mopRest.visible = !on;
+function arrested() {
+  G.dark = true; setGun(false); snd('siren');
+  if (REG.open) closeReg();
+  $('fade').style.opacity = 1;
+  setTimeout(() => endGame('arrested'), 1800);
 }
-function addGoo(x, z) {
+
+// ---------- body parts: a shot lookalike falls apart into head, arms, legs and torso
+const parts = [];
+function dismember(c) {
+  c.g.updateMatrixWorld(true);
+  const torso = c.body.children.find(o => o.isMesh);
+  const list = [[c.head, 'head', .1], [c.arms[0], 'arm', .06], [c.arms[1], 'arm', .06], [c.legs[0], 'leg', .08], [c.legs[1], 'leg', .08], [torso, 'torso', .12]];
+  for (const [o, name, rest] of list) {
+    scene.attach(o);
+    if (o === torso) { // re-centre the torso so it tumbles around its middle
+      const lc = new THREE.Vector3(); o.geometry.computeBoundingBox(); o.geometry.boundingBox.getCenter(lc);
+      o.geometry.translate(-lc.x, -lc.y, -lc.z); o.position.add(lc.multiply(o.scale).applyQuaternion(o.quaternion));
+    }
+    o.traverse(m => { m.userData.part = true; });
+    const a = rnd(0, Math.PI * 2), sp = rnd(.6, 1.5);
+    const p = { o, name, rest, x: o.position.x, z: o.position.z, vx: Math.cos(a) * sp, vz: Math.sin(a) * sp, vy: rnd(1, 2.2), settled: false,
+      lie: new THREE.Euler(name === 'head' ? rnd(-.4, .4) : Math.PI / 2 * (Math.random() < .5 ? 1 : -1), rnd(0, 6), rnd(-.4, .4)), seen: new Set() };
+    p.inter = partInter(p); parts.push(p);
+  }
+  // the rest (hair is part of the head, eyes too) goes with the person
+  scene.remove(c.g); c.bt.dispose(); c.bubble.material.dispose();
+  const i = customers.indexOf(c); if (i >= 0) customers.splice(i, 1);
+  setTimeout(() => play(any('mop', 2), .5, .6), 450);
+}
+const any = (base, k) => base + (1 + Math.floor(Math.random() * k));
+function partInter(p) {
+  return {
+    at: () => p.o.getWorldPosition(v3), r: .45, part: p,
+    label() { return G.bag ? `Bag the ${p.name}` : { info: `A lookalike's ${p.name}. Grab a trash bag from behind the counter` }; },
+    act() {
+      if (!G.bag) return;
+      scene.remove(p.o); p.o.traverse(m => { if (m.isMesh && m.material === PERSON_MAT) m.geometry.dispose(); });
+      parts.splice(parts.indexOf(p), 1); G.bagCount++; snd('bag');
+      bagHand.scale.setScalar(.16 + Math.min(G.bagCount, 8) * .025);
+      if (!parts.length) toast('All bagged. Take the bag out back to the dumpster.', 'good');
+    },
+  };
+}
+// ---------- blood pools, cleaned with the mop
+const blood = [];
+function addBlood(x, z) {
   const t = ctex(256, 256, g => {
-    for (let i = 0; i < 9; i++) { g.fillStyle = i % 3 ? '#0b0910' : '#1a1024'; g.beginPath(); g.arc(128 + rnd(-55, 55), 128 + rnd(-55, 55), rnd(22, 52), 0, 7); g.fill(); }
-    for (let i = 0; i < 26; i++) { const a = rnd(0, 7), r = rnd(80, 122); g.fillStyle = '#0b0910'; g.beginPath(); g.arc(128 + Math.cos(a) * r, 128 + Math.sin(a) * r, rnd(3, 9), 0, 7); g.fill(); }
-    g.fillStyle = 'rgba(120,90,160,.25)'; for (let i = 0; i < 6; i++) { g.beginPath(); g.arc(128 + rnd(-40, 40), 128 + rnd(-40, 40), rnd(4, 10), 0, 7); g.fill(); }
+    for (let i = 0; i < 9; i++) { g.fillStyle = i % 3 ? '#3a0606' : '#560b0b'; g.beginPath(); g.arc(128 + rnd(-55, 55), 128 + rnd(-55, 55), rnd(22, 52), 0, 7); g.fill(); }
+    for (let i = 0; i < 30; i++) { const a = rnd(0, 7), r = rnd(80, 124); g.fillStyle = '#4a0808'; g.beginPath(); g.arc(128 + Math.cos(a) * r, 128 + Math.sin(a) * r, rnd(3, 9), 0, 7); g.fill(); }
   });
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.7), new THREE.MeshPhongMaterial({ map: t, transparent: true, opacity: 1, depthWrite: false, shininess: 90, specular: 0x555566 }));
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshPhongMaterial({ map: t, transparent: true, opacity: 1, depthWrite: false, shininess: 90, specular: 0x553333 }));
   m.rotation.x = -Math.PI / 2; m.rotation.z = rnd(0, 6); m.position.set(x, .014, z); scene.add(m);
   const p = { x, z, m, tex: t, prog: 0, seen: new Set() };
   p.inter = {
-    at: () => v3.set(x, .02, z), r: .8, goo: p,
-    label() { return G.mop ? `Hold E to mop up the black goo${p.prog > 0 ? ' ' + Math.round(p.prog * 100) + '%' : ''}` : { info: 'Black goo. Grab the mop from the bucket behind the counter' }; },
+    at: () => v3.set(x, .02, z), r: .8, blood: p,
+    label() { return G.mop ? `Hold E to mop up the blood${p.prog > 0 ? ' ' + Math.round(p.prog * 100) + '%' : ''}` : { info: 'Blood. Grab the mop from the bucket behind the counter' }; },
   };
-  goo.push(p);
-  setTimeout(() => toast('It left black goo on the floor. Mop it up before customers see it!', 'bad'), 900);
+  blood.push(p);
 }
-function updateGoo(dt) {
+function updateCleanup(dt) {
+  // flying pieces land and lie still
+  for (const p of parts) if (!p.settled) {
+    p.vy -= 9.8 * dt; p.x += p.vx * dt; p.z += p.vz * dt; p.o.position.set(p.x, p.o.position.y + p.vy * dt, p.z);
+    const k = Math.min(1, dt * 5); p.o.rotation.x += (p.lie.x - p.o.rotation.x) * k; p.o.rotation.z += (p.lie.z - p.o.rotation.z) * k;
+    if (p.o.position.y <= p.rest && p.vy < 0) {
+      const q = { x: p.x, z: p.z }; collide(q, .3); p.x = q.x; p.z = q.z; p.o.position.set(p.x, p.rest, p.z); // never inside a shelf or the counter
+      p.o.rotation.set(p.lie.x, p.o.rotation.y, p.lie.z); p.settled = true; }
+  }
+  // mopping
   mopping = false;
-  if (target && target.o.goo && G.mop && (keys.e || mouseDown)) {
-    const p = target.o.goo; mopping = true; p.prog += dt / 2.5; p.m.material.opacity = 1 - p.prog;
+  if (target && target.o.blood && G.mop && (keys.e || mouseDown)) {
+    const p = target.o.blood; mopping = true; p.prog += dt / 2.5; p.m.material.opacity = 1 - p.prog;
     if (Math.random() < dt * 1.6) snd('mop');
-    if (p.prog >= 1) { scene.remove(p.m); p.m.geometry.dispose(); p.m.material.dispose(); p.tex.dispose(); goo.splice(goo.indexOf(p), 1); G.mopped++; toast('Goo mopped up', 'good'); target = null; }
+    if (p.prog >= 1) { scene.remove(p.m); p.m.geometry.dispose(); p.m.material.dispose(); p.tex.dispose(); blood.splice(blood.indexOf(p), 1); G.mopped++; toast('Blood mopped up', 'good'); target = null; }
   }
   mopAnim += dt * (mopping ? 9 : 0);
   mopHand.rotation.z = mopping ? Math.sin(mopAnim) * .35 : 0; mopHand.position.x = .3 + (mopping ? Math.sin(mopAnim) * .08 : 0);
-  // customers who walk past it are disgusted, and a dirty floor hurts the store
-  if (!G.shiftOver) G.rating -= dt * .08 * goo.length;
-  for (const p of goo) for (const c of customers) {
-    if (c.state === 'watch' || p.seen.has(c) || Math.hypot(c.x - p.x, c.z - p.z) > 1.6) continue;
-    p.seen.add(c); say(c, pick(['Ew! What IS that?! 🤢', 'Is that… oil? Gross.', 'Something died in here…']), 3); rate(-2, 'A customer saw the black goo');
+  // a messy store hurts the rating; customers who see blood are disgusted, body parts send them running
+  if (!G.shiftOver) G.rating -= dt * (.08 * blood.length + .06 * parts.length);
+  for (const c of [...customers]) {
+    if (c.state === 'watch' || c.state === 'leave') continue;
+    const p = parts.find(p => !p.seen.has(c) && Math.hypot(c.x - p.o.position.x, c.z - p.o.position.z) < 2.2);
+    if (p) { p.seen.add(c); G.witnesses++; leave(c, pick(['AAAAH! Is that a… 😱', 'WHAT IS THAT?! 😱', 'Nope. NOPE. 😱'])); c.carry.visible = false; c.speed = 3.2; G.angry++; rate(-6, 'A customer saw body parts and ran out'); continue; }
+    for (const b of blood) if (!b.seen.has(c) && Math.hypot(c.x - b.x, c.z - b.z) < 1.6) { b.seen.add(c); say(c, pick(['Is that… blood?! 🤢', 'Ew, what happened here?', 'Somebody should clean that…']), 3); rate(-2, 'A customer saw the blood'); }
   }
 }
 
@@ -1658,7 +1723,7 @@ function endGame(how) {
   $('endT').textContent = T[0]; $('endS').textContent = T[1];
   const rows = [
     ['Store rating', `${Math.round(G.rating)} / 100 (grade ${grade(G.rating)})`],
-    ['Customers served', G.served], ['Lookalikes caught at the register', G.caught], ['Lookalikes shot', G.shot], ['Goo puddles mopped', G.mopped], ['Lookalikes let through', `${G.letIn} / ${MAX_LETIN}`],
+    ['Customers served', G.served], ['Lookalikes caught at the register', G.caught], ['Lookalikes shot', G.shot], ['Blood puddles mopped', G.mopped], ['Bags taken to the dumpster', G.bags], ['Customers who saw body parts', G.witnesses], ['Lookalikes let through', `${G.letIn} / ${MAX_LETIN}`],
     ['Real customers you refused', G.wrongRefuse], ['Customers who left unhappy', G.angry], ['Total sales', money(G.sales)],
     ['Change mistakes', G.mistakes + (G.drawerOff ? ` (drawer ${G.drawerOff > 0 ? 'short' : 'over'} ${money(Math.abs(G.drawerOff))})` : '')],
   ];
@@ -1742,8 +1807,10 @@ function updateHUD() {
   t.push(`<div class="t ${G.letIn ? 'bad' : 'ok'}">👁 Lookalikes let through: ${G.letIn} / ${MAX_LETIN}</div>`);
   t.push(`<div class="t ok">✔ Lookalikes caught: ${G.caught}</div>`);
   t.push('<div class="t ok" style="margin-top:4px;font-size:12px">Check: photo · name · expiry · birth date · seal · computer</div>');
-  if (goo.length) t.push(`<div class="t bad">🧽 ${goo.length} puddle${goo.length > 1 ? 's' : ''} of black goo to mop</div>`);
-  if (G.mop) t.push('<div class="t ok">🧽 Holding the mop: hold E on the goo</div>');
+  if (parts.length) t.push(`<div class="t bad">🦴 ${parts.length} body part${parts.length > 1 ? 's' : ''} to bag</div>`);
+  if (G.bag && G.bagCount) t.push(`<div class="t warn">🗑 Bag with ${G.bagCount} piece${G.bagCount > 1 ? 's' : ''}: take it to the dumpster out back</div>`);
+  if (blood.length) t.push(`<div class="t bad">🩸 ${blood.length} blood puddle${blood.length > 1 ? 's' : ''} to mop</div>`);
+  if (G.mop) t.push('<div class="t ok">🧽 Holding the mop: hold E on the blood</div>');
   if (G.gun) t.push('<div class="t bad">🔫 Pistol out: click to shoot · G to put it back</div>');
   $('cross').classList.toggle('gun', G.gun);
   setHTML('taskList', t.join(''));
@@ -1770,7 +1837,7 @@ function update(dt) {
   if (coworker && coworker.sayT > 0 && (coworker.sayT -= dt) <= 0) coworker.bubble.visible = false;
   updateLights(dt);
   updateGun(dt);
-  updateGoo(dt);
+  updateCleanup(dt);
   if (G.rating <= 0 && !G.shiftOver && !G.dark) { endGame('fired'); return; }
   updatePlayer(dt);
   target = findTarget();
