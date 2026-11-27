@@ -663,8 +663,119 @@ box(.25, .5, .6, mat(CATS[1].col), 3.4, 1.25, 4.6);
 // behind the clerk
 solid(7.4, 1.4, 8, 5.6);
 box(.6, 2.2, 4.2, M.dark, 7.7, 1.1, 3.5);
-for (let r = 0; r < 4; r++) for (let c = 0; c < 6; c++) box(.05, .3, .55, mat(pick(['#e63', '#39f', '#fc3', '#6c3', '#c3c'])), 7.38, .7 + r * .4, 1.95 + c * .62);
-plane(2.6, .45, mat('#ffffff', { map: signTex('LOTTO · PHONE CARDS', '#ffd860', '#13204a', 1024, 160, '800 70px system-ui') }), 7.98, 2.4, 3.5, -Math.PI / 2);
+plane(2.6, .45, mat('#ffffff', { map: signTex('VALE LOTTERY · PHONE CARDS', '#ffd860', '#13204a', 1024, 160, '800 64px system-ui') }), 7.98, 2.4, 3.5, -Math.PI / 2);
+// ---------- lottery & phone cards display on the back wall of the clerk's room (face at x 7.4, facing the counter).
+// Made-up games and brands. Tickets and cards each come from one shared picture (an atlas), so after the
+// scenery merge the whole display is only a few draw calls.
+function atlasPlane(w, h, m, x, y, z, ry, col, row, cols, rows) {
+  const g = new THREE.PlaneGeometry(w, h), uv = g.attributes.uv;
+  const u0 = col / cols, u1 = (col + 1) / cols, v1 = 1 - row / rows, v0 = 1 - (row + 1) / rows;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) ? u1 : u0, uv.getY(i) ? v1 : v0);
+  const me = new THREE.Mesh(g, m); me.position.set(x, y, z); me.rotation.y = ry; scene.add(me); return me;
+}
+const LX = 7.4, FACE = -Math.PI / 2;
+const TICKETS = [
+  ['LUCKY 7s', '$5', '#c8102e', '#ffd860', '7'], ['CASH BLAST', '$2', '#1a7f3c', '#fff', '$'], ['GOLD RUSH', '$10', '#b8860b', '#fff8d0', '★'],
+  ['WILD CHERRY', '$1', '#d6336c', '#fff', '●'], ['MONEY TREE', '$5', '#2f8f46', '#e8ffd8', '♣'], ['DIAMOND DEUCES', '$3', '#3a5fcd', '#e0ecff', '◆'],
+  ['BINGO NIGHT', '$2', '#6a3fb5', '#fff', 'B'], ['TRIPLE CASH', '$10', '#0f6b6b', '#d8fff8', '$'], ['HOT 50s', '$5', '#e8590c', '#fff3d0', '50'],
+  ['SNOW DAY', '$1', '#4dabf7', '#ffffff', '❄'], ['JACKPOT JOY', '$20', '#111111', '#ffd860', '★'], ['CROSSWORD', '$3', '#f2f2f2', '#c8102e', 'A'],
+  ['FISHING FUN', '$2', '#1864ab', '#e0f0ff', '~'], ['MIDNIGHT 7s', '$10', '#1b1f3a', '#ff6ad5', '7'], ['LUCKY DUCK', '$1', '#f5c518', '#3a2a00', '♥'],
+];
+const ticketM = mat('#ffffff', { map: ctexText(1000, 600, (g, W, H) => {
+  const cw = W / 5, ch = H / 3;
+  TICKETS.forEach(([name, price, bg, fg, sym], i) => {
+    const x = (i % 5) * cw, y = Math.floor(i / 5) * ch;
+    const gr = g.createLinearGradient(x, y, x, y + ch); gr.addColorStop(0, bg); gr.addColorStop(1, new THREE.Color(bg).multiplyScalar(.6).getStyle());
+    g.fillStyle = gr; g.fillRect(x + 4, y + 4, cw - 8, ch - 8);
+    g.strokeStyle = fg; g.lineWidth = 3; g.strokeRect(x + 10, y + 10, cw - 20, ch - 20);
+    g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `900 ${name.length > 10 ? 17 : 21}px system-ui,sans-serif`; g.fillText(name, x + cw / 2, y + 32);
+    g.globalAlpha = .25; g.font = '900 70px system-ui,sans-serif';                       // big faded symbol
+    g.fillText(sym, x + cw * .3, y + ch * .55); g.fillText(sym, x + cw * .7, y + ch * .55); g.globalAlpha = 1;
+    g.fillStyle = '#b9bcc2'; g.fillRect(x + 22, y + 58, cw - 44, 70);                    // silver scratch area
+    g.fillStyle = '#9a9ea6'; for (let k = 0; k < 6; k++) g.fillRect(x + 30 + k * 26, y + 66 + (k % 2) * 28, 18, 18);
+    g.fillStyle = '#ffffff'; g.strokeStyle = '#111'; g.lineWidth = 2;                    // price badge
+    g.beginPath(); g.arc(x + cw - 34, y + ch - 34, 24, 0, 7); g.fill(); g.stroke();
+    g.fillStyle = '#111'; g.font = '900 20px system-ui'; g.fillText(price, x + cw - 34, y + ch - 33);
+    g.fillStyle = fg; g.font = '700 11px ui-monospace,Menlo,monospace'; g.textAlign = 'left';
+    g.fillText(`GAME ${1100 + i * 37}  SCRATCH TO WIN`, x + 16, y + ch - 20);
+  });
+}) });
+const cardM = mat('#ffffff', { map: ctexText(800, 600, (g, W, H) => {
+  const CARDS = [['TALKMAX', '$10', '#e03131'], ['GLOBAL CALL', '$20', '#1971c2'], ['NV MOBILE', '$25', '#2b8a3e'], ['HELLO WORLD', '$5', '#f08c00'],
+    ['TALKMAX', '$20', '#c2255c'], ['ZIPTALK', '$15', '#5f3dc4'], ['NV MOBILE', '$50', '#087f5b'], ['GLOBAL CALL', '$10', '#1864ab'],
+    ['ROAMER', '$30', '#343a40'], ['ZIPTALK', '$25', '#7048e8'], ['HELLO WORLD', '$10', '#e8590c'], ['TOP-UP', '$40', '#0b7285']];
+  const cw = W / 4, ch = H / 3;
+  CARDS.forEach(([name, amt, col], i) => {
+    const x = (i % 4) * cw, y = Math.floor(i / 4) * ch;
+    g.fillStyle = '#f4f4f0'; g.beginPath(); g.roundRect ? g.roundRect(x + 8, y + 8, cw - 16, ch - 16, 14) : g.rect(x + 8, y + 8, cw - 16, ch - 16); g.fill();
+    g.fillStyle = col; g.fillRect(x + 8, y + 48, cw - 16, 78);
+    g.fillStyle = '#d0d0cc'; g.beginPath(); g.ellipse(x + cw / 2, y + 26, 18, 7, 0, 0, 7); g.fill();     // peg hole
+    g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `900 ${name.length > 9 ? 22 : 27}px system-ui,sans-serif`; g.fillText(name, x + cw / 2, y + 74);
+    g.font = '700 14px system-ui'; g.fillText('PREPAID CALLING CARD', x + cw / 2, y + 106);
+    g.fillStyle = col; g.font = '900 46px system-ui'; g.fillText(amt, x + cw / 2, y + 156);
+    g.fillStyle = '#555'; g.font = '600 12px system-ui'; g.fillText('MINUTES · TEXT · DATA', x + cw / 2, y + 184);
+  });
+}) });
+// upper left: scratch-off dispenser (3 rows x 5 slots) behind clear plastic
+plane(2.08, 1.2, mat('#ffffff', { map: ctexText(1040, 600, (g, W, H) => {
+  g.fillStyle = '#1b1d24'; g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 15; i++) {
+    const x = (i % 5) * (W / 5), y = Math.floor(i / 5) * (H / 3);
+    g.fillStyle = '#2c2f38'; g.fillRect(x + 12, y + 12, W / 5 - 24, H / 3 - 24);
+    g.fillStyle = '#ffd860'; g.font = '800 20px system-ui'; g.textAlign = 'left'; g.textBaseline = 'top'; g.fillText(String(i + 1).padStart(2, '0'), x + 16, y + 14);
+    g.fillStyle = '#e8e8e8'; g.font = '700 16px system-ui'; g.textAlign = 'right'; g.fillText(TICKETS[i][1], x + W / 5 - 16, y + 16);
+  }
+}) }), LX - .005, 1.5, 4.35, FACE);
+TICKETS.forEach((t, i) => {
+  const z = 3.55 + (i % 5) * .4, y = 1.86 - Math.floor(i / 5) * .4;
+  atlasPlane(.3, .27, ticketM, LX - .02, y - .02, z, FACE, i % 5, Math.floor(i / 5), 5, 3);
+  box(.02, .03, .27, mat('#e9e4d6'), LX - .025, y - .185, z);                                // ticket tongue (back of the ticket) sticking out of the slot
+  box(.03, .012, .33, M.metal, LX - .02, y - .205, z);                                         // tear bar
+});
+box(.04, 1.22, .03, M.metal, LX - .06, 1.5, 3.3); box(.04, 1.22, .03, M.metal, LX - .06, 1.5, 5.4);   // plastic frame
+box(.04, .03, 2.13, M.metal, LX - .06, .9, 4.35); box(.04, .03, 2.13, M.metal, LX - .06, 2.1, 4.35);
+box(.012, 1.18, 2.08, M.glass, LX - .07, 1.5, 4.35).renderOrder = 5;
+plane(2.08, .13, mat('#ffffff', { map: signTex('INSTANT SCRATCHERS · ASK FOR TICKET BY NUMBER', '#c8102e', '#ffffff', 1024, 64, '800 34px system-ui') }), LX - .075, 2.16, 4.35, FACE);
+// upper right: pegboard of prepaid phone cards, two deep on each hook
+plane(1.72, 1.2, M.peg, LX - .005, 1.5, 2.35, FACE);
+for (let i = 0; i < 12; i++) {
+  const z = 1.76 + (i % 4) * .4, y = 1.86 - Math.floor(i / 4) * .41;
+  cyl(.007, .007, .14, M.metal, LX - .07, y + .14, z, null, 6).rotation.z = Math.PI / 2;     // peg hook
+  atlasPlane(.26, .37, cardM, LX - .03, y - .03, z, FACE, i % 4, Math.floor(i / 4), 4, 3);
+  atlasPlane(.26, .37, cardM, LX - .05, y - .03, z, FACE, (i + 1) % 4, Math.floor(i / 4), 4, 3);
+}
+plane(1.72, .13, mat('#ffffff', { map: signTex('PHONE CARDS · TOP-UP · INTERNATIONAL', '#13204a', '#ffd860', 1024, 64, '800 36px system-ui') }), LX - .01, 2.16, 2.35, FACE);
+// a ledge across the display with the lottery terminal and play slips
+box(.32, .04, 4.0, M.wood, LX - .16, .92, 3.5); solid(7.08, 1.45, 7.4, 5.55);
+box(.26, .08, .32, M.dark, LX - .17, .98, 2.25);                                              // terminal base
+box(.05, .025, .18, M.black, LX - .27, 1.03, 2.25);                                           // ticket printer slot
+for (let k = 0; k < 12; k++) box(.03, .012, .03, mat('#d9d9d9'), LX - .14 - (k % 3) * .04, 1.026, 2.15 + Math.floor(k / 3) * .04);  // keypad
+box(.03, .17, .24, M.dark, LX - .09, 1.11, 2.37).rotation.z = -.3;                            // screen housing, tilted back
+const termM = mat('#ffffff', { map: ctexText(256, 180, (g, W, Hh) => {
+  g.fillStyle = '#061a33'; g.fillRect(0, 0, W, Hh); g.fillStyle = '#ffd860'; g.font = '800 24px system-ui'; g.fillText('VALE LOTTERY', 18, 40);
+  g.fillStyle = '#9fd0ff'; g.font = '600 18px ui-monospace,Menlo,monospace'; ['TERMINAL 0417', 'READY', '> INSERT SLIP_'].forEach((t, k) => g.fillText(t, 18, 84 + k * 30));
+}) }); termM.emissive = new THREE.Color('#ffffff'); termM.emissiveMap = termM.map; termM.emissiveIntensity = .7;
+plane(.21, .15, termM, LX - .108, 1.115, 2.37, FACE, -.3);                                     // terminal screen, same tilt
+box(.2, .12, .26, mat('#c8102e'), LX - .17, 1.0, 4.95);                                       // play slip holder
+for (let k = 0; k < 3; k++) box(.006, .1, .2, M.white, LX - .2 + k * .03, 1.09, 4.95);
+for (const dz of [-.06, .06]) cyl(.006, .006, .17, mat('#e0b84a'), LX - .26, 1.09, 4.95 + dz, null, 6).rotation.x = .25;
+// lower cabinet: glowing jackpot board and stickers
+const jackM = mat('#ffffff', { map: ctexText(900, 220, (g, W, Hh) => {
+  g.fillStyle = '#0a0a0a'; g.fillRect(0, 0, W, Hh);
+  g.fillStyle = '#ffd860'; g.font = '900 34px system-ui'; g.fillText('VALE MILLIONS JACKPOT', 24, 50);
+  g.fillStyle = '#ff3b2a'; g.font = '900 72px ui-monospace,Menlo,monospace'; g.fillText('$87 MILLION', 24, 128);
+  g.fillStyle = '#7dff9a'; g.font = '700 26px ui-monospace,Menlo,monospace';
+  g.fillText('PICK 3: 4-1-9   PICK 4: 2-7-7-0   DAILY 5: 03 11 18 24 31', 24, 180);
+  g.fillStyle = '#9a9a9a'; g.font = '600 16px system-ui'; g.fillText('NEXT DRAW WED & SAT 10:59 PM', 24, 208);
+}) }); jackM.emissive = new THREE.Color('#ffffff'); jackM.emissiveMap = jackM.map; jackM.emissiveIntensity = .85;
+plane(1.9, .46, jackM, LX - .005, .58, 4.35, FACE);
+plane(.5, .32, mat('#ffffff', { map: signTex('18+ TO PLAY', '#ffd860', '#c8102e', 256, 160, '900 46px system-ui') }), LX - .005, .62, 3.0, FACE);
+plane(.9, .32, mat('#ffffff', { map: ctexText(400, 140, (g, W, Hh) => {
+  g.fillStyle = '#1b3a6b'; g.fillRect(0, 0, W, Hh); g.fillStyle = '#fff'; g.textAlign = 'center';
+  g.font = '900 34px system-ui'; g.fillText('PHONE REFILLS', W / 2, 52); g.font = '600 20px system-ui'; g.fillText('ALL CARRIERS · ASK THE CLERK', W / 2, 96);
+}) }), LX - .005, .62, 2.05, FACE);
 // ---------- the clerk's room: x 3.58..8, z 1.15..6.1. Solid walls all round, one bulletproof window
 // over the counter at the register (IDs, cash and change go through a tray under it), steel door at the back.
 const BOOTH_GLASS = new THREE.MeshLambertMaterial({ color: 0xa8d4e6, transparent: true, opacity: .2, depthWrite: false });
