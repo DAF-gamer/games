@@ -110,6 +110,7 @@
     <p>Something is wrong in town tonight. Some of your customers aren't who they say they are. They look human, but their IDs never quite add up.</p>
     <p><b>Check every customer's ID before you ring them up. Refuse the sale if:</b></p>
     <ul id="rulesStart"></ul>
+    <p>You work from a <b>bulletproof glass booth</b>. IDs, cash and change go through the tray under the glass. The glass stops bullets too, so to use the pistol you have to step out through the booth door at the back.</p>
     <p>Run IDs through the <b>records computer</b> on the counter, or pick up the <b>aura tablet</b> next to it and point it at a customer: real people glow a calm blue-green, lookalikes flicker red. Its battery only holds <b>3 scans</b> and gets one back every hour, so save it for the customers you're unsure about. There's also a <b>pistol</b> under the counter. A lookalike you shoot falls apart: bag the pieces (trash bags are behind the counter), dump the bag out back, and mop up the blood before customers see it. Shoot a real person and it's over.</p>
     <p>Refuse a real customer and they'll complain to your manager. Let <b>three</b> lookalikes through and… you don't want to find out.</p>
     <p>Make it to 6 AM, then walk to the bus stop and catch the bus home.</p>
@@ -628,12 +629,58 @@ function makePistol() {
 box(.32, .03, .5, M.wood, 4.53, .7, 4.4);
 const shelfGun = makePistol(); shelfGun.position.set(4.53, .73, 4.4); shelfGun.rotation.z = Math.PI / 2; scene.add(shelfGun);
 // impulse rack on the customer side
-box(.25, .5, .6, mat(CATS[1].col), 3.5, 1.25, 4.6);
+box(.25, .5, .6, mat(CATS[1].col), 3.4, 1.25, 4.6);
 // behind the clerk
 solid(7.4, 1.4, 8, 5.6);
 box(.6, 2.2, 4.2, M.dark, 7.7, 1.1, 3.5);
 for (let r = 0; r < 4; r++) for (let c = 0; c < 6; c++) box(.05, .3, .55, mat(pick(['#e63', '#39f', '#fc3', '#6c3', '#c3c'])), 7.38, .7 + r * .4, 1.95 + c * .62);
 plane(2.6, .45, mat('#ffffff', { map: signTex('LOTTO · PHONE CARDS', '#ffd860', '#13204a', 1024, 160, '800 70px system-ui') }), 7.98, 2.4, 3.5, -Math.PI / 2);
+// ---------- bulletproof glass booth around the clerk: x 3.58..8, z 1.15..6.1.
+// IDs, cash and change pass through a tray under the glass; a sliding glass door at the back.
+const BOOTH_GLASS = new THREE.MeshLambertMaterial({ color: 0xa8d4e6, transparent: true, opacity: .2, depthWrite: false });
+const boothGlass = [];
+function bglass(w, h, d, x, y, z) { const g = box(w, h, d, BOOTH_GLASS, x, y, z); g.renderOrder = 5; g.userData.glass = true; boothGlass.push(g); return g; }
+const BX = 3.58, BZ0 = 1.15, BTOP = 3.2;
+// over the counter, with a low gap at the register for the tray
+bglass(.03, BTOP - 1.01, 1.6, BX, (BTOP + 1.01) / 2, 1.15 + .8);
+bglass(.03, BTOP - 1.11, .5, BX, (BTOP + 1.11) / 2, 3.0);
+bglass(.03, BTOP - 1.01, 2.0, BX, (BTOP + 1.01) / 2, 3.25 + 1.0);
+// from the end of the counter to the front wall, floor to ceiling
+bglass(.03, BTOP, .85, BX, BTOP / 2, 5.25 + .425); solid(3.53, 5.2, 3.63, 6.05);
+// back wall of the booth, with a door gap at x 5.6..6.6
+bglass(5.6 - BX, BTOP, .03, (BX + 5.6) / 2, BTOP / 2, BZ0); solid(3.53, 1.1, 5.6, 1.2);
+bglass(8 - 6.6, BTOP, .03, (6.6 + 8) / 2, BTOP / 2, BZ0); solid(6.6, 1.1, 8.2, 1.2);
+const boothDoor = bglass(1.0, 2.3, .03, 6.1, 1.15, BZ0 + .06);
+const boothDoorTop = box(1.0, .06, .05, M.metal, 6.1, 2.33, BZ0 + .06);
+// metal frame posts and a header
+for (const z of [1.15, 2.75, 3.25, 5.25, 6.05]) box(.06, BTOP - 1.01, .06, M.metal, BX, (BTOP + 1.01) / 2, z);
+box(.06, 1.01, .06, M.metal, BX, .505, 6.05);
+for (const x of [BX, 5.6, 6.6, 8]) box(.06, BTOP, .06, M.metal, x, BTOP / 2, BZ0);
+box(.06, .06, 4.95, M.metal, BX, BTOP - .03, 3.6); box(8 - BX, .06, .06, M.metal, (BX + 8) / 2, BTOP - .03, BZ0);
+// deal tray through the glass at the register, and a round talk-through speaker
+box(.55, .02, .42, M.metal, BX, 1.02, 3.0);
+box(.03, .05, .42, M.metal, BX - .27, 1.04, 3.0); box(.03, .05, .42, M.metal, BX + .27, 1.04, 3.0);
+cyl(.07, .07, .012, M.dark, BX, 1.5, 2.5, undefined, 16).rotation.z = Math.PI / 2;
+plane(1.1, .14, mat('#ffffff', { map: signTex('PAY HERE · BULLETPROOF GLASS', '#13204a', '#ffd860', 1024, 128, '800 54px system-ui') }), BX - .03, 2.05, 3.0, -Math.PI / 2);
+// bullet marks on the glass
+const CRACK_TEX = ctex(128, 128, (g, W, H) => {
+  g.clearRect(0, 0, W, H); g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 2;
+  for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2 + Math.random() * .4; let x = 64, y = 64; g.beginPath(); g.moveTo(x, y);
+    for (let k = 0; k < 4; k++) { x += Math.cos(a + (Math.random() - .5) * .6) * 14; y += Math.sin(a + (Math.random() - .5) * .6) * 14; g.lineTo(x, y); } g.stroke(); }
+  g.fillStyle = 'rgba(255,255,255,.95)'; g.beginPath(); g.arc(64, 64, 6, 0, 7); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 1.5; g.beginPath(); g.arc(64, 64, 22, 0, 7); g.stroke();
+});
+const CRACK_M = new THREE.MeshBasicMaterial({ map: CRACK_TEX, transparent: true, depthWrite: false });
+const cracks = [];
+function crackGlass(hit) {
+  const n = Math.abs(hit.object.geometry.parameters.width) < .05 ? 'x' : 'z';   // thin along x or along z
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(.16, .16), CRACK_M);
+  m.position.copy(hit.point); m.renderOrder = 7;
+  if (n === 'x') { m.rotation.y = Math.PI / 2; m.position.x += P.x > hit.point.x ? .02 : -.02; } else m.position.z += P.z > hit.point.z ? .02 : -.02;
+  m.rotation.z = Math.random() * 6; scene.add(m); cracks.push(m);
+  if (cracks.length > 40) { const o = cracks.shift(); scene.remove(o); o.geometry.dispose(); }
+}
+
 // coffee machine on the front-left
 solid(-7.9, 2.6, -7.2, 3.8);
 box(.7, .9, 1.2, M.wood, -7.55, .45, 3.2); box(.5, .6, .4, M.dark, -7.6, 1.2, 3.0); box(.5, .6, .4, M.dark, -7.6, 1.2, 3.5);
@@ -1559,7 +1606,13 @@ function fire() {
   if (!G.gun || gunCD > 0 || REG.open || G.dark) return;
   gunCD = .45; recoil = 1; muzzle.intensity = 3; snd('shot');
   scene.updateMatrixWorld(); ray.setFromCamera({ x: 0, y: 0 }, camera);
-  const hit = ray.intersectObjects(scene.children, true).find(h => h.object.isMesh && !h.object.material.transparent && !onCamera(h.object) && shown(h.object) && !h.object.userData.part);
+  const hit = ray.intersectObjects(scene.children, true).find(h => h.object.isMesh && (h.object.userData.glass || !h.object.material.transparent) && !onCamera(h.object) && shown(h.object) && !h.object.userData.part);
+  if (hit && hit.object.userData.glass) {
+    crackGlass(hit);
+    if (AC) { const t = AC.currentTime; noise(t, .12, .3, 6000); tone(2600, t, .18, 'triangle', .07, 1700); }
+    if (!G.glassWarned) { G.glassWarned = true; toast('Bulletproof glass! Step out of the booth (door at the back) to shoot.', 'bad'); }
+    return;
+  }
   const c = hit && ownerOf(hit.object);
   if (c) shoot(c);
 }
@@ -1740,11 +1793,11 @@ function renderReg() {
   } else if (REG.stage === 'change') {
     const due = REG.paid - REG.total, g = givenSum();
     h += `<div class="screenTxt">TOTAL ${money(REG.total)} · PAID ${money(REG.paid)} cash<br>CHANGE DUE <b>${money(due)}</b></div>`;
-    h += `<div>Count out the change from the drawer:</div><div class="denoms">`;
+    h += `<div>Count out the change and slide it through the tray:</div><div class="denoms">`;
     for (const d of DENOMS) h += `<button class="${d >= 100 ? 'bill' : 'coin'}" data-d="${d}">${dname(d)}</button>`;
     h += `</div><div class="row"><span>In your hand: <b style="color:${g === due ? 'var(--green)' : g > due ? 'var(--red)' : 'var(--ink)'}">${money(g)}</b></span>`;
     h += `<span class="grow" style="color:var(--dim);font-size:13px">${REG.given.length ? REG.given.map(dname).join(' + ') : ''}</span>`;
-    h += `<button data-act="undo">Undo</button><button data-act="clear">Clear</button><button class="go" data-act="give">Give change</button></div>`;
+    h += `<button data-act="undo">Undo</button><button data-act="clear">Clear</button><button class="go" data-act="give">Slide change through tray</button></div>`;
   }
   b.innerHTML = h;
 }
@@ -1998,6 +2051,10 @@ function update(dt) {
   const near = [P, ...customers].some(p => Math.abs(p.x + 5) < 1.6 && Math.abs(p.z - 6.1) < 1.8);
   doorL.position.x += ((near ? -6.1 : -5.4) - doorL.position.x) * Math.min(1, dt * 6);
   doorR.position.x += ((near ? -3.9 : -4.6) - doorR.position.x) * Math.min(1, dt * 6);
+  // booth door slides behind the fixed glass when you're close
+  const nearB = Math.abs(P.x - 6.1) < 1.3 && Math.abs(P.z - BZ0) < 1.6;
+  boothDoor.position.x += ((nearB ? 7.05 : 6.1) - boothDoor.position.x) * Math.min(1, dt * 6);
+  boothDoorTop.position.x = boothDoor.position.x;
   updateVehicles(dt);
   // sky gets lighter at dawn
   const dawn = clamp((G.time - 29 * 60) / 75, 0, 1);
