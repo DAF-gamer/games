@@ -1699,17 +1699,30 @@ CATS.forEach((cat, ci) => INTER.push({
     toast(`Got a box of ${cat.name}. Take it to the ${cat.name} shelf.`);
   },
 }));
-// every shelf face takes boxes; the prompt follows you along the shelf
+// every shelf face takes boxes. The target point is wherever your view hits the face of the shelf,
+// so it counts anywhere you look on it (a fixed point at waist height was easy to miss).
+function aimOnFace(f) {
+  const dx = -Math.sin(P.yaw) * Math.cos(P.pitch), dy = Math.sin(P.pitch), dz = -Math.cos(P.yaw) * Math.cos(P.pitch);
+  if (f.cooler) {
+    const pz = -5.45, t = Math.abs(dz) > 1e-4 ? (pz - P.z) / dz : -1;
+    if (t <= 0) return v3.set(clamp(P.x, f.x0, f.x1), 1.0, pz);
+    return v3.set(clamp(P.x + dx * t, f.x0, f.x1), clamp(1.6 + dy * t, .4, 1.8), pz);
+  }
+  const px = f.sx + f.d * .45, t = Math.abs(dx) > 1e-4 ? (px - P.x) / dx : -1;
+  if (t <= 0) return v3.set(px, 1.0, clamp(P.z, f.z0, f.z1));
+  return v3.set(px, clamp(1.6 + dy * t, .4, 1.8), clamp(P.z + dz * t, f.z0, f.z1));
+}
 for (const f of FACES) INTER.push({
-  at: () => f.cooler ? v3.set(clamp(P.x, f.x0, f.x1), 1.0, -5.45) : v3.set(f.sx + f.d * .5, 1.0, clamp(P.z, f.z0, f.z1)), r: .6,
+  at: () => aimOnFace(f), r: .6,
   label() {
     if (G.box === null) return f.stock <= 3 ? { info: `${f.cat.name}: ${f.stock} of ${CAP} left. Order more on the computer in your room.` } : null;
-    if (G.box !== f.ci) return { info: `This is the ${f.cat.name} shelf. Your box is ${CATS[G.box].name}.` };
-    if (f.stock >= CAP) return { info: `The ${f.cat.name} shelf is already full` };
+    if (G.box !== f.ci) return `${f.cat.name} shelf (your box is ${CATS[G.box].name})`;
+    if (f.stock >= CAP) return `${f.cat.name} shelf: full (${CAP} / ${CAP})`;
     return `Restock ${f.cat.name} (${f.stock} / ${CAP})`;
   },
   act() {
-    if (G.box !== f.ci || f.stock >= CAP) return;
+    if (G.box !== f.ci) { snd('err'); toast(`Wrong shelf. That box is ${CATS[G.box].name}: find the ${CATS[G.box].name} shelf (aisle signs hang from the ceiling).`, 'bad'); return; }
+    if (f.stock >= CAP) { snd('err'); toast(`The ${f.cat.name} shelf is already full. Wait until some sell, or put the box back in the stockroom.`, 'bad'); return; }
     const add = Math.min(G.boxUnits, CAP - f.stock);
     f.stock += add; f.refresh(); G.boxUnits -= add; G.stocked += add; snd('bag');
     if (G.boxUnits > 0) toast(`Shelf full. ${G.boxUnits} ${f.cat.name} left in the box: put it back in the stockroom.`);
