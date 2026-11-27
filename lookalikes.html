@@ -726,7 +726,9 @@ for (const [x, z, y] of [[2.5, -10.4, .3], [3.3, -10.4, .3], [2.9, -10.4, .9]]) 
 solid(2.1, -10.8, 3.7, -10.0);
 // dumpster
 solid(5.4, -15.9, 7.6, -14.6);
-box(2.2, 1.3, 1.3, M.green, 6.5, .65, -15.25); box(2.3, .08, 1.4, mat('#24502d'), 6.5, 1.34, -15.25);
+box(2.2, 1.3, 1.3, M.green, 6.5, .65, -15.25);
+const dumpLid = new THREE.Group(); dumpLid.position.set(6.5, 1.34, -15.95); scene.add(dumpLid);   // hinged at the back
+box(2.3, .08, 1.4, mat('#24502d'), 0, 0, .7, dumpLid);
 // trash cans
 for (const [x, z] of [[-7.45, 5.35], [7.55, .7]]) {
   solid(x - .32, z - .32, x + .32, z + .32);
@@ -1547,7 +1549,7 @@ function findTarget() {
   return best ? { o: best, label: bestL } : null;
 }
 function interact() {
-  if (!target || anyPanel()) return;
+  if (!target || anyPanel() || BUSY) return;
   if (typeof target.label === 'object') return; // info only
   if (target.o.act) target.o.act();
 }
@@ -1560,6 +1562,26 @@ const mopHand = new THREE.Group(); mopHand.position.set(.3, -.3, -.6); mopHand.v
 cyl(.022, .022, 1.04, M.wood, 0, -.2, -.425, mopHand).rotation.x = .956;
 cyl(.13, .16, .16, M.white, 0, -.52, -.86, mopHand);
 const bagHand = new THREE.Mesh(G_SPH(), mat('#121214')); bagHand.position.set(.32, -.42, -.62); bagHand.visible = false; camera.add(bagHand);
+// ---------- little animations: each one runs a step(k) for k = 0..1 over its duration
+const ANIMS = [];
+function anim(dur, step, done) { ANIMS.push({ t: 0, dur, step, done }); }
+function updateAnims(dt) {
+  for (const a of [...ANIMS]) { a.t += dt; const k = Math.min(1, a.t / a.dur); a.step(k); if (k >= 1) { ANIMS.splice(ANIMS.indexOf(a), 1); if (a.done) a.done(); } }
+}
+const ease = k => k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+const VIEW = { dip: 0 };   // extra downward look while bending to grab something
+let BUSY = false;          // in the middle of an animation: no other interactions
+// your hands (clerk's skin and green work-shirt sleeves)
+const HAND_M = mat(SKIN[2]), SLEEVE_M = mat('#2f6e5a');
+function fpHand(parent, x, y, z, sx) {
+  const h = new THREE.Group(); h.position.set(x, y, z); parent.add(h);
+  box(.06, .075, .1, HAND_M, 0, 0, 0, h);
+  box(.075, .075, .3, SLEEVE_M, (sx || 0) * .01, -.02, .19, h);
+  return h;
+}
+fpHand(GUN, 0, -.075, .055);                                    // gripping the pistol
+const bagGrip = fpHand(camera, .32, -.27, -.6); bagGrip.visible = false;
+let gunReach = 0;          // 0 = pistol down out of view, 1 = up and ready
 let gunCD = 0, recoil = 0, mopAnim = 0, mopping = false;
 // a full bag has to go to the dumpster before you can pick anything else up
 function bagFull() {
@@ -1570,8 +1592,16 @@ function bagFull() {
 function setGun(on) {
   if (on === G.gun || (on && bagFull())) return;
   if (on) { setMop(false); setBag(false); setTablet(false); }
-  G.gun = on; GUN.visible = on; shelfGun.visible = !on; snd(on ? 'reload' : 'click');
-  if (on) toast('Pistol out. Click to shoot. Only shoot lookalikes!', 'bad');
+  G.gun = on; snd(on ? 'reload' : 'click');
+  if (on) {
+    // bend down to the shelf under the counter, grab it, bring it up
+    GUN.visible = true; shelfGun.visible = false; gunReach = 0;
+    anim(.55, k => { gunReach = ease(clamp((k - .25) / .75, 0, 1)); VIEW.dip = Math.sin(Math.min(1, k * 1.4) * Math.PI) * .32; });
+    toast('Pistol out. Click to shoot. Only shoot lookalikes!', 'bad');
+  } else {
+    anim(.4, k => { gunReach = 1 - ease(clamp(k / .7, 0, 1)); VIEW.dip = Math.sin(k * Math.PI) * .25; },
+      () => { if (!G.gun) { GUN.visible = false; shelfGun.visible = true; VIEW.dip = 0; } });
+  }
 }
 function setMop(on) {
   if (on === G.mop || (on && bagFull())) return;
@@ -1581,7 +1611,7 @@ function setMop(on) {
 function setBag(on) {
   if (on === G.bag || (on && G.box !== null && bagFull())) return;
   if (on) { setGun(false); setMop(false); setTablet(false); }
-  G.bag = on; G.bagCount = 0; bagHand.visible = on; snd('bag');
+  G.bag = on; G.bagCount = 0; bagHand.visible = on; bagGrip.visible = on; bagHand.scale.setScalar(.16); snd('bag');
 }
 INTER.push({
   at: () => v3.set(4.53, .8, 4.4), r: .4,
@@ -1607,9 +1637,25 @@ INTER.push({
   at: () => v3.set(6.5, 1.1, -14.6), r: .9,
   label() { return G.bag && G.bagCount ? 'Throw the bag in the dumpster' : { info: 'Dumpster' }; },
   act() {
-    if (!(G.bag && G.bagCount)) return;
-    G.bags++; G.bag = false; G.bagCount = 0; bagHand.visible = false; snd('thud');
-    toast('Bag thrown in the dumpster. Nobody will ever know.', 'good');
+    if (!(G.bag && G.bagCount) || BUSY) return;
+    BUSY = true;
+    if (AC) noise(AC.currentTime, .4, .06, 900);                       // lid creak
+    anim(.35, k => { dumpLid.rotation.x = -1.3 * ease(k); });          // flip the lid open
+    const s0 = bagHand.scale.x;
+    anim(.8, k => {                                                     // swing the bag up and over the edge
+      const a = ease(k), up = Math.sin(k * Math.PI) * .5;
+      bagHand.position.set(.32 - .32 * a, -.42 + up + a * .05, -.62 - .9 * a);
+      bagHand.scale.setScalar(s0 * (1 - .35 * a));
+      bagGrip.position.set(.32 - .32 * a, -.27 + up + a * .05, -.6 - .75 * a);
+      VIEW.dip = -Math.sin(k * Math.PI) * .12;
+    }, () => {
+      G.bags++; G.bag = false; G.bagCount = 0; bagHand.visible = false; bagGrip.visible = false; VIEW.dip = 0;
+      bagHand.position.set(.32, -.42, -.62); bagGrip.position.set(.32, -.27, -.6);
+      anim(.2, k => { dumpLid.rotation.x = -1.3 * (1 - k * k); }, () => {   // lid slams shut
+        snd('thud'); BUSY = false;
+        toast('Bag thrown in the dumpster. Nobody will ever know.', 'good');
+      });
+    });
   },
 });
 
@@ -1679,6 +1725,7 @@ function refreshStockroom() { STOCK_BOX.forEach((b, ci) => b.visible = STOCK[ci]
 
 // ---------- carrying a box and restocking a shelf
 const boxHand = new THREE.Mesh(new THREE.BoxGeometry(.42, .3, .34), M.cardboard); boxHand.position.set(0, -.34, -.55); boxHand.visible = false; camera.add(boxHand);
+for (const sd of [-1, 1]) fpHand(boxHand, sd * .245, -.02, .03, sd); // both hands on the box
 function holdBox(ci, units) {
   G.box = ci; G.boxUnits = units;
   boxHand.material = [M.cardboard, M.cardboard, M.cardboard, M.cardboard, STOCK_LAB[ci], M.cardboard]; boxHand.visible = true;
@@ -1723,11 +1770,29 @@ for (const f of FACES) INTER.push({
   act() {
     if (G.box !== f.ci) { snd('err'); toast(`Wrong shelf. That box is ${CATS[G.box].name}: find the ${CATS[G.box].name} shelf (aisle signs hang from the ceiling).`, 'bad'); return; }
     if (f.stock >= CAP) { snd('err'); toast(`The ${f.cat.name} shelf is already full. Wait until some sell, or put the box back in the stockroom.`, 'bad'); return; }
-    const add = Math.min(G.boxUnits, CAP - f.stock);
-    f.stock += add; f.refresh(); G.boxUnits -= add; G.stocked += add; snd('bag');
-    if (G.boxUnits > 0) toast(`Shelf full. ${G.boxUnits} ${f.cat.name} left in the box: put it back in the stockroom.`);
-    else { toast(`${f.cat.name} restocked (${f.stock} / ${CAP})`, 'good'); dropBox(); }
-    if (ORD.open) renderOrd();
+    if (BUSY) return;
+    const add = Math.min(G.boxUnits, CAP - f.stock), PER = .16, T0 = .3, LEN = T0 + add * PER + .3;
+    BUSY = true; snd('bag');
+    let put = 0;
+    anim(LEN, k => {
+      const T = k * LEN;
+      const out = T < T0 ? ease(T / T0) : T > T0 + add * PER ? 1 - ease((T - T0 - add * PER) / .3) : 1;
+      const wob = T > T0 && T < T0 + add * PER ? Math.sin((T - T0) / PER * Math.PI) * .03 : 0;   // a little push per item
+      boxHand.position.set(0, -.34 + out * .12, -.55 - out * .22 - wob);
+      boxHand.rotation.x = out * .4;
+      VIEW.dip = out * .1;
+      const want = T < T0 ? 0 : Math.min(add, Math.floor((T - T0) / PER) + 1);
+      while (put < want) { put++; f.stock = Math.min(CAP, f.stock + 1); f.refresh(); G.boxUnits--; G.stocked++; snd('bill', .5); }
+    }, () => {
+      while (put < add) { put++; f.stock = Math.min(CAP, f.stock + 1); f.refresh(); G.boxUnits--; G.stocked++; }
+      boxHand.position.set(0, -.34, -.55); boxHand.rotation.set(0, 0, 0); VIEW.dip = 0;
+      if (ORD.open) renderOrd();
+      if (G.boxUnits > 0) { BUSY = false; toast(`Shelf full. ${G.boxUnits} ${f.cat.name} left in the box: put it back in the stockroom.`); return; }
+      toast(`${f.cat.name} restocked (${f.stock} / ${CAP})`, 'good');
+      G.box = null; G.boxUnits = 0;
+      anim(.4, k => { boxHand.position.y = -.34 - ease(k) * .45; boxHand.rotation.z = k * 1.1; },   // drop the empty box
+        () => { boxHand.visible = false; boxHand.position.set(0, -.34, -.55); boxHand.rotation.set(0, 0, 0); BUSY = false; });
+    });
   },
 });
 const shown = o => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
@@ -1738,7 +1803,7 @@ function ownerOf(o) {
   return null;
 }
 function fire() {
-  if (!G.gun || gunCD > 0 || anyPanel() || G.dark) return;
+  if (!G.gun || gunCD > 0 || gunReach < .9 || anyPanel() || G.dark) return;
   gunCD = .45; recoil = 1; muzzle.intensity = 3; snd('shot');
   scene.updateMatrixWorld(); ray.setFromCamera({ x: 0, y: 0 }, camera);
   const hit = ray.intersectObjects(scene.children, true).find(h => h.object.isMesh && (h.object.userData.glass || !h.object.material.transparent) && !onCamera(h.object) && shown(h.object) && !h.object.userData.part);
@@ -1766,7 +1831,9 @@ function shoot(c) {
 function updateGun(dt) {
   gunCD = Math.max(0, gunCD - dt); recoil = Math.max(0, recoil - dt * 4);
   muzzle.intensity = Math.max(0, muzzle.intensity - dt * 60);
-  GUN.position.z = -.38 + recoil * .05; GUN.rotation.x = recoil * .45;
+  const down = 1 - gunReach;
+  GUN.position.set(.18 + down * .05, -.17 - down * .34, -.38 + recoil * .05 + down * .04);
+  GUN.rotation.set(recoil * .45 - down * 1.0, 0, down * .6);
   if (!G.gun) return;
   // anyone you point it at reacts, human or not
   eyeV.set(P.x, 1.6, P.z); dirV.set(-Math.sin(P.yaw) * Math.cos(P.pitch), Math.sin(P.pitch), -Math.cos(P.yaw) * Math.cos(P.pitch));
@@ -2092,8 +2159,8 @@ addEventListener('keydown', e => {
   keys[k] = true;
   if (!G.started || G.ended) return;
   if (k === 'e' && !e.repeat) interact();
-  if (k === 'g' && !e.repeat && (G.gun || behindCounter())) setGun(!G.gun);
-  if (k === 't' && !e.repeat && (G.tablet || behindCounter())) setTablet(!G.tablet);
+  if (k === 'g' && !e.repeat && !BUSY && (G.gun || behindCounter())) setGun(!G.gun);
+  if (k === 't' && !e.repeat && !BUSY && (G.tablet || behindCounter())) setTablet(!G.tablet);
   if (k === 'm') { MUTE = !MUTE; if (HUM) HUM.gain.value = MUTE ? 0 : HUM_VOL; toast(MUTE ? 'Sound off' : 'Sound on'); }
 });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -2189,6 +2256,7 @@ function update(dt) {
   updateAuras(dt);
   updateTablet(dt);
   updateDeliveries();
+  updateAnims(dt);
   if (G.rating <= 0 && !G.shiftOver && !G.dark) { endGame('fired'); return; }
   updatePlayer(dt);
   target = findTarget();
@@ -2214,7 +2282,7 @@ function updateCamera() {
     return;
   }
   camera.position.set(P.x, 1.6 + Math.sin(P.bob * 2) * .03, P.z);
-  camera.rotation.set(P.pitch, P.yaw, 0);
+  camera.rotation.set(P.pitch - VIEW.dip, P.yaw, 0);
 }
 let last = performance.now();
 function loop(now) {
