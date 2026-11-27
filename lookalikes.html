@@ -956,10 +956,119 @@ function crackGlass(hit) {
   if (cracks.length > 40) { const o = cracks.shift(); scene.remove(o); o.geometry.dispose(); }
 }
 
-// coffee machine on the front-left
-solid(-7.9, 2.6, -7.2, 3.8);
-box(.7, .9, 1.2, M.wood, -7.55, .45, 3.2); box(.5, .6, .4, M.dark, -7.6, 1.2, 3.0); box(.5, .6, .4, M.dark, -7.6, 1.2, 3.5);
-plane(1, .3, mat('#ffffff', { map: signTex('HOT COFFEE', '#4a2a14', '#ffe0b0', 512, 128) }), -7.95 + .0, 1.85, 3.2, Math.PI / 2);
+// ---------- coffee station on the front-left wall: decent equipment, badly kept. Faces +x (into the store).
+// Stains and spills are cut-out textures (alphaTest, not see-through), so they merge with the scenery.
+{
+  const CX = -7.6, TOP = .9, Z0 = 2.2, Z1 = 4.4, ZC = (Z0 + Z1) / 2, FX = -7.25, R = Math.PI / 2;   // FX = front edge
+  solid(-7.95, Z0, FX, Z1);
+  const lam = mat('#5a3d28'), steel = mat('#a8adb3'), black = mat('#1c1d20'), coffee = mat('#2b1608'), cupW = mat('#f1ede2');
+  const decal = (w, h, draw) => mat('#ffffff', { map: ctexText(w, h, draw), alphaTest: .5, side: THREE.DoubleSide });
+  // cabinet: scuffed fake-wood laminate, one door hanging open
+  box(.7, .86, 2.2, lam, CX, .43, ZC); box(.66, .08, 2.16, mat('#2a1c12'), CX + .01, .04, ZC);
+  plane(.95, .72, mat('#6b4a32'), FX + .005, .46, ZC - .55, R);
+  // hinged at its back edge (z = ZC + 1.025) and swung ~50 degrees out into the aisle
+  plane(.95, .72, mat('#6b4a32'), FX + .005 + .475 * Math.sin(.9), .46, ZC + 1.025 - .475 * Math.cos(.9), R - .9);
+  for (const z of [ZC - .12, ZC + .16]) box(.03, .1, .02, steel, FX + .02, .7, z);
+  // countertop with coffee rings, sugar and scratches baked in
+  const topM = mat('#ffffff', { map: ctexText(512, 180, (g, W, H) => {
+    g.fillStyle = '#c4bba6'; g.fillRect(0, 0, W, H);
+    g.strokeStyle = 'rgba(0,0,0,.08)'; for (let k = 0; k < 60; k++) { g.beginPath(); const x = rnd(0, W), y = rnd(0, H); g.moveTo(x, y); g.lineTo(x + rnd(-40, 40), y + rnd(-8, 8)); g.stroke(); }
+    for (let k = 0; k < 14; k++) { g.strokeStyle = `rgba(90,50,20,${rnd(.25, .55)})`; g.lineWidth = rnd(2, 4); g.beginPath(); g.arc(rnd(20, W - 20), rnd(20, H - 20), rnd(10, 16), 0, 7); g.stroke(); }
+    g.fillStyle = 'rgba(80,45,15,.35)'; for (let k = 0; k < 5; k++) { g.beginPath(); g.ellipse(rnd(40, W - 40), rnd(30, H - 30), rnd(14, 34), rnd(8, 18), rnd(0, 3), 0, 7); g.fill(); }
+    g.fillStyle = 'rgba(255,255,255,.8)'; for (let k = 0; k < 220; k++) g.fillRect(380 + rnd(-30, 30), 60 + rnd(-20, 20), 1.5, 1.5);
+  }) });
+  const top = box(.74, .04, 2.24, [mat('#a9a08b'), topM], CX + .02, TOP - .02, ZC); regroup(top.geometry, 2);
+  box(.02, .045, 2.24, steel, FX + .01, TOP - .02, ZC);                                  // chipped aluminium edge
+  // backsplash: dingy tiles with drips running down
+  plane(2.2, .8, mat('#ffffff', { map: ctexText(440, 160, (g, W, H) => {
+    g.fillStyle = '#9c968a'; g.fillRect(0, 0, W, H);
+    for (let y = 0; y < H; y += 20) for (let x = 0; x < W; x += 20) { g.fillStyle = `rgb(${200 + rnd(-12, 8)},${196 + rnd(-12, 8)},${182 + rnd(-12, 8)})`; g.fillRect(x + 1, y + 1, 18, 18); }
+    g.fillStyle = '#8a8476'; g.fillRect(140, 60, 18, 18); g.fillRect(300, 100, 18, 18);    // chipped tiles
+    for (let k = 0; k < 9; k++) { const x = rnd(30, W - 30), y0 = rnd(20, 70); g.fillStyle = 'rgba(90,50,20,.35)'; g.fillRect(x, y0, 3, H - y0); g.beginPath(); g.arc(x + 1.5, y0, 4, 0, 7); g.fill(); }
+  }) }), -7.985, TOP + .4, ZC, R);
+  // 1) twin-burner drip brewer
+  const BZ = 2.7;
+  box(.36, .56, .46, black, -7.77, TOP + .28, BZ); box(.38, .08, .46, steel, -7.6, TOP + .52, BZ);
+  box(.42, .05, .46, steel, -7.55, TOP + .025, BZ);
+  plane(.3, .07, mat('#ffffff', { map: signTex('BREWMASTER 2000', '#1c1d20', '#c9ced6', 256, 60, '800 26px system-ui') }), -7.585, TOP + .43, BZ, R);
+  box(.015, .02, .02, glow('#ff2a1a'), -7.585, TOP + .36, BZ + .18);
+  const glass = new THREE.MeshLambertMaterial({ color: 0xcfe3ea, transparent: true, opacity: .28, depthWrite: false });
+  for (const [z, fill, collar] of [[BZ - .11, .5, black], [BZ + .11, 0, black]]) {
+    cyl(.07, .07, .015, black, -7.45, TOP + .055, z);                                   // warming plate
+    const gl = cyl(.072, .062, .17, glass, -7.45, TOP + .148, z); gl.renderOrder = 5;
+    if (fill) cyl(.066, .062, .17 * fill, coffee, -7.45, TOP + .065 + .085 * fill, z);
+    else cyl(.067, .067, .012, mat('#3a1e0a'), -7.45, TOP + .07, z);                   // burnt-dry ring in the empty pot
+    cyl(.05, .065, .03, collar, -7.45, TOP + .245, z); box(.03, .1, .02, black, -7.36, TOP + .16, z);
+  }
+  // decaf pot on the counter in front
+  cyl(.068, .06, .16, glass, -7.38, TOP + .08, BZ + .32).renderOrder = 5; cyl(.062, .058, .05, coffee, -7.38, TOP + .03, BZ + .32);
+  cyl(.05, .064, .03, mat('#e8590c'), -7.38, TOP + .17, BZ + .32);
+  // 2) cappuccino / hot cocoa machine with a glowing button panel, one light dead
+  const KZ = 3.35;
+  box(.42, .74, .42, black, -7.74, TOP + .37, KZ);
+  const panM = mat('#ffffff', { map: ctexText(200, 220, (g, W, H) => {
+    g.fillStyle = '#3a1a0c'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#ffd9a0'; g.font = '900 24px system-ui'; g.textAlign = 'center'; g.fillText('HOT & FRESH', W / 2, 30);
+    [['FRENCH VANILLA', '#f3d9a4', 1], ['HAZELNUT', '#c98e4e', 0], ['HOT COCOA', '#8a4a2a', 1]].forEach(([t, c, lit], k) => {
+      const y = 52 + k * 54; g.fillStyle = lit ? c : '#3d2a20'; g.fillRect(14, y, W - 28, 42);
+      g.fillStyle = lit ? '#2a1206' : '#5a4436'; g.font = '800 17px system-ui'; g.fillText(t, W / 2, y + 27);
+    });
+  }) }); panM.emissive = new THREE.Color('#ffffff'); panM.emissiveMap = panM.map; panM.emissiveIntensity = .6;
+  plane(.38, .42, panM, -7.525, TOP + .5, KZ, R);
+  const noteM = decal(120, 90, (g, W, H) => {
+    g.fillStyle = '#fff27a'; g.fillRect(4, 10, W - 8, H - 14); g.fillStyle = 'rgba(220,220,200,.9)'; g.fillRect(38, 0, 44, 16);
+    g.fillStyle = '#1a1a1a'; g.font = 'bold 20px "Marker Felt","Comic Sans MS",cursive'; g.textAlign = 'center'; g.fillText('OUT OF', W / 2, 44); g.fillText('ORDER', W / 2, 68);
+  });
+  const note = plane(.13, .1, noteM, -7.52, TOP + .52, KZ + .02, R); note.rotation.z = .12;
+  for (const dz of [-.1, 0, .1]) cyl(.012, .008, .05, steel, -7.56, TOP + .21, KZ + dz, null, 8);
+  box(.18, .025, .34, mat('#2e2f33'), -7.45, TOP + .015, KZ);                             // drip tray
+  plane(.16, .3, decal(64, 120, (g, W, H) => { g.fillStyle = 'rgba(60,30,10,.85)'; g.beginPath(); g.ellipse(W / 2, H / 2, 26, 50, 0, 0, 7); g.fill(); }), -7.45, TOP + .029, KZ, 0, -R);
+  cyl(.04, .032, .11, cupW, -7.45, TOP + .085, KZ + .02, null, 12);                      // cup someone left under the nozzle
+  // 3) pump airpots
+  const potLabels = decal(256, 64, (g, W, H) => { [['REGULAR', '#1f4e79'], ['DECAF', '#e8590c']].forEach(([t, c], k) => {
+    g.fillStyle = c; g.fillRect(k * 128 + 6, 6, 116, 52); g.fillStyle = '#fff'; g.font = '900 24px system-ui'; g.textAlign = 'center'; g.fillText(t, k * 128 + 64, 40); }); });
+  [[3.82, 0], [4.08, 1]].forEach(([z, k]) => {
+    cyl(.075, .075, .32, steel, -7.72, TOP + .16, z, null, 16); cyl(.05, .07, .06, black, -7.72, TOP + .35, z, null, 14);
+    box(.1, .025, .04, black, -7.66, TOP + .39, z); cyl(.01, .01, .06, black, -7.64, TOP + .3, z, null, 6).rotation.z = R;
+    atlasPlane(.12, .05, potLabels, -7.643, TOP + .17, z, R, k, 0, 2, 1);
+  });
+  // cups, lids, napkins, condiments
+  [[.038, .2, 2.32], [.044, .26, 2.42], [.05, .3, 2.53]].forEach(([r, h, z]) => {
+    cyl(r, r * .78, h, cupW, -7.82, TOP + h / 2, z, null, 12); cyl(r * 1.02, r * .95, .04, mat('#7a4a22'), -7.82, TOP + h * .45, z, null, 12);
+  });
+  cyl(.046, .046, .1, black, -7.82, TOP + .05, 2.64, null, 12);                         // lids
+  box(.16, .15, .12, steel, -7.85, TOP + .075, 4.27); plane(.1, .08, cupW, -7.789, TOP + .1, 4.27, R);   // napkin dispenser
+  box(.22, .07, .26, black, -7.45, TOP + .035, 4.2);                                     // condiment caddy
+  [['#f2a7c3', -.08], ['#ffffff', -.03], ['#7fb3ff', .02], ['#ffe066', .07]].forEach(([c, dz]) => box(.12, .05, .035, mat(c), -7.45, TOP + .07, 4.2 + dz));
+  cyl(.03, .03, .1, cupW, -7.4, TOP + .05, 4.36, null, 10);                               // stir sticks in a cup
+  for (let k = 0; k < 6; k++) { const st = box(.004, .17, .008, mat('#c79a5b'), -7.4 + rnd(-.015, .015), TOP + .12, 4.36 + rnd(-.015, .015)); st.rotation.set(rnd(-.15, .15), 0, rnd(-.15, .15)); }
+  for (let k = 0; k < 5; k++) cyl(.018, .016, .02, cupW, -7.5 + (k % 3) * .04, TOP + .01, 3.92 + Math.floor(k / 3) * .04, null, 8);   // creamer cups
+  // the mess
+  const crumple = mat('#eeeae0'), NAPKIN_GEO = new THREE.IcosahedronGeometry(1, 1);   // lumpy, like a crumpled napkin
+  for (const [x, z] of [[-7.35, 2.95], [-7.42, 3.65], [-7.31, 4.05]]) { const n = new THREE.Mesh(NAPKIN_GEO, crumple); n.scale.set(.04, .03, .035); n.position.set(x, TOP + .02, z); n.rotation.set(rnd(0, 3), rnd(0, 3), 0); scene.add(n); }
+  for (const [x, z, c] of [[-7.33, 3.12, '#f2a7c3'], [-7.4, 3.75, '#ffffff'], [-7.3, 3.86, '#7fb3ff'], [-7.36, 4.0, '#f2a7c3']]) { const tp = box(.045, .004, .03, mat(c), x, TOP + .004, z); tp.rotation.y = rnd(0, 3); }
+  const tipped = cyl(.04, .032, .11, cupW, -7.35, TOP + .04, 3.55, null, 12); tipped.rotation.set(0, 0, R + .1); tipped.rotation.y = .5;
+  plane(.3, .22, decal(128, 96, (g, W, H) => { g.fillStyle = 'rgba(70,38,12,.9)'; g.beginPath(); g.moveTo(20, 50); g.bezierCurveTo(30, 5, 110, 10, 115, 45); g.bezierCurveTo(120, 85, 40, 95, 20, 50); g.fill(); }), -7.33, TOP + .003, 3.66, 0, -R);
+  plane(.7, .45, decal(160, 100, (g, W, H) => { g.fillStyle = 'rgba(55,30,10,.75)'; g.beginPath(); g.ellipse(80, 50, 70, 38, .2, 0, 7); g.fill(); g.beginPath(); g.ellipse(130, 70, 22, 14, 0, 0, 7); g.fill(); }), -7.0, .004, 3.4, 0, -R);   // floor puddle
+  // signs: the old faded one, crooked, and a handwritten note taped under it
+  const old = plane(1, .3, mat('#ffffff', { map: ctexText(512, 128, (g, W, H) => {
+    g.fillStyle = '#6a4a32'; g.fillRect(0, 0, W, H); g.fillStyle = 'rgba(255,255,255,.12)'; for (let k = 0; k < 30; k++) g.fillRect(rnd(0, W), rnd(0, H), rnd(10, 60), 2);
+    g.fillStyle = '#e8cfa8'; g.font = '800 70px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('HOT COFFEE', W / 2, H / 2 + 2);
+    g.fillStyle = '#6a4a32'; g.fillRect(150, 40, 30, 20);                                   // a letter worn off
+  }) }), -7.95, 1.95, 3.25, R); old.rotation.z = -.035;
+  const hand = plane(.5, .32, decal(250, 160, (g, W, H) => {
+    g.fillStyle = '#f7f3e6'; g.fillRect(6, 14, W - 12, H - 20); g.fillStyle = 'rgba(230,230,215,.9)'; g.fillRect(10, 4, 46, 18); g.fillRect(W - 56, 4, 46, 18);
+    g.fillStyle = '#1a1a1a'; g.font = 'bold 30px "Marker Felt","Comic Sans MS",cursive'; g.textAlign = 'center'; g.fillText('ANY SIZE $1.29', W / 2, 58);
+    g.fillStyle = '#c8102e'; g.font = 'bold 24px "Marker Felt","Comic Sans MS",cursive'; g.fillText('NO FREE REFILLS!!', W / 2, 100);
+    g.strokeStyle = '#c8102e'; g.lineWidth = 3; g.beginPath(); g.moveTo(40, 112); g.lineTo(W - 40, 108); g.stroke();
+    g.fillStyle = '#555'; g.font = '16px "Marker Felt","Comic Sans MS",cursive'; g.fillText('- mgmt', W - 60, 138);
+  }), -7.97, 1.58, 3.95, R); hand.rotation.z = .06;
+  // overflowing trash can by the door: cups and a napkin on top
+  for (const [dx, dz, rx, rz] of [[-.06, .05, .3, .2], [.08, -.04, -.4, .1], [0, .1, .1, -1.2], [.05, .08, .5, .4]]) {
+    const c = cyl(.04, .032, .11, cupW, -7.45 + dx, .86, 5.35 + dz, null, 10); c.rotation.set(rx, 0, rz);
+  }
+  { const n = new THREE.Mesh(NAPKIN_GEO, crumple); n.scale.set(.05, .035, .04); n.position.set(-7.5, .84, 5.3); scene.add(n); }
+}
 
 // ===================================================================== stockroom
 solid(7.0, -10.7, 8, -6.6);
