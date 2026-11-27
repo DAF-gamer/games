@@ -121,6 +121,7 @@
     <p>You work locked in the <b>clerk's room</b>. Customers pay at the <b>bulletproof window</b>: IDs, cash and change go through the tray under the glass. The glass stops bullets too, so to use the pistol you have to go out through the door at the back of your room.</p>
     <p>Run IDs through the <b>records computer</b> on the counter, or pick up the <b>aura tablet</b> next to it and point it at a customer: real people glow a calm blue-green, lookalikes flicker red. Its battery only holds <b>3 scans</b> and gets one back every hour, so save it for the customers you're unsure about. There's also a <b>pistol</b> under the counter. A lookalike you shoot falls apart: bag the pieces (trash bags are behind the counter), dump the bag out back, and mop up the blood before customers see it. Shoot a real person and it's over.</p>
     <p>Shelves run out as customers buy things. Use the <b>ordering computer</b> in your room to buy boxes from the wholesaler with the store's money. The truck drops them in the <b>stockroom</b> out back half an hour later. Carry a box to its shelf to restock it. Customers who can't find what they want leave unhappy.</p>
+    <p>Some customers want <b>lottery tickets</b>: tear the one they ask for (by number) from the dispenser on the register screen, or print a quick pick. Lottery is <b>18+ only</b>, so check their birth date.</p>
     <p>Refuse a real customer and they'll complain to your manager. Let <b>three</b> lookalikes through and… you don't want to find out.</p>
     <p>Make it to 6 AM, then walk to the bus stop and catch the bus home.</p>
     <div class="ctl">
@@ -1418,7 +1419,7 @@ const G = {
   gun: false, mop: false, bag: false, bagCount: 0, bags: 0, witnesses: 0, mopped: 0, shot: 0,
   served: 0, sales: 0, caught: 0, letIn: 0, wrongRefuse: 0, angry: 0, mistakes: 0, drawerOff: 0,
   auraCharges: 3, auraScans: 0, auraHour: 0, tablet: false,
-  cash: 4000, box: null, boxUnits: 0, ordered: 0, stocked: 0,
+  cash: 4000, box: null, boxUnits: 0, ordered: 0, stocked: 0, lottoSold: 0, minorSold: 0, minorCaught: 0,
 };
 const AURA_MAX = 3;
 const customers = [], queue = [], watchers = [];
@@ -1529,6 +1530,28 @@ function mutateSpec(s) {
   if (what === 'skin') { p.skin = s.skin < 3 ? s.skin + 3 + Math.floor(rnd(0, 2)) : s.skin - 3 - Math.floor(rnd(0, 2)); p.skin = clamp(p.skin, 0, SKIN.length - 1); return { spec: p, diff: 'The photo had a different skin tone' }; }
   if (what === 'hairC') { const opts2 = HAIR.map((_, i) => i).filter(i => HAIR_GROUP[i] !== HAIR_GROUP[s.hair]); p.hair = pick(opts2); return { spec: p, diff: 'The photo had a different hair colour' }; }
   p.beard = !s.beard; return { spec: p, diff: s.beard ? 'The photo had no beard' : 'The photo had a beard' };
+}
+// ---------- lottery: about a third of customers also want tickets. Some of them are 17 (lottery is 18+),
+// and some only just turned 18, so the birth date has to actually be read.
+const ageOn = (d, on) => on.y - d.y - ((on.m < d.m || (on.m === d.m && on.d < d.d)) ? 1 : 0);
+const ticketPrice = i => +TICKETS[i][1].slice(1) * 100;
+const QP_PRICE = 200;
+const NUMW = ['', 'a', 'two', 'three'];
+function lottoRequest(c) {
+  if (Math.random() > .33) return null;
+  const r = Math.random() < .7 ? { kind: 'scratch', slot: Math.floor(rnd(0, 15)) } : { kind: 'qp' };
+  r.qty = Math.random() < .65 ? 1 : Math.random() < .7 ? 2 : 3;
+  const roll = Math.random();
+  if (!c.fake && roll < .3) {                       // 17: born after tonight's date in 2008
+    const m = Math.floor(rnd(1, 12)), dim = new Date(2009, m, 0).getDate(); c.id.dob = { y: 2009, m, d: Math.floor(rnd(1, (m === 11 ? 26 : dim) + 1)) };
+  } else if (!c.fake && roll < .45) {                // just turned 18: born earlier in 2008
+    const m = Math.floor(rnd(1, 11)), dim = new Date(2008, m, 0).getDate(); c.id.dob = { y: 2008, m, d: Math.floor(rnd(1, dim + 1)) };
+  }
+  r.minor = ageOn(c.id.dob, TONIGHT) < 18;
+  r.text = r.kind === 'qp'
+    ? `And ${NUMW[r.qty]} Vale Millions quick pick${r.qty > 1 ? 's' : ''}.`
+    : `And ${NUMW[r.qty]} ${TICKETS[r.slot][0]}${r.qty > 1 && !/s$/i.test(TICKETS[r.slot][0]) ? 's' : ''}, number ${String(r.slot + 1).padStart(2, '0')}.`;
+  return r;
 }
 function makeID(spec, fake) {
   const first = pick(FIRSTN), last = pick(LAST);
@@ -1783,6 +1806,7 @@ function spawnCustomer() {
   });
   const n = Math.random() < .5 ? 1 : Math.random() < .7 ? 2 : 3;
   c.list = [...new Set([0, 1, 2, 3, 4, 5, 6, 6].sort(() => Math.random() - .5))].slice(0, n);
+  c.lotto = lottoRequest(c);
   customers.push(c);
   nextTarget(c);
   return c;
@@ -1794,7 +1818,7 @@ function faceSpot(f) {
 function goTo(c, p) { c.route = route(c, p); c.dest = p; }
 function nextTarget(c) {
   if (c.list.length) { c.cur = c.list.shift(); c.state = 'toShelf'; goTo(c, faceSpot(FACES.find(f => f.ci === c.cur))); return; }
-  if (c.bought.length) joinQueue(c); else leave(c, c.miss > 0 ? 'Nothing I wanted… 😒' : null, c.miss > 0);
+  if (c.bought.length || c.lotto) joinQueue(c); else leave(c, c.miss > 0 ? 'Nothing I wanted… 😒' : null, c.miss > 0);
 }
 function joinQueue(c) {
   if (queue.length >= 4) { leave(c, "Line's way too long! 😡", true); return; }
@@ -1872,7 +1896,7 @@ function updateCustomer(c, dt) {
       if (i !== c.slot) { c.slot = i; goTo(c, { x: 3.15, z: 3.0 - i * .9 }); c.state = 'queue'; }
       if (walk(c, dt)) {
         turnTo(c, i === 0 ? Math.PI / 2 : 0);
-        if (i === 0 && c.state !== 'pay') { c.state = 'pay'; if (!c.greeted) { c.greeted = true; say(c, `Hi! I'm ${c.id.says}.`, 4); } }
+        if (i === 0 && c.state !== 'pay') { c.state = 'pay'; if (!c.greeted) { c.greeted = true; say(c, `Hi! I'm ${c.id.says}.` + (c.lotto ? ' ' + c.lotto.text : ''), 5); } }
       }
       if (REG.c !== c && !G.shiftOver) {
         c.patience -= dt;
@@ -2465,6 +2489,7 @@ const dname = d => d >= 100 ? '$' + d / 100 : d + '¢';
 function openReg(c) {
   REG.open = true; REG.c = c; REG.items = c.bought.map(ci => ({ ci, done: false }));
   REG.stage = 'id'; REG.look = 0; REG.total = 0; REG.paid = 0; REG.given = [];
+  REG.lotto = c.lotto ? { ...c.lotto, torn: 0, wrong: 0, refused: false } : null;
   if (document.pointerLockElement) document.exitPointerLock();
   // step beside the register so its screen doesn't hide their face, look at them (a little to the
   // right, so the face shows beside the panel) and zoom in
@@ -2472,7 +2497,7 @@ function openReg(c) {
   const hy = 1.66 * c.spec.sc, dx = c.x - P.x, dz = c.z - P.z;
   P.yaw = Math.atan2(-dx, -dz) - .26; P.pitch = Math.atan2(hy - 1.6, Math.hypot(dx, dz));
   camera.fov = 38; camera.updateProjectionMatrix();
-  $('reg').classList.remove('hide'); $('regWho').textContent = `${c.bought.length} item${c.bought.length > 1 ? 's' : ''}`;
+  $('reg').classList.remove('hide'); $('regWho').textContent = (c.bought.length ? `${c.bought.length} item${c.bought.length > 1 ? 's' : ''}` : '') + (c.lotto ? `${c.bought.length ? ' + ' : ''}lottery` : '');
   renderReg();
 }
 function closeReg(relock) {
@@ -2494,7 +2519,7 @@ function renderReg() {
   const b = $('regBody'), c = REG.c;
   if (REG.stage === 'id') {
     b.innerHTML = `<canvas id="idc" width="560" height="350"></canvas>
-      <div class="says">🗨 “Hi! I'm ${c.id.says}.”</div>
+      <div class="says">🗨 “Hi! I'm ${c.id.says}.”${c.lotto ? `<br>🎟 “${c.lotto.text}” <span style="color:var(--gold);font-size:14px">Lottery is 18+: born on or before ${fmt({ y: TONIGHT.y - 18, m: TONIGHT.m, d: TONIGHT.d })}</span>` : ''}</div>
       <div class="rules"><b>Refuse the sale if:</b><ol>${RULES.map(r => `<li>${r}</li>`).join('')}</ol></div>
       ${recHTML(c)}
       ${auraHTML(c)}
@@ -2510,8 +2535,9 @@ function renderReg() {
   });
   h += '</div>';
   const scanned = REG.items.filter(i => i.done).reduce((a, i) => a + CATS[i.ci].price, 0);
+  if (REG.lotto) h += lottoHTML();
   if (REG.stage === 'scan') {
-    h += `<div class="screenTxt">SUBTOTAL ${money(scanned)}<br><span style="opacity:.7">Click each item to scan it.</span></div>`;
+    h += `<div class="screenTxt">SUBTOTAL ${money(scanned + lottoTotal())}<br><span style="opacity:.7">${REG.items.length ? 'Click each item to scan it.' : ''}${REG.lotto && !lottoDone() ? ' Sort out the lottery request.' : ''}</span></div>`;
     h += `<div class="row"><span class="grow"></span><button data-act="scanall">Scan all</button></div>`;
   } else if (REG.stage === 'card') {
     h += `<div class="screenTxt">TOTAL ${money(REG.total)}<br>💳 Customer tapped their card… APPROVED</div>`;
@@ -2534,7 +2560,10 @@ $('regBody').addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t || !REG.open) return;
   if (t.dataset.scan !== undefined) scanItem(+t.dataset.scan);
   const a = t.dataset.act;
-  if (a === 'accept') { REG.stage = 'scan'; snd('card'); renderReg(); }
+  if (a === 'accept') { REG.stage = 'scan'; snd('card'); checkDone(); if (REG.open) renderReg(); }
+  if (t.dataset.tear !== undefined) lottoTear(+t.dataset.tear);
+  if (a === 'qp') lottoTear('qp');
+  if (a === 'lottono') lottoRefuse();
   if (a === 'lookup') runLookup();
   if (a === 'gun') { closeReg(true); setGun(true); }
   if (a === 'refuse') refuse(REG.c);
@@ -2560,15 +2589,56 @@ function refuse(c) {
     rate(-8, 'You refused a real customer. Their ID was fine');
   }
 }
+function lottoDone() { const L = REG.lotto; return !L || L.refused || L.torn >= L.qty; }
+function lottoTotal() { const L = REG.lotto; return !L || L.refused ? 0 : L.torn * (L.kind === 'qp' ? QP_PRICE : ticketPrice(L.slot)); }
+function lottoHTML() {
+  const L = REG.lotto, what = L.kind === 'qp' ? 'VALE MILLIONS QUICK PICK' : `${TICKETS[L.slot][0]} · #${String(L.slot + 1).padStart(2, '0')}`;
+  const price = L.kind === 'qp' ? QP_PRICE : ticketPrice(L.slot);
+  let h = `<div class="rec" style="flex-direction:column;align-items:stretch;background:#1a1206;color:#ffd9a0;border:1px solid #6a4a1a">`;
+  h += `<div>🎟 They want <b>${L.qty} × ${what}</b> (${money(price)} each). <b>18+ only</b>: born on or before ${fmt({ y: TONIGHT.y - 18, m: TONIGHT.m, d: TONIGHT.d })}.</div>`;
+  if (L.refused) h += `<div style="color:#ff9a8a">✋ Lottery refused.</div>`;
+  else if (L.torn >= L.qty) h += `<div style="color:#7dffc0">✓ ${L.torn} ticket${L.torn > 1 ? 's' : ''} handed over (${money(lottoTotal())})</div>`;
+  else if (REG.stage === 'scan') {
+    h += `<div>Handed over: ${L.torn} of ${L.qty}${L.wrong ? ` · <span style="color:#ff9a8a">${L.wrong} wrong ticket${L.wrong > 1 ? 's' : ''} voided</span>` : ''}</div>`;
+    if (L.kind === 'qp') h += `<div class="row"><button data-act="qp">🖨 Print a quick pick (${money(QP_PRICE)})</button></div>`;
+    else h += `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:6px">` + TICKETS.map(([n, p, bg, fg], i) =>
+      `<button data-tear="${i}" style="background:${bg};color:${fg};border:none;font-size:11px;padding:5px 2px;line-height:1.2"><b>#${String(i + 1).padStart(2, '0')}</b><br>${n}<br>${p}</button>`).join('') + `</div>`;
+    h += `<div class="row"><span class="grow"></span><button class="no" data-act="lottono">✋ Refuse lottery (under 18)</button></div>`;
+  }
+  return h + '</div>';
+}
+function lottoTear(i) {
+  const L = REG.lotto, c = REG.c; if (!L || L.refused || L.torn >= L.qty || REG.stage !== 'scan') return;
+  if (L.kind === 'qp' ? i !== 'qp' : i !== L.slot) {
+    L.wrong++; G.mistakes++; snd('err');
+    say(c, L.kind === 'qp' ? 'A quick pick. From the machine!' : `No, number ${String(L.slot + 1).padStart(2, '0')}! The ${TICKETS[L.slot][0]}.`, 3);
+    rate(-1, 'Tore the wrong lottery ticket (voided)');
+  } else {
+    L.torn++;
+    if (L.kind === 'qp') for (let k = 0; k < 3; k++) setTimeout(() => snd('key'), k * 90); else snd('bill');
+  }
+  checkDone(); if (!REG.open) return; renderReg(); setScreen(REG.items.filter(x => x.done).reduce((a, x) => a + CATS[x.ci].price, 0) + lottoTotal());
+}
+function lottoRefuse() {
+  const L = REG.lotto, c = REG.c; if (!L || L.refused || L.torn >= L.qty) return;
+  L.refused = true;
+  if (L.minor) { G.minorCaught++; rate(4, 'Refused lottery to a 17-year-old'); say(c, pick(['Ugh. Fine.', 'It’s for my mom! …okay, okay.', 'Worth a try. 🙄']), 3); snd('card'); }
+  else { rate(-3, 'Refused lottery to an adult: their ID says they’re over 18'); say(c, pick(['I’m clearly over 18! 😠', 'Read the ID! 😡', 'Seriously? I’m ' + ageOn(c.id.dob, TONIGHT) + '!']), 3); snd('err'); }
+  checkDone(); if (REG.open) renderReg();
+}
+// everything bought is scanned and the lottery request is dealt with: on to payment
+function checkDone() {
+  if (REG.stage !== 'scan' || !REG.items.every(x => x.done) || !lottoDone()) return;
+  REG.total = REG.items.reduce((a, x) => a + CATS[x.ci].price, 0) + lottoTotal();
+  if (!REG.total) { const c = REG.c; closeReg(true); leave(c, 'Forget it, then. 😒'); return; }   // only came for lottery
+  if (Math.random() < .3) REG.stage = 'card';
+  else { REG.paid = choosePay(REG.total); REG.stage = REG.paid === REG.total ? 'exact' : 'change'; }
+}
 function scanItem(i) {
   const it = REG.items[i]; if (!it || it.done || REG.stage !== 'scan') return;
   it.done = true; snd('beep');
-  if (REG.items.every(x => x.done)) {
-    REG.total = REG.items.reduce((a, x) => a + CATS[x.ci].price, 0);
-    if (Math.random() < .3) REG.stage = 'card';
-    else { REG.paid = choosePay(REG.total); REG.stage = REG.paid === REG.total ? 'exact' : 'change'; }
-  }
-  renderReg(); setScreen(REG.items.filter(x => x.done).reduce((a, x) => a + CATS[x.ci].price, 0));
+  checkDone();
+  renderReg(); setScreen(REG.items.filter(x => x.done).reduce((a, x) => a + CATS[x.ci].price, 0) + lottoTotal());
 }
 function setScreen(c) {
   const t = regScreenM.map, g = t.image.getContext('2d');
@@ -2579,6 +2649,10 @@ function finishSale(given) {
   const c = REG.c; if (!c) return;
   const due = REG.stage === 'change' ? REG.paid - REG.total : 0;
   G.sales += REG.total; G.cash += REG.total; G.served++;
+  if (REG.lotto && !REG.lotto.refused && REG.lotto.torn) {
+    G.lottoSold += REG.lotto.torn;
+    if (REG.lotto.minor) { G.minorSold++; rate(-8, `Sold lottery tickets to a 17-year-old (born ${fmt(c.id.dob)})`); }
+  }
   if (REG.stage === 'change' && given !== due) {
     G.mistakes++; G.drawerOff += given - due;
     if (given < due) { say(c, `Hey, you shorted me ${money(due - given)}! 😠`, 3); rate(-4, `Wrong change: ${money(due - given)} short`); snd('err'); }
@@ -2656,7 +2730,7 @@ function endGame(how) {
   const rows = [
     ['Store rating', `${Math.round(G.rating)} / 100 (grade ${grade(G.rating)})`],
     ['Customers served', G.served], ['Lookalikes caught at the register', G.caught], ['Aura scans used', G.auraScans], ['Lookalikes shot', G.shot], ['Blood puddles mopped', G.mopped], ['Bags taken to the dumpster', G.bags], ['Customers who saw body parts', G.witnesses], ['Lookalikes let through', `${G.letIn} / ${MAX_LETIN}`],
-    ['Real customers you refused', G.wrongRefuse], ['Customers who left unhappy', G.angry], ['Total sales', money(G.sales)], ['Boxes ordered', G.ordered], ['Items restocked', G.stocked],
+    ['Real customers you refused', G.wrongRefuse], ['Customers who left unhappy', G.angry], ['Total sales', money(G.sales)], ['Boxes ordered', G.ordered], ['Items restocked', G.stocked], ['Lottery tickets sold', G.lottoSold], ['Minors refused lottery', G.minorCaught], ['Lottery sold to minors', G.minorSold],
     ['Change mistakes', G.mistakes + (G.drawerOff ? ` (drawer ${G.drawerOff > 0 ? 'short' : 'over'} ${money(Math.abs(G.drawerOff))})` : '')],
   ];
   $('endStats').innerHTML = rows.map(r => `<span>${r[0]}</span><span>${r[1]}</span>`).join('');
