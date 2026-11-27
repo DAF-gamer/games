@@ -490,31 +490,136 @@ const CAP = 12;
 const LANES = [-6.3, -3, 0, 3.0], FZ = 4.3, BZ = -4.8;
 // A box with one face (0..5 = +x -x +y -y +z -z) in material 1 and the rest in material 0, drawn in as few
 // pieces as possible. A plain 6-material box costs 6 draw calls every frame; this costs 2 or 3.
+// Give one material group (materialIndex `special`) material 1 and everything else material 0, then join
+// neighbouring groups that share a material so the shape is drawn in as few pieces as possible.
+// (A plain 6-material box costs 6 draw calls every frame; this costs 2 or 3.)
 function regroup(geo, special) {
+  const old = geo.groups.map(g => ({ start: g.start, count: g.count, mi: g.materialIndex === special ? 1 : 0 }));
   geo.clearGroups();
-  const mi = [0, 1, 2, 3, 4, 5].map(f => f === special ? 1 : 0);
-  for (let i = 0; i < 6;) { let j = i; while (j < 6 && mi[j] === mi[i]) j++; geo.addGroup(i * 6, (j - i) * 6, mi[i]); i = j; }
+  let cur = null;
+  for (const g of old) {
+    if (cur && cur.mi === g.mi && cur.start + cur.count === g.start) cur.count += g.count;
+    else { if (cur) geo.addGroup(cur.start, cur.count, cur.mi); cur = { ...g }; }
+  }
+  if (cur) geo.addGroup(cur.start, cur.count, cur.mi);
   return geo;
 }
-const PRODUCT_GEO = regroup(new THREE.BoxGeometry(1.2, .36, .3), 4);   // label on the front (+z)
-const placer = new THREE.Object3D();
+const placer = new THREE.Object3D(), itemPos = new THREE.Object3D(); placer.add(itemPos);
+// ---------- the goods. Each product has its own shape and label (made-up brands). One shelf "unit" is a 1.2 m
+// facing of one product holding several items; all the items on a shelf are ONE instanced mesh, so a shelf
+// costs 1-3 draw calls however many items are on it. Selling a unit just lowers the instance count.
+// Unit space: x along the shelf (-.6..+.6), y up from the shelf board (-.18), z toward the aisle (front +.15).
+function bulge(geo, k) {                      // round a segmented box off toward an ellipsoid (bags, loaves)
+  const p = geo.attributes.position, v = new THREE.Vector3();
+  geo.computeBoundingBox(); const bb = geo.boundingBox, hx = (bb.max.x - bb.min.x) / 2, hy = (bb.max.y - bb.min.y) / 2, hz = (bb.max.z - bb.min.z) / 2;
+  for (let i = 0; i < p.count; i++) {
+    v.set(p.getX(i) / hx, p.getY(i) / hy, p.getZ(i) / hz); const l = v.length() || 1;
+    p.setXYZ(i, (v.x + (v.x / l - v.x) * k) * hx, (v.y + (v.y / l - v.y) * k) * hy, (v.z + (v.z / l - v.z) * k) * hz);
+  }
+  geo.computeVertexNormals(); return geo;
+}
+function chipsBag() {                         // puffy in the middle, crimped flat at the top and bottom
+  const g = new THREE.BoxGeometry(.34, .34, .12, 6, 8, 1), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) { const nx = p.getX(i) / .17, ny = p.getY(i) / .17; p.setZ(i, p.getZ(i) * Math.max(.08, (1 - ny * ny * .9) * (1 - nx * nx * .35))); }
+  g.computeVertexNormals(); return regroup(g, 4);
+}
+function bottle() {
+  const pts = [[0, 0], [.04, 0], [.045, .02], [.045, .17], [.03, .21], [.015, .24], [.016, .27], [0, .27]].map(([r, y]) => new THREE.Vector2(r, y));
+  return new THREE.LatheGeometry(pts, 14);
+}
+function labelTex(ci) {                       // the front of one item, per product
+  const cat = CATS[ci];
+  const draw = {
+    0: (g, W, H) => { g.fillStyle = cat.col; g.fillRect(0, 0, W, H); g.fillStyle = '#ffe14d'; g.beginPath(); g.ellipse(W / 2, H * .62, W * .34, H * .2, 0, 0, 7); g.fill();
+      g.fillStyle = '#d98a1f'; for (let k = 0; k < 7; k++) { g.beginPath(); g.ellipse(W * (.25 + k * .085), H * (.58 + (k % 2) * .08), 22, 14, k, 0, 7); g.fill(); }
+      g.fillStyle = '#fff'; g.font = '900 44px system-ui'; g.textAlign = 'center'; g.fillText('CRUNCHOS', W / 2, H * .25);
+      g.font = '700 22px system-ui'; g.fillText('SEA SALT · FAMILY SIZE', W / 2, H * .36);
+      g.fillStyle = '#e8222a'; g.beginPath(); g.arc(W * .82, H * .1, 26, 0, 7); g.fill(); g.fillStyle = '#fff'; g.font = '900 16px system-ui'; g.fillText('NEW!', W * .82, H * .12); },
+    1: (g, W, H) => { g.fillStyle = '#2a1a10'; g.fillRect(0, 0, W, H * .55); for (let k = 0; k < 5; k++) { g.fillStyle = k % 2 ? '#8e44c9' : '#a35bd8'; g.fillRect(12 + k * 48, 8, 40, H * .5); g.fillStyle = '#fff'; g.font = '800 12px system-ui'; g.save(); g.translate(32 + k * 48, H * .3); g.rotate(-Math.PI / 2); g.textAlign = 'center'; g.fillText('CHOCO', 0, 4); g.restore(); }
+      g.fillStyle = cat.col; g.fillRect(0, H * .55, W, H * .45); g.fillStyle = '#ffd860'; g.font = '900 38px system-ui'; g.textAlign = 'center'; g.fillText('CHOCO BAR', W / 2, H * .78); g.font = '700 18px system-ui'; g.fillStyle = '#fff'; g.fillText('36 BARS', W / 2, H * .93); },
+    2: (g, W, H) => { g.fillStyle = '#f2e3c4'; g.fillRect(0, 0, W, H); g.fillStyle = cat.col; g.fillRect(0, 0, W, H * .3);
+      g.fillStyle = '#fff'; g.font = '900 40px system-ui'; g.textAlign = 'center'; g.fillText('COOKIES', W / 2, H * .2);
+      for (const [x, y] of [[.3, .55], [.65, .5], [.48, .78]]) { g.fillStyle = '#c8873e'; g.beginPath(); g.arc(W * x, H * y, 46, 0, 7); g.fill(); g.fillStyle = '#4a2a14'; for (let k = 0; k < 6; k++) { g.beginPath(); g.arc(W * x + Math.cos(k * 1.7) * 26, H * y + Math.sin(k * 2.3) * 24, 6, 0, 7); g.fill(); } } },
+    3: (g, W, H) => { g.fillStyle = '#f6f1e6'; g.fillRect(0, 0, W, H); g.fillStyle = '#e0b86a'; for (let k = 0; k < 40; k++) { g.beginPath(); g.arc((k * 53) % W, (k * 37) % H, 7, 0, 7); g.fill(); }
+      g.fillStyle = '#1f4e79'; g.fillRect(W * .15, H * .3, W * .7, H * .4); g.fillStyle = '#fff'; g.font = '900 42px system-ui'; g.textAlign = 'center'; g.fillText('BREAD', W / 2, H * .5); g.font = '700 18px system-ui'; g.fillText('WHOLE WHEAT', W / 2, H * .63); },
+    4: (g, W, H) => { g.fillStyle = cat.col; g.fillRect(0, 0, W, H); g.fillStyle = '#f7e7b0'; g.fillRect(0, H * .3, W, H * .45);
+      g.fillStyle = '#7a1414'; g.font = '900 40px system-ui'; g.textAlign = 'center'; for (const x of [.25, .75]) g.fillText('SOUP', W * x, H * .5);
+      g.font = '700 18px system-ui'; for (const x of [.25, .75]) g.fillText('HEARTY TOMATO', W * x, H * .66); g.fillStyle = '#fff'; g.font = '800 20px system-ui'; for (const x of [.25, .75]) g.fillText('NORTH VALE KITCHEN', W * x, H * .2); },
+    5: (g, W, H) => { g.fillStyle = cat.col; g.fillRect(0, 0, W, H); g.fillStyle = '#c9f7dc'; for (let k = 0; k < 5; k++) g.fillRect(0, H * (.12 + k * .18), W, 8);
+      g.fillStyle = '#fff'; g.font = '900 46px system-ui'; g.textAlign = 'center'; g.fillText('MINT', W / 2, H * .45); g.fillText('GUM', W / 2, H * .66); g.font = '700 18px system-ui'; g.fillText('15 STICKS', W / 2, H * .85); },
+    6: (g, W, H) => { const v = y => (1 - y) * H;             // bottle: canvas bands line up with the bottle's profile points
+      g.fillStyle = '#1b2f4a'; g.fillRect(0, 0, W, H);                                          // dark soda behind clear plastic
+      g.fillStyle = '#d62828'; g.fillRect(0, 0, W, v(5 / 7));                                   // cap
+      g.fillStyle = cat.col; g.fillRect(0, v(3 / 7), W, v(2 / 7) - v(3 / 7));                   // label band
+      g.fillStyle = '#fff'; g.font = '900 30px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      for (const x of [.25, .75]) g.fillText('FIZZ', W * x, (v(3 / 7) + v(2 / 7)) / 2);
+      g.fillStyle = 'rgba(255,255,255,.5)'; for (let k = 0; k < 14; k++) { g.beginPath(); g.arc((k * 41) % W, v(2 / 7) + 6 + (k % 3) * 8, 3, 0, 7); g.fill(); } },
+  }[ci];
+  return mat('#ffffff', { map: ctexText(256, 256, draw) });
+}
+// shape, materials and item spots for one unit of each product
+function itemKit(ci) {
+  const cat = CATS[ci], side = mat(cat.col), lab = labelTex(ci), items = [];
+  const row = (n, w, y, z, tilt) => { for (let i = 0; i < n; i++) items.push([-.6 + w / 2 + i * w + (1.2 - n * w) / 2, y, z, tilt || 0]); };
+  switch (ci) {
+    case 0: row(3, .4, -.18 + .17, .15 - .07, -.12); return { geo: chipsBag(), mats: [side, lab], items, tints: ['#ffffff', '#ff8a8a', '#9be39b'] };
+    case 1: row(4, .29, -.18 + .08, .15 - .12); return { geo: regroup(new THREE.BoxGeometry(.26, .16, .24), 4), mats: [side, lab], items };
+    case 2: row(4, .29, -.18 + .15, .15 - .05); row(4, .29, -.18 + .15, .15 - .17); return { geo: regroup(new THREE.BoxGeometry(.26, .3, .1), 4), mats: [side, lab], items };
+    case 3: row(2, .58, -.18 + .085, .15 - .11); return { geo: regroup(bulge(new THREE.BoxGeometry(.52, .17, .21, 4, 3, 3), .55), 4), mats: [mat('#f6f1e6'), lab], items };
+    case 4: for (const z of [.15 - .05, .15 - .16]) for (const y of [-.18 + .055, -.18 + .165]) row(6, .19, y, z);
+      return { geo: new THREE.CylinderGeometry(.045, .045, .11, 14), mats: [lab, M.metal, M.metal], items };
+    case 5: row(7, .16, -.18 + .06, .15 - .03, -.2); row(7, .16, -.18 + .06, .15 - .13, -.2); return { geo: regroup(new THREE.BoxGeometry(.07, .11, .02), 4), mats: [side, lab], items };
+    default: row(8, .15, -.18, .15 - .05); row(8, .15, -.18, .15 - .16); return { geo: bottle(), mats: lab, items };
+  }
+}
 function addFace(ci, opts) {
   const cat = CATS[ci], f = { ci, cat, stock: CAP, ...opts };
-  const front = mat('#ffffff', { map: packTex(cat, opts.cooler) }), side = mat(cat.col);
+  const kit = itemKit(ci), per = kit.items.length;
   const order = [];
   for (let lv = 0; lv < 3; lv++) for (let c = 0; c < 4; c++) order.push([lv, c]);
   order.sort(() => Math.random() - .5);
-  // all 12 packs on this shelf are ONE instanced mesh (like Hellhall's trees); showing fewer = a lower count
-  const im = new THREE.InstancedMesh(PRODUCT_GEO, [side, front], order.length);
-  order.forEach(([lv, c], i) => {
+  const im = new THREE.InstancedMesh(kit.geo, kit.mats, order.length * per), tint = new THREE.Color();
+  order.forEach(([lv, c], u) => {
     if (opts.cooler) { placer.position.set(-6.05 + c * 2, .45 + lv * .55 + .18, -5.75); placer.rotation.set(0, 0, 0); }
     else { placer.position.set(opts.sx + opts.d * .24, .35 + lv * .5 + .18, -2.6 + c * 1.4); placer.rotation.set(0, opts.d * Math.PI / 2, 0); }
-    placer.updateMatrix(); im.setMatrixAt(i, placer.matrix);
+    kit.items.forEach(([x, y, z, tilt], k) => {
+      itemPos.position.set(x + rnd(-.012, .012), y, z + rnd(-.01, .01)); itemPos.rotation.set(tilt, rnd(-.06, .06), 0);
+      placer.updateMatrixWorld(true); im.setMatrixAt(u * per + k, itemPos.matrixWorld);
+      if (kit.tints) im.setColorAt(u * per + k, tint.set(kit.tints[(u + k) % kit.tints.length]));
+    });
   });
-  im.instanceMatrix.needsUpdate = true; im.frustumCulled = false; scene.add(im);
+  im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
+  im.frustumCulled = false; scene.add(im);
   f.im = im;
-  f.refresh = () => { im.count = f.stock; };
+  f.refresh = () => { im.count = f.stock * per; };
   FACES.push(f); return f;
+}
+const STRIP_M = CATS.map(cat => { const t = ctexText(512, 32, (g, W, H) => {
+  g.fillStyle = '#f4f4f0'; g.fillRect(0, 0, W, H); g.fillStyle = cat.col; for (let k = 0; k < 4; k++) g.fillRect(k * 128 + 4, 4, 40, H - 8);
+  g.fillStyle = '#111'; g.font = '800 17px system-ui'; g.textBaseline = 'middle'; for (let k = 0; k < 4; k++) g.fillText(`${cat.name.toUpperCase()} ${money(cat.price)}`, k * 128 + 50, H / 2 + 1);
+}); t.wrapS = THREE.RepeatWrapping; t.repeat.set(4, 1); return mat('#ffffff', { map: t }); });
+const SALE_M = mat('#ffffff', { map: ctexText(130, 100, (g, W, H) => {
+  g.fillStyle = '#ffe14d'; g.fillRect(0, 0, W, H); g.fillStyle = '#c8102e'; g.font = '900 30px system-ui'; g.textAlign = 'center'; g.fillText('SALE', W / 2, 38);
+  g.fillStyle = '#111'; g.font = '800 22px system-ui'; g.fillText('2 FOR $5', W / 2, 74);
+}), side: THREE.DoubleSide });
+// end-of-aisle display: stacked cases of one product with a deal sign on top
+function endcap(sx, z, dz, ci) {
+  const cat = CATS[ci], caseM = mat('#ffffff', { map: ctexText(256, 160, (g, W, H) => {
+    g.fillStyle = '#b68a55'; g.fillRect(0, 0, W, H); g.fillStyle = cat.col; g.fillRect(10, 30, W - 20, 70);
+    g.fillStyle = '#fff'; g.font = '900 34px system-ui'; g.textAlign = 'center'; g.fillText(cat.lab, W / 2, 76);
+    g.fillStyle = '#5a4020'; g.font = '700 16px system-ui'; g.fillText('12 COUNT · THIS SIDE UP ↑', W / 2, 130);
+  }) });
+  const cz = z + dz * .32;
+  // the six cases are one instanced mesh: 2-3 draw calls for the whole stack
+  const im = new THREE.InstancedMesh(regroup(new THREE.BoxGeometry(.42, .3, .42), dz > 0 ? 4 : 5), [M.cardboard, caseM], 6);
+  let k = 0;
+  for (let r = 0; r < 3; r++) for (const dx of [-.22, .22]) {
+    placer.position.set(sx + dx + rnd(-.02, .02), .15 + r * .3, cz); placer.rotation.set(0, rnd(-.05, .05), 0); placer.updateMatrix(); im.setMatrixAt(k++, placer.matrix);
+  }
+  im.instanceMatrix.needsUpdate = true; scene.add(im);
+  const sign = plane(.8, .3, mat('#ffffff', { map: signTex(`${cat.name.toUpperCase()} · 2 FOR ${money(cat.price * 2 - 50)}`, '#c8102e', '#fff', 512, 160, '900 50px system-ui') }), sx, 1.12, cz + dz * .22, dz > 0 ? 0 : Math.PI);
+  cyl(.01, .01, .25, M.metal, sx, .98, cz, null, 6);
+  solid(sx - .45, Math.min(z, cz + dz * .22), sx + .45, Math.max(z, cz + dz * .22));
 }
 function shelfUnit(sx, left, right) {
   const z0 = -3.3, z1 = 2.5, L = z1 - z0, zc = (z0 + z1) / 2;
@@ -524,12 +629,17 @@ function shelfUnit(sx, left, right) {
   for (const y of [.33, .83, 1.33]) box(.9, .04, L, M.shelf, sx, y, zc);
   box(.9, 2.2, .05, M.shelfDark, sx, 1.1, z0); box(.9, 2.2, .05, M.shelfDark, sx, 1.1, z1);
   for (const [ci, d] of [[left, -1], [right, 1]]) {
+    // price strip along the front edge of every shelf level, a few yellow sale tags sticking out into the aisle
+    for (const y of [.33, .83, 1.33]) plane(L, .05, STRIP_M[ci], sx + d * .456, y, zc, d * Math.PI / 2);
+    for (const z of [-2.1, .7]) { const tg = plane(.13, .1, SALE_M, sx + d * .52, .79 + (z > 0 ? .5 : 0), z, 0); tg.rotation.z = d * .08; }
     const tm = mat('#ffffff', { map: tagTex(CATS[ci]) });
     for (const z of [-1.8, 1.0]) plane(1.6, .3, tm, sx + d * .035, 1.95, z, d * Math.PI / 2);
     addFace(ci, { sx, d, lane: LANES.reduce((a, b) => Math.abs(b - (sx + d * 1.4)) < Math.abs(a - (sx + d * 1.4)) ? b : a), z0: -3.0, z1: 2.2 });
   }
 }
 shelfUnit(-4.5, 0, 1); shelfUnit(-1.5, 2, 3); shelfUnit(1.5, 4, 5);
+endcap(-4.5, 2.5, 1, 0); endcap(-1.5, 2.5, 1, 2); endcap(1.5, 2.5, 1, 4);      // front ends of the aisles
+endcap(-4.5, -3.3, -1, 1); endcap(-1.5, -3.3, -1, 5);                          // back ends
 // aisle signs hanging from the ceiling
 for (const [x, a, b] of [[-4.5, 0, 1], [-1.5, 2, 3], [1.5, 4, 5]]) {
   const tx = signTex(`${CATS[a].name} · ${CATS[b].name}`, '#13204a', '#fff', 512, 96, '700 46px system-ui,sans-serif');
@@ -543,6 +653,7 @@ box(8.3, 2.0, .05, glow('#c9dccf'), -3.05, 1.15, -5.98);
 for (const y of [.43, .98, 1.53]) box(8.3, .03, .5, M.metal, -3.05, y, -5.7);
 const cg = box(8.4, 2.1, .03, M.glass, -3.05, 1.15, -5.41); cg.renderOrder = 5;
 for (let i = 0; i <= 4; i++) box(.06, 2.1, .06, M.metal, -7.25 + i * 2.1, 1.15, -5.4);
+for (let i = 0; i < 4; i++) { box(.035, .6, .035, M.metal, -7.25 + i * 2.1 + 1.85, 1.2, -5.36); for (const y of [.92, 1.48]) box(.035, .03, .05, M.metal, -7.25 + i * 2.1 + 1.85, y, -5.38); }
 box(8.5, .3, .62, mat('#ffffff', { map: signTex('ICE COLD DRINKS', '#1c4fa0', '#fff', 1024, 64, '800 40px system-ui') }), -3.05, 2.45, -5.7);
 addFace(6, { cooler: true, lane: null, x0: -6.6, x1: .6 });
 FACES.forEach(f => f.refresh());
