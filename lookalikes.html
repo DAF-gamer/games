@@ -80,6 +80,7 @@
   .stats { display:grid; grid-template-columns:1fr auto; gap:3px 18px; margin:12px 0 18px; }
   .stats span:nth-child(even) { text-align:right; font-weight:700; }
   .cred { margin:16px 0 0; font-size:11px; line-height:1.4; color:#6f7790; }
+  #fps { position:fixed; left:50%; top:10px; transform:translateX(-50%); padding:3px 8px; background:rgba(0,0,0,.55); border-radius:6px; font:700 13px "Courier New",monospace; pointer-events:none; z-index:20; white-space:nowrap; }
   #fade { position:fixed; inset:0; background:#000; opacity:0; pointer-events:none; transition:opacity 1.2s; }
   @media (max-width:700px) { #goal { max-width:90vw; top:auto; bottom:64px; } #tasks { top:auto; bottom:70px; right:8px; min-width:0; font-size:13px; } .card h1 { font-size:32px; } }
 </style>
@@ -131,6 +132,7 @@
       <span class="k">Click</span><span>shoot, while holding the pistol</span>
       <span class="k">Hold E</span><span>mop (the mop bucket is behind the counter, next to the register)</span>
       <span class="k">M</span><span>sound on / off</span>
+      <span class="k">P</span><span>show / hide the FPS counter</span>
       <span class="k">Esc</span><span>pause</span>
     </div>
     <button id="go" class="big">START SHIFT</button>
@@ -141,6 +143,7 @@
 <div id="pause" class="screen hide"><div class="card" style="text-align:center"><h1 style="font-size:34px">PAUSED</h1><p class="sub">Click to get back to work.</p><button id="resume" class="big">RESUME</button></div></div>
 <div id="end" class="screen hide"><div class="card"><h1 id="endT">HOME AT LAST</h1><div class="sub" id="endS"></div><div class="stats" id="endStats"></div><button class="big" onclick="location.reload()">TRY ANOTHER NIGHT</button><p class="cred">Sound effects from OpenGameArt.org, CC0 unless noted: gunshot by Tabasco / Vincent Sevedge (CC-BY 3.0), reload and click by SpringySpringo, zombie sounds by artisticdude and ianzazz (the same ones as in Hellhall), door bell by frosty ham, register by Spring Spring, coins by Vinrax, beeps and paper by rubberduck, keyboard by unicaegames, squishes by qubodup, fridge hum by Kresiek The Furry, electric buzz by themightyglider, light switch by FunnyDude, siren by aquinn, engine by GGBotNet.</p></div></div>
 <div id="fade"></div>
+<div id="fps"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
 <script>
@@ -2257,6 +2260,7 @@ addEventListener('keydown', e => {
   if (k === 'e' && !e.repeat) interact();
   if (k === 'g' && !e.repeat && !BUSY && (G.gun || behindCounter())) { if (G.gun) putGun(false); else takeGun(); }
   if (k === 't' && !e.repeat && !BUSY && (G.tablet || behindCounter())) setTablet(!G.tablet, true);
+  if (k === 'p' && !e.repeat) { FPS.on ^= 1; try { localStorage.setItem('laFPS', FPS.on); } catch (er) {} }
   if (k === 'm') { MUTE = !MUTE; if (HUM) HUM.gain.value = MUTE ? 0 : HUM_VOL; toast(MUTE ? 'Sound off' : 'Sound on'); }
 });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -2391,13 +2395,47 @@ function updateCamera() {
   camera.rotation.set(pitch, yaw, 0);
   lateUpdate();
 }
+// ---------- performance: FPS counter (P) and automatic graphics quality, like Hellhall and Prop Pilot.
+// QL 0 HIGH, 1 MED, 2 LOW, 3 MIN: renders at a lower resolution when the game can't keep up.
+const QN = ['HIGH', 'MED', 'LOW', 'MIN'], QPR = [Math.min(devicePixelRatio, 1.5), Math.min(devicePixelRatio, 1.25), 1, .75];
+let QL = 0; try { const q = parseInt(localStorage.getItem('laQL'), 10); if (q >= 0 && q <= 3) QL = q; } catch (e) {}
+function setQ(q) { QL = q; try { localStorage.setItem('laQL', q); } catch (e) {} renderer.setPixelRatio(QPR[q]); resize(); }
+setQ(QL);
+const AQ = { bad: 0, good: 0, hold: 0, t0: 0, n: 0, l: 0, fails: [0, 0, 0, 0] };
+function autoQ(ts) {
+  const fd = ts - (AQ.l || ts); AQ.l = ts;
+  if (!G.started || G.ended || !locked || document.hidden || fd > 250) { AQ.t0 = 0; return; }
+  if (!AQ.t0) { AQ.t0 = ts; AQ.n = 0; return; }
+  AQ.n++; const el = ts - AQ.t0; if (el < 1500) return;
+  const fps = AQ.n * 1000 / el; AQ.t0 = ts; AQ.n = 0;
+  if (AQ.hold > 0) { AQ.hold--; return; }
+  if (fps < 48) { AQ.good = 0; if (++AQ.bad >= 2 && QL < 3) { AQ.fails[QL]++; AQ.bad = 0; AQ.hold = 2; setQ(QL + 1); } }
+  else { AQ.bad = 0; if (fps >= 57 && QL > 0) { if (++AQ.good >= 8 * (1 + 2 * AQ.fails[QL - 1])) { AQ.good = 0; AQ.hold = 2; setQ(QL - 1); } } else AQ.good = 0; }
+}
+const FPS = { on: 1, n: 0, t0: 0, v: 0, cpu: 0, c: 0, lo: 999, lw: 999, l: 0 };
+try { if (localStorage.getItem('laFPS') === '0') FPS.on = 0; } catch (e) {}
+function fpsTick(ts, cpu) {
+  const el = $('fps'); el.style.display = FPS.on ? 'block' : 'none';
+  FPS.c += cpu;
+  if (FPS.t0) {
+    FPS.n++; const fd = ts - (FPS.l || ts); if (fd > 0) FPS.lw = Math.min(FPS.lw, 1000 / fd);
+    if (ts - FPS.t0 >= 500) {
+      FPS.v = Math.round(FPS.n * 1000 / (ts - FPS.t0)); FPS.lo = Math.round(FPS.lw); FPS.lw = 999; FPS.cpu = FPS.c / FPS.n; FPS.n = 0; FPS.c = 0; FPS.t0 = ts;
+      el.textContent = `${FPS.v} FPS · ${FPS.cpu.toFixed(1)} ms · low ${FPS.lo} · GFX ${QN[QL]} · ${renderer.info.render.calls} draws`;
+      el.style.color = FPS.v >= 55 ? '#5cff6a' : FPS.v >= 30 ? '#ffd23a' : '#ff4a3d';
+    }
+  } else FPS.t0 = ts;
+  FPS.l = ts;
+}
 let last = performance.now();
 function loop(now) {
   requestAnimationFrame(loop);
+  const pT = performance.now(); autoQ(now);
   const dt = Math.min(.05, (now - last) / 1000); last = now;
   if (G.started && !G.ended && (locked || anyPanel() || FORCE || P.inBus || G.dark)) update(dt);
   updateCamera();
   renderer.render(scene, camera);
+  fpsTick(now, performance.now() - pT);
 }
 drawClock(G.time);
 updateCamera();
