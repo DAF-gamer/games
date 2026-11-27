@@ -105,5 +105,11 @@ footer{text-align:center;color:var(--dim);font-size:14px;margin-top:48px}
 
   <footer>Download saves the game as a single HTML file – double-click it to play, even offline (online play with a friend, and the 3D graphics in Fourth &amp; Goal and Hellhall, still need internet).<br>fightscramble.com</footer>
 </main>
+<script>
+// Visitor counter (no login needed): adds 1 to free public counters at abacus.jasoncameron.dev.
+// Only on the real site. Every page load counts as a view of that page; each browser also counts once
+// per day as a visitor (all-time total and per-day). Fails silently if the service is down.
+(function(){if(!/(^|\.)fightscramble\.com$/.test(location.hostname))return;var A="https://abacus.jasoncameron.dev/hit/fightscramble-arcade/",p=(location.pathname.replace(/^\/|\.html$/g,"")||"home").replace(/[^a-z0-9-]/gi,"-"),d=new Date().toISOString().slice(0,10),h=function(k){try{fetch(A+k,{keepalive:true}).catch(function(){})}catch(e){}};h("views-"+p);try{if(localStorage.getItem("fsDay")!==d){localStorage.setItem("fsDay",d);h("visitors");h("visitors-"+d)}}catch(e){}})();
+</script>
 </body>
 </html>

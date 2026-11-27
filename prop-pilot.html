@@ -32,7 +32,13 @@ canvas{display:block;width:100%;height:100%}
 #mthr{position:fixed;right:calc(max(12px,env(safe-area-inset-right)) + 260px);bottom:max(10px,env(safe-area-inset-bottom));width:66px;height:min(62vh,280px);border:3px solid var(--ink);border-radius:33px;background:rgba(43,33,24,.6);box-shadow:3px 3px 0 var(--ink);overflow:hidden;touch-action:none;z-index:5}body.mob.fly #mthr{display:block}
 #mthr b{position:absolute;left:0;right:0;bottom:0;background:rgba(255,213,74,.8)}#mthr span{position:absolute;left:0;right:0;top:10px;text-align:center;font:bold 15px Georgia,serif;color:var(--paper);text-shadow:1px 1px 0 var(--ink)}
 #rot{position:fixed;inset:0;z-index:20;background:rgba(43,33,24,.94);color:var(--paper);align-items:center;justify-content:center;text-align:center;font:bold 22px Georgia,serif;padding:30px}@media (orientation:portrait){body.mob #rot{display:flex}}
-</style></head><body>
+</style><script>
+// Visitor counter (no login needed): adds 1 to free public counters at abacus.jasoncameron.dev.
+// Only on the real site. Every page load counts as a view of that page; each browser also counts once
+// per day as a visitor (all-time total and per-day). Fails silently if the service is down.
+(function(){if(!/(^|\.)fightscramble\.com$/.test(location.hostname))return;var A="https://abacus.jasoncameron.dev/hit/fightscramble-arcade/",p=(location.pathname.replace(/^\/|\.html$/g,"")||"home").replace(/[^a-z0-9-]/gi,"-"),d=new Date().toISOString().slice(0,10),h=function(k){try{fetch(A+k,{keepalive:true}).catch(function(){})}catch(e){}};h("views-"+p);try{if(localStorage.getItem("fsDay")!==d){localStorage.setItem("fsDay",d);h("visitors");h("visitors-"+d)}}catch(e){}})();
+</script>
+</head><body>
 <canvas id="c"></canvas>
 <div id="ov"><div id="card"></div></div>
 <div id="fire"><button id="bg">GUN</button><button id="br">ROCKET</button><button id="bf">FLARE</button><button id="bb">AAM</button></div>

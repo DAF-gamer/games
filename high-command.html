@@ -200,7 +200,7 @@ function meander(pts){const out=[pts[0]];// rivers: same idea, smaller wiggles
   (function d(A,B){const dx=B[0]-A[0],dy=B[1]-A[1],L=Math.hypot(dx,dy);if(L<16)return;const o=(rng()*2-1)*L*.18,M=[(A[0]+B[0])/2-dy/L*o,(A[1]+B[1])/2+dx/L*o];d(A,M);seg.push(M);d(M,B);})(P,Q);
   out.push(...seg,Q);}return out;}
 // shown on the start screen; update it with each feature or fix so testers know which build they have
-const VERSION='Realism (simulation only) · Nov 21, 2026';
+const VERSION='Visit counter · Nov 27, 2026';
 const UT={
  inf:{name:'Infantry',dom:'land',hp:100,spd:20,atk:{land:9,air:2,sea:0},rng:28,cost:100,time:8,cap:1,desc:'Cheap. Captures cities. Strong in forests, mountains, hills & cities.'},
  tank:{name:'Armor',dom:'land',hp:170,spd:38,atk:{land:18,air:0,sea:0},rng:30,cost:260,time:14,cap:1,desc:'Fast and hard-hitting. Slowed & weakened in forest, mountains & swamp.'},
@@ -1300,6 +1300,12 @@ if(/[?&]test/.test(location.search)){
  for(const n of nations)n.capital=cities.find(c=>c.owner===n.id&&CITY_DEFS[c.id].cap);
  player=-1;resize();showStart();requestAnimationFrame(frame);
 }
+</script>
+<script>
+// Visitor counter (no login needed): adds 1 to free public counters at abacus.jasoncameron.dev.
+// Only on the real site. Every page load counts as a view of that page; each browser also counts once
+// per day as a visitor (all-time total and per-day). Fails silently if the service is down.
+(function(){if(!/(^|\.)fightscramble\.com$/.test(location.hostname))return;var A="https://abacus.jasoncameron.dev/hit/fightscramble-arcade/",p=(location.pathname.replace(/^\/|\.html$/g,"")||"home").replace(/[^a-z0-9-]/gi,"-"),d=new Date().toISOString().slice(0,10),h=function(k){try{fetch(A+k,{keepalive:true}).catch(function(){})}catch(e){}};h("views-"+p);try{if(localStorage.getItem("fsDay")!==d){localStorage.setItem("fsDay",d);h("visitors");h("visitors-"+d)}}catch(e){}})();
 </script>
 </body>
 </html>
