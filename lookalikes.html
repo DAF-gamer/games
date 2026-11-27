@@ -2395,22 +2395,37 @@ function updateCamera() {
   camera.rotation.set(pitch, yaw, 0);
   lateUpdate();
 }
-// ---------- performance: FPS counter (P) and automatic graphics quality, like Hellhall and Prop Pilot.
-// QL 0 HIGH, 1 MED, 2 LOW, 3 MIN: renders at a lower resolution when the game can't keep up.
-const QN = ['HIGH', 'MED', 'LOW', 'MIN'], QPR = [Math.min(devicePixelRatio, 1.5), Math.min(devicePixelRatio, 1.25), 1, .75];
-let QL = 0; try { const q = parseInt(localStorage.getItem('laQL'), 10); if (q >= 0 && q <= 3) QL = q; } catch (e) {}
-function setQ(q) { QL = q; try { localStorage.setItem('laQL', q); } catch (e) {} renderer.setPixelRatio(QPR[q]); resize(); }
+// ---------- performance: FPS counter (P) and automatic graphics quality, aiming for a steady 60 FPS.
+// Six levels, each a little cheaper to draw: lower render resolution, and at the bottom two a shorter
+// view distance (far-off road, cars and lot aren't drawn). Below ~56 FPS for 2 s it steps down; after
+// holding 59+ for a while it steps back up (longer wait each time a level has failed, so it settles).
+const FPS_GOAL = 60;
+const QN = ['HIGH', 'HIGH-', 'MED', 'MED-', 'LOW', 'MIN'];
+const QPR = [Math.min(devicePixelRatio, 1.5), Math.min(devicePixelRatio, 1.25), 1, .85, .7, .55];
+const QFAR = [200, 200, 200, 200, 80, 55];
+let QL = 0; try { const q = parseInt(localStorage.getItem('laQL6'), 10); if (q >= 0 && q < QN.length) QL = q; } catch (e) {}
+function setQ(q) {
+  QL = q; try { localStorage.setItem('laQL6', q); } catch (e) {}
+  renderer.setPixelRatio(QPR[q]); camera.far = QFAR[q]; camera.updateProjectionMatrix(); resize();
+}
 setQ(QL);
-const AQ = { bad: 0, good: 0, hold: 0, t0: 0, n: 0, l: 0, fails: [0, 0, 0, 0] };
+const AQ = { bad: 0, good: 0, hold: 2, t0: 0, n: 0, l: 0, fails: QN.map(() => 0) };
 function autoQ(ts) {
   const fd = ts - (AQ.l || ts); AQ.l = ts;
   if (!G.started || G.ended || !locked || document.hidden || fd > 250) { AQ.t0 = 0; return; }
   if (!AQ.t0) { AQ.t0 = ts; AQ.n = 0; return; }
-  AQ.n++; const el = ts - AQ.t0; if (el < 1500) return;
+  AQ.n++; const el = ts - AQ.t0; if (el < 1000) return;              // judge one second at a time
   const fps = AQ.n * 1000 / el; AQ.t0 = ts; AQ.n = 0;
-  if (AQ.hold > 0) { AQ.hold--; return; }
-  if (fps < 48) { AQ.good = 0; if (++AQ.bad >= 2 && QL < 3) { AQ.fails[QL]++; AQ.bad = 0; AQ.hold = 2; setQ(QL + 1); } }
-  else { AQ.bad = 0; if (fps >= 57 && QL > 0) { if (++AQ.good >= 8 * (1 + 2 * AQ.fails[QL - 1])) { AQ.good = 0; AQ.hold = 2; setQ(QL - 1); } } else AQ.good = 0; }
+  if (AQ.hold > 0) { AQ.hold--; return; }                               // give a change a moment to settle
+  if (fps < FPS_GOAL - 4) {
+    AQ.good = 0;
+    if (++AQ.bad >= 2 && QL < QN.length - 1) { AQ.fails[QL]++; AQ.bad = 0; AQ.hold = 2; setQ(QL + 1); }
+  } else {
+    AQ.bad = 0;
+    if (fps >= FPS_GOAL - 1 && QL > 0) {
+      if (++AQ.good >= 6 * (1 + 2 * AQ.fails[QL - 1])) { AQ.good = 0; AQ.hold = 2; setQ(QL - 1); }
+    } else AQ.good = 0;
+  }
 }
 const FPS = { on: 1, n: 0, t0: 0, v: 0, cpu: 0, c: 0, lo: 999, lw: 999, l: 0 };
 try { if (localStorage.getItem('laFPS') === '0') FPS.on = 0; } catch (e) {}
@@ -2421,8 +2436,8 @@ function fpsTick(ts, cpu) {
     FPS.n++; const fd = ts - (FPS.l || ts); if (fd > 0) FPS.lw = Math.min(FPS.lw, 1000 / fd);
     if (ts - FPS.t0 >= 500) {
       FPS.v = Math.round(FPS.n * 1000 / (ts - FPS.t0)); FPS.lo = Math.round(FPS.lw); FPS.lw = 999; FPS.cpu = FPS.c / FPS.n; FPS.n = 0; FPS.c = 0; FPS.t0 = ts;
-      el.textContent = `${FPS.v} FPS · ${FPS.cpu.toFixed(1)} ms · low ${FPS.lo} · GFX ${QN[QL]} · ${renderer.info.render.calls} draws`;
-      el.style.color = FPS.v >= 55 ? '#5cff6a' : FPS.v >= 30 ? '#ffd23a' : '#ff4a3d';
+      el.textContent = `${FPS.v} / ${FPS_GOAL} FPS · ${FPS.cpu.toFixed(1)} ms · low ${FPS.lo} · GFX ${QN[QL]} · ${renderer.info.render.calls} draws`;
+      el.style.color = FPS.v >= FPS_GOAL - 4 ? '#5cff6a' : FPS.v >= 30 ? '#ffd23a' : '#ff4a3d';
     }
   } else FPS.t0 = ts;
   FPS.l = ts;
