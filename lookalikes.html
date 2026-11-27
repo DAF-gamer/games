@@ -1302,15 +1302,20 @@ function drawTablet() {
   }
   TAB_TEX.needsUpdate = true;
 }
-function setTablet(on) {
-  if (on === G.tablet || (on && bagFull())) return;
+function setTablet(on, animate) {
+  if (on === G.tablet || (on && bagFull()) || (animate && BUSY)) return;
+  const W = shelfTab.position.clone(), far = eyeDist(W) > REACH + .4;
+  if (on && animate && far) { toast('Go over to the tablet on the counter, by the records computer.'); return; }
   if (on) { setGun(false); setMop(false); setBag(false); }
-  G.tablet = on; TAB.visible = on; shelfTab.visible = !on; snd('click');
-  if (on) { drawTablet(); toast('Tablet out. Point it at a customer and click to read their aura.'); }
+  G.tablet = on; drawTablet();
+  if (!animate || far) { TAB.visible = on; shelfTab.visible = !on; snd('click'); if (on) toast('Tablet out. Point it at a customer and click to read their aura.'); return; }
+  if (on) reach(W, { hands: [0, 1], carryIn: { obj: TAB, rest: TAB_REST }, grab: () => { shelfTab.visible = false; TAB.visible = true; snd('click'); },
+    done: () => toast('Tablet out. Point it at a customer and click to read their aura.') });
+  else reach(W, { hands: [0, 1], carryOut: { obj: TAB, rest: TAB_REST }, grab: () => { TAB.visible = false; shelfTab.visible = true; snd('click'); } });
 }
 // returns false if the tablet wasn't pointed at anyone, so the click can do something else instead
 function tabletScan() {
-  if (!G.tablet || anyPanel() || G.dark) return true;
+  if (!G.tablet || anyPanel() || G.dark || BUSY) return true;
   if (TABS.scan) return true;
   scene.updateMatrixWorld(); ray.setFromCamera({ x: 0, y: 0 }, camera);
   const hit = ray.intersectObjects(scene.children, true).find(h => h.object.isMesh && !h.object.material.transparent && !onCamera(h.object) && shown(h.object) && !h.object.userData.part);
@@ -1569,19 +1574,75 @@ function updateAnims(dt) {
   for (const a of [...ANIMS]) { a.t += dt; const k = Math.min(1, a.t / a.dur); a.step(k); if (k >= 1) { ANIMS.splice(ANIMS.indexOf(a), 1); if (a.done) a.done(); } }
 }
 const ease = k => k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
-const VIEW = { dip: 0 };   // extra downward look while bending to grab something
+// VIEW: while reaching for something your head turns toward VIEW.at and you lean in (look 0..1)
+const VIEW = { dip: 0, look: 0, at: new THREE.Vector3() };
 let BUSY = false;          // in the middle of an animation: no other interactions
-// your hands (clerk's skin and green work-shirt sleeves)
-const HAND_M = mat(SKIN[2]), SLEEVE_M = mat('#2f6e5a');
-function fpHand(parent, x, y, z, sx) {
-  const h = new THREE.Group(); h.position.set(x, y, z); parent.add(h);
-  box(.06, .075, .1, HAND_M, 0, 0, 0, h);
-  box(.075, .075, .3, SLEEVE_M, (sx || 0) * .01, -.02, .19, h);
-  return h;
-}
-fpHand(GUN, 0, -.075, .055);                                    // gripping the pistol
-const bagGrip = fpHand(camera, .32, -.27, -.6); bagGrip.visible = false;
 let gunReach = 0;          // 0 = pistol down out of view, 1 = up and ready
+// ---------- your arms: a green work-shirt sleeve from each shoulder to a hand. Each frame a hand goes
+// to whatever it's holding (the pistol grip, the sides of a box…) or, while reaching, out to a spot in the world.
+const HAND_M = mat(SKIN[2]), SLEEVE_M = mat('#2f6e5a');
+const SHOULDER = [new THREE.Vector3(-.27, -.48, .12), new THREE.Vector3(.27, -.48, .12)];
+const ARM_REST = [new THREE.Vector3(-.3, -.85, -.15), new THREE.Vector3(.3, -.85, -.15)];   // hanging down, out of view
+const ARMS = [0, 1].map(() => {
+  const g = new THREE.Group(); camera.add(g); g.visible = false;
+  const sl = new THREE.Mesh(new THREE.BoxGeometry(.08, .08, 1), SLEEVE_M), hd = new THREE.Mesh(new THREE.BoxGeometry(.065, .08, .11), HAND_M);
+  g.add(sl, hd); return { g, sl, hd };
+});
+const REACHES = [{ to: null, k: 0 }, { to: null, k: 0 }];   // per arm: reach out to a world point, k 0..1
+const CARRY = [];          // things travelling between a spot in the world and your hands: { obj, world, rest, k }
+const Z1 = new THREE.Vector3(0, 0, 1), aV = new THREE.Vector3(), aQ = new THREE.Quaternion(), wV = new THREE.Vector3();
+const HP = [new THREE.Vector3(), new THREE.Vector3()], RP = [new THREE.Vector3(), new THREE.Vector3()];
+const GUN_READY = new THREE.Vector3(.18, -.17, -.38), BOX_REST = new THREE.Vector3(0, -.34, -.55);
+const BAG_REST = new THREE.Vector3(.32, -.42, -.62), TAB_REST = new THREE.Vector3(0, -.2, -.42);
+const onObj = (o, x, y, z, out) => out.set(x, y, z).applyQuaternion(o.quaternion).add(o.position);
+// where hand i holds what you're carrying (camera space), or null if it's free
+function holdPoint(i) {
+  if (GUN.visible) return i === 1 ? onObj(GUN, 0, -.075, .055, HP[i]) : null;
+  if (boxHand.visible) return onObj(boxHand, i ? .245 : -.245, -.02, .03, HP[i]);
+  if (TAB.visible) return onObj(TAB, i ? .13 : -.13, -.04, .02, HP[i]);
+  if (bagHand.visible) return i === 1 ? HP[i].copy(bagHand.position).add(aV.set(0, bagHand.scale.y * .95, .01)) : null;
+  if (mopHand.visible) return i === 1 ? onObj(mopHand, 0, -.03, -.18, HP[i]) : null;
+  return null;
+}
+function placeArm(a, sh, hand) {
+  aV.subVectors(hand, sh); const L = aV.length(); aV.normalize(); aQ.setFromUnitVectors(Z1, aV);
+  a.sl.quaternion.copy(aQ); a.sl.scale.z = Math.max(.01, L - .05); a.sl.position.copy(sh).addScaledVector(aV, (L - .05) / 2);
+  a.hd.quaternion.copy(aQ); a.hd.position.copy(hand);
+}
+// runs after the camera is placed each frame
+function lateUpdate() {
+  camera.updateMatrixWorld();
+  for (const c of CARRY) { wV.copy(c.world); camera.worldToLocal(wV); c.obj.position.lerpVectors(wV, c.rest, c.k); }
+  for (let i = 0; i < 2; i++) {
+    const a = ARMS[i], r = REACHES[i];
+    let hand = holdPoint(i);
+    if (!hand && r.to && r.k > 0) { wV.copy(r.to); camera.worldToLocal(wV); hand = RP[i].lerpVectors(ARM_REST[i], wV, r.k); }
+    a.g.visible = !!hand && !P.inBus;
+    if (hand) placeArm(a, SHOULDER[i], hand);
+  }
+}
+// Reach out to world point W: turn toward it, lean in, hand(s) go out. At the halfway point grab() runs.
+// carryIn: something you pick up travels from W to its spot in your hands on the way back.
+// carryOut: something you're holding travels from your hands to W on the way out (then grab() puts it down).
+function reach(W, o) {
+  const hands = o.hands || [1], cr = o.carryIn || o.carryOut;
+  const C = cr ? { obj: cr.obj, world: W.clone(), rest: cr.rest, k: 1 } : null;
+  if (C) CARRY.push(C);
+  VIEW.at.copy(W); BUSY = true;
+  let grabbed = false;
+  anim(o.dur || .9, k => {
+    const out = k < .5 ? ease(k / .5) : 1 - ease((k - .5) / .5);
+    VIEW.look = out;
+    if (k >= .5 && !grabbed) { grabbed = true; if (o.grab) o.grab(); }
+    for (const i of hands) { REACHES[i].to = C ? C.world : W; REACHES[i].k = out; }
+    if (C) C.k = o.carryIn ? (k < .5 ? 0 : 1 - out) : (k < .5 ? 1 - out : 0);
+  }, () => {
+    VIEW.look = 0; for (const i of hands) REACHES[i].k = 0;
+    if (C) { CARRY.splice(CARRY.indexOf(C), 1); C.obj.position.copy(C.rest); }
+    BUSY = false; if (o.done) o.done();
+  });
+}
+const eyeDist = W => Math.hypot(W.x - P.x, W.y - 1.6, W.z - P.z);
 let gunCD = 0, recoil = 0, mopAnim = 0, mopping = false;
 // a full bag has to go to the dumpster before you can pick anything else up
 function bagFull() {
@@ -1589,19 +1650,25 @@ function bagFull() {
   if (G.bag && G.bagCount > 0) { toast('Take the bag out to the dumpster first (out the back door).', 'bad'); return true; }
   return false;
 }
-function setGun(on) {
-  if (on === G.gun || (on && bagFull())) return;
-  if (on) { setMop(false); setBag(false); setTablet(false); }
-  G.gun = on; snd(on ? 'reload' : 'click');
-  if (on) {
-    // bend down to the shelf under the counter, grab it, bring it up
-    GUN.visible = true; shelfGun.visible = false; gunReach = 0;
-    anim(.55, k => { gunReach = ease(clamp((k - .25) / .75, 0, 1)); VIEW.dip = Math.sin(Math.min(1, k * 1.4) * Math.PI) * .32; });
-    toast('Pistol out. Click to shoot. Only shoot lookalikes!', 'bad');
-  } else {
-    anim(.4, k => { gunReach = 1 - ease(clamp(k / .7, 0, 1)); VIEW.dip = Math.sin(k * Math.PI) * .25; },
-      () => { if (!G.gun) { GUN.visible = false; shelfGun.visible = true; VIEW.dip = 0; } });
-  }
+// other code (one thing in your hands at a time, getting arrested) takes it away instantly
+function setGun(on) { if (on) takeGun(); else putGun(true); }
+function takeGun() {
+  if (G.gun || BUSY || bagFull()) return;
+  const W = shelfGun.position.clone();
+  if (eyeDist(W) > REACH + .4) { toast('Go over to the pistol: the little shelf under the counter, by the register.'); return; }
+  setMop(false); setBag(false); setTablet(false);
+  G.gun = true; gunReach = 0;
+  reach(W, { hands: [1], carryIn: { obj: GUN, rest: GUN_READY },
+    grab: () => { shelfGun.visible = false; GUN.visible = true; gunReach = 1; snd('click'); },
+    done: () => { snd('reload'); toast('Pistol out. Click to shoot. Only shoot lookalikes!', 'bad'); } });
+}
+function putGun(instant) {
+  if (!G.gun) return;
+  G.gun = false;
+  const W = shelfGun.position.clone();
+  if (instant || BUSY || eyeDist(W) > REACH + .4) { GUN.visible = false; shelfGun.visible = true; gunReach = 0; snd('click'); return; }
+  reach(W, { hands: [1], carryOut: { obj: GUN, rest: GUN_READY },
+    grab: () => { GUN.visible = false; shelfGun.visible = true; gunReach = 0; snd('click'); } });
 }
 function setMop(on) {
   if (on === G.mop || (on && bagFull())) return;
@@ -1611,17 +1678,17 @@ function setMop(on) {
 function setBag(on) {
   if (on === G.bag || (on && G.box !== null && bagFull())) return;
   if (on) { setGun(false); setMop(false); setTablet(false); }
-  G.bag = on; G.bagCount = 0; bagHand.visible = on; bagGrip.visible = on; bagHand.scale.setScalar(.16); snd('bag');
+  G.bag = on; G.bagCount = 0; bagHand.visible = on; bagHand.scale.setScalar(.16); snd('bag');
 }
 INTER.push({
   at: () => v3.set(4.53, .8, 4.4), r: .4,
   label() { return behindCounter() ? (G.gun ? 'Put the pistol back' : 'Take the pistol') : null; },
-  act() { setGun(!G.gun); },
+  act() { if (G.gun) putGun(false); else takeGun(); },
 });
 INTER.push({
   at: () => v3.set(4.2, 1.03, 2.4), r: .25,
   label() { return behindCounter() ? (G.tablet ? 'Put the tablet back' : 'Take the aura tablet') : null; },
-  act() { setTablet(!G.tablet); },
+  act() { setTablet(!G.tablet, true); },
 });
 INTER.push({
   at: () => v3.set(5.0, .7, 5.6), r: .45,
@@ -1631,7 +1698,19 @@ INTER.push({
 INTER.push({
   at: () => v3.set(5.9, .35, 5.65), r: .35,
   label() { return !G.bag ? 'Take a trash bag' : G.bagCount ? { info: 'Your bag is full of… pieces. Dumpster, out back.' } : 'Put the bag back'; },
-  act() { if (!G.bag) setBag(true); else if (!G.bagCount) setBag(false); },
+  act() {
+    if (BUSY) return;
+    const W = new THREE.Vector3(5.9, .4, 5.68);
+    if (!G.bag) {
+      if (bagFull()) return;
+      setGun(false); setMop(false); setTablet(false);
+      G.bag = true; G.bagCount = 0; bagHand.scale.setScalar(.16);
+      reach(W, { hands: [1], carryIn: { obj: bagHand, rest: BAG_REST }, grab: () => { bagHand.visible = true; snd('bag'); } });
+    } else if (!G.bagCount) {
+      G.bag = false;
+      reach(W, { hands: [1], carryOut: { obj: bagHand, rest: BAG_REST }, grab: () => { bagHand.visible = false; snd('bag'); } });
+    }
+  },
 });
 INTER.push({
   at: () => v3.set(6.5, 1.1, -14.6), r: .9,
@@ -1639,22 +1718,23 @@ INTER.push({
   act() {
     if (!(G.bag && G.bagCount) || BUSY) return;
     BUSY = true;
-    if (AC) noise(AC.currentTime, .4, .06, 900);                       // lid creak
-    anim(.35, k => { dumpLid.rotation.x = -1.3 * ease(k); });          // flip the lid open
-    const s0 = bagHand.scale.x;
-    anim(.8, k => {                                                     // swing the bag up and over the edge
-      const a = ease(k), up = Math.sin(k * Math.PI) * .5;
-      bagHand.position.set(.32 - .32 * a, -.42 + up + a * .05, -.62 - .9 * a);
-      bagHand.scale.setScalar(s0 * (1 - .35 * a));
-      bagGrip.position.set(.32 - .32 * a, -.27 + up + a * .05, -.6 - .75 * a);
-      VIEW.dip = -Math.sin(k * Math.PI) * .12;
-    }, () => {
-      G.bags++; G.bag = false; G.bagCount = 0; bagHand.visible = false; bagGrip.visible = false; VIEW.dip = 0;
-      bagHand.position.set(.32, -.42, -.62); bagGrip.position.set(.32, -.27, -.6);
-      anim(.2, k => { dumpLid.rotation.x = -1.3 * (1 - k * k); }, () => {   // lid slams shut
-        snd('thud'); BUSY = false;
-        toast('Bag thrown in the dumpster. Nobody will ever know.', 'good');
+    const over = new THREE.Vector3(6.5, 1.95, -15.2);                     // just above the open dumpster
+    if (AC) noise(AC.currentTime, .4, .06, 900);                           // lid creak
+    anim(.35, k => { dumpLid.rotation.x = -1.3 * ease(k); });              // flip the lid open
+    VIEW.at.set(6.5, 1.2, -15.25);
+    const C = { obj: bagHand, world: over, rest: BAG_REST, k: 1 }; CARRY.push(C);
+    anim(.65, k => { const a = ease(k); VIEW.look = a; C.k = 1 - a; }, () => {
+      // let go: the bag drops into the dumpster
+      CARRY.splice(CARRY.indexOf(C), 1);
+      const drop = new THREE.Mesh(G_SPH(), bagHand.material); drop.scale.copy(bagHand.scale); drop.position.copy(over); scene.add(drop);
+      bagHand.visible = false; bagHand.position.copy(BAG_REST);
+      REACHES[1].to = over; REACHES[1].k = 1;
+      G.bags++; G.bag = false; G.bagCount = 0;
+      anim(.3, k => { drop.position.y = over.y - k * k * 1.1; }, () => {
+        scene.remove(drop);
+        anim(.2, k => { dumpLid.rotation.x = -1.3 * (1 - k * k); }, () => { snd('thud'); toast('Bag thrown in the dumpster. Nobody will ever know.', 'good'); });
       });
+      anim(.55, k => { const a = 1 - ease(k); VIEW.look = a; REACHES[1].k = a; }, () => { VIEW.look = 0; REACHES[1].k = 0; BUSY = false; });
     });
   },
 });
@@ -1725,7 +1805,6 @@ function refreshStockroom() { STOCK_BOX.forEach((b, ci) => b.visible = STOCK[ci]
 
 // ---------- carrying a box and restocking a shelf
 const boxHand = new THREE.Mesh(new THREE.BoxGeometry(.42, .3, .34), M.cardboard); boxHand.position.set(0, -.34, -.55); boxHand.visible = false; camera.add(boxHand);
-for (const sd of [-1, 1]) fpHand(boxHand, sd * .245, -.02, .03, sd); // both hands on the box
 function holdBox(ci, units) {
   G.box = ci; G.boxUnits = units;
   boxHand.material = [M.cardboard, M.cardboard, M.cardboard, M.cardboard, STOCK_LAB[ci], M.cardboard]; boxHand.visible = true;
@@ -1740,10 +1819,19 @@ CATS.forEach((cat, ci) => INTER.push({
     return `Pick up a box of ${cat.name} (${Math.ceil(STOCK[ci] / BOX_UNITS)} here)`;
   },
   act() {
-    if (G.box === ci) { STOCK[ci] += G.boxUnits; dropBox(); refreshStockroom(); snd('bag'); return; }
+    if (BUSY) return;
+    const W = STOCK_BOX[ci].position.clone();
+    if (G.box === ci) {                                    // put it back on the stockroom shelf
+      const u = G.boxUnits; G.box = null; G.boxUnits = 0;
+      reach(W, { hands: [0, 1], carryOut: { obj: boxHand, rest: BOX_REST },
+        grab: () => { boxHand.visible = false; STOCK[ci] += u; refreshStockroom(); snd('bag'); } });
+      return;
+    }
     if (!STOCK[ci] || G.box !== null || G.gun || G.mop || G.bag || G.tablet) return;
-    const u = Math.min(BOX_UNITS, STOCK[ci]); STOCK[ci] -= u; holdBox(ci, u); refreshStockroom(); snd('bag');
-    toast(`Got a box of ${cat.name}. Take it to the ${cat.name} shelf.`);
+    const u = Math.min(BOX_UNITS, STOCK[ci]); STOCK[ci] -= u; G.box = ci; G.boxUnits = u;
+    reach(W, { hands: [0, 1], carryIn: { obj: boxHand, rest: BOX_REST },
+      grab: () => { holdBox(ci, u); refreshStockroom(); snd('bag'); },
+      done: () => toast(`Got a box of ${cat.name}. Take it to the ${cat.name} shelf.`) });
   },
 }));
 // every shelf face takes boxes. The target point is wherever your view hits the face of the shelf,
@@ -1771,21 +1859,26 @@ for (const f of FACES) INTER.push({
     if (G.box !== f.ci) { snd('err'); toast(`Wrong shelf. That box is ${CATS[G.box].name}: find the ${CATS[G.box].name} shelf (aisle signs hang from the ceiling).`, 'bad'); return; }
     if (f.stock >= CAP) { snd('err'); toast(`The ${f.cat.name} shelf is already full. Wait until some sell, or put the box back in the stockroom.`, 'bad'); return; }
     if (BUSY) return;
-    const add = Math.min(G.boxUnits, CAP - f.stock), PER = .16, T0 = .3, LEN = T0 + add * PER + .3;
+    const add = Math.min(G.boxUnits, CAP - f.stock), PER = .16, T0 = .45, LEN = T0 + add * PER + .4;
     BUSY = true; snd('bag');
+    // hold the box up just in front of where you're looking on the shelf
+    const W = aimOnFace(f).clone(), dl = Math.hypot(P.x - W.x, P.z - W.z) || 1;
+    const B = new THREE.Vector3(W.x + (P.x - W.x) / dl * .35, W.y, W.z + (P.z - W.z) / dl * .35);
+    VIEW.at.copy(W);
+    const C = { obj: boxHand, world: B, rest: BOX_REST, k: 1 }; CARRY.push(C);
     let put = 0;
     anim(LEN, k => {
       const T = k * LEN;
       const out = T < T0 ? ease(T / T0) : T > T0 + add * PER ? 1 - ease((T - T0 - add * PER) / .3) : 1;
-      const wob = T > T0 && T < T0 + add * PER ? Math.sin((T - T0) / PER * Math.PI) * .03 : 0;   // a little push per item
-      boxHand.position.set(0, -.34 + out * .12, -.55 - out * .22 - wob);
-      boxHand.rotation.x = out * .4;
-      VIEW.dip = out * .1;
+      const wob = T > T0 && T < T0 + add * PER ? Math.sin((T - T0) / PER * Math.PI) * .12 : 0;   // tip it a little per item
+      C.k = 1 - out; VIEW.look = out;
+      boxHand.rotation.x = out * .3 + wob;
       const want = T < T0 ? 0 : Math.min(add, Math.floor((T - T0) / PER) + 1);
       while (put < want) { put++; f.stock = Math.min(CAP, f.stock + 1); f.refresh(); G.boxUnits--; G.stocked++; snd('bill', .5); }
     }, () => {
       while (put < add) { put++; f.stock = Math.min(CAP, f.stock + 1); f.refresh(); G.boxUnits--; G.stocked++; }
-      boxHand.position.set(0, -.34, -.55); boxHand.rotation.set(0, 0, 0); VIEW.dip = 0;
+      CARRY.splice(CARRY.indexOf(C), 1); VIEW.look = 0;
+      boxHand.position.copy(BOX_REST); boxHand.rotation.set(0, 0, 0);
       if (ORD.open) renderOrd();
       if (G.boxUnits > 0) { BUSY = false; toast(`Shelf full. ${G.boxUnits} ${f.cat.name} left in the box: put it back in the stockroom.`); return; }
       toast(`${f.cat.name} restocked (${f.stock} / ${CAP})`, 'good');
@@ -1803,7 +1896,7 @@ function ownerOf(o) {
   return null;
 }
 function fire() {
-  if (!G.gun || gunCD > 0 || gunReach < .9 || anyPanel() || G.dark) return;
+  if (!G.gun || gunCD > 0 || gunReach < .9 || BUSY || anyPanel() || G.dark) return;
   gunCD = .45; recoil = 1; muzzle.intensity = 3; snd('shot');
   scene.updateMatrixWorld(); ray.setFromCamera({ x: 0, y: 0 }, camera);
   const hit = ray.intersectObjects(scene.children, true).find(h => h.object.isMesh && (h.object.userData.glass || !h.object.material.transparent) && !onCamera(h.object) && shown(h.object) && !h.object.userData.part);
@@ -1879,11 +1972,14 @@ function partInter(p) {
     at: () => p.o.getWorldPosition(v3), r: .45, part: p,
     label() { return G.bag ? `Bag the ${p.name}` : { info: `A lookalike's ${p.name}. Grab a trash bag from behind the counter` }; },
     act() {
-      if (!G.bag) return;
+      if (!G.bag || BUSY || !parts.includes(p)) return;
+      reach(p.o.position.clone(), { hands: [0], dur: .8, grab: () => {
+      if (!parts.includes(p)) return;
       scene.remove(p.o); p.o.traverse(m => { if (m.isMesh && m.material === PERSON_MAT) m.geometry.dispose(); });
       parts.splice(parts.indexOf(p), 1); G.bagCount++; snd('bag');
       bagHand.scale.setScalar(.16 + Math.min(G.bagCount, 8) * .025);
       if (!parts.length) toast('All bagged. Take the bag out back to the dumpster.', 'good');
+      } });
     },
   };
 }
@@ -2159,8 +2255,8 @@ addEventListener('keydown', e => {
   keys[k] = true;
   if (!G.started || G.ended) return;
   if (k === 'e' && !e.repeat) interact();
-  if (k === 'g' && !e.repeat && !BUSY && (G.gun || behindCounter())) setGun(!G.gun);
-  if (k === 't' && !e.repeat && !BUSY && (G.tablet || behindCounter())) setTablet(!G.tablet);
+  if (k === 'g' && !e.repeat && !BUSY && (G.gun || behindCounter())) { if (G.gun) putGun(false); else takeGun(); }
+  if (k === 't' && !e.repeat && !BUSY && (G.tablet || behindCounter())) setTablet(!G.tablet, true);
   if (k === 'm') { MUTE = !MUTE; if (HUM) HUM.gain.value = MUTE ? 0 : HUM_VOL; toast(MUTE ? 'Sound off' : 'Sound on'); }
 });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -2279,10 +2375,21 @@ function updateCamera() {
   if (P.inBus) {
     camera.position.set(-2, 1.7, 21.5);
     camera.lookAt(bus.position.x - 4, 1.6, 24.7);
+    lateUpdate();
     return;
   }
-  camera.position.set(P.x, 1.6 + Math.sin(P.bob * 2) * .03, P.z);
-  camera.rotation.set(P.pitch - VIEW.dip, P.yaw, 0);
+  const ex = P.x, ey = 1.6 + Math.sin(P.bob * 2) * .03, ez = P.z;
+  let yaw = P.yaw, pitch = P.pitch - VIEW.dip, px = ex, py = ey, pz = ez;
+  if (VIEW.look > 0) {
+    const dx = VIEW.at.x - ex, dy = VIEW.at.y - ey, dz = VIEW.at.z - ez, hd = Math.hypot(dx, dz), d = Math.hypot(hd, dy) || 1;
+    let dyaw = Math.atan2(-dx, -dz) - yaw; dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
+    yaw += dyaw * VIEW.look * .85; pitch += (Math.atan2(dy, hd) - pitch) * VIEW.look * .8;   // look most of the way at it
+    const lean = Math.min(.9, Math.max(0, d - .6)) * VIEW.look;                                // and lean in so it's in arm's reach
+    px += dx / d * lean; py += dy / d * lean * .5; pz += dz / d * lean;
+  }
+  camera.position.set(px, py, pz);
+  camera.rotation.set(pitch, yaw, 0);
+  lateUpdate();
 }
 let last = performance.now();
 function loop(now) {
