@@ -837,6 +837,7 @@ function bakePerson(root) {
   }
 }
 function disposePerson(c) {
+  unskinPerson(c);
   c.g.traverse(o => { if (o.isMesh && o.material === PERSON_MAT) o.geometry.dispose(); });
   c.bt.dispose(); c.bubble.material.dispose(); c.eyeMat.dispose(); c.irisMat.dispose();
 }
@@ -945,7 +946,57 @@ function makePerson(kind, s) {
   bakePerson(body);
   bubble.scale.set(1.9, .36, 1); bubble.position.y = 2.15; bubble.visible = false; bubble.renderOrder = 20; g.add(bubble);
   scene.add(g);
-  return { g, body, legs, knees, arms, elbows, head, carry, eyeMat, irisMat, bubble, bc, bt };
+  const person = { g, body, legs, knees, arms, elbows, head, carry, eyeMat, irisMat, bubble, bc, bt };
+  if (kind !== 'photo') skinPerson(person);   // an ID photo is drawn once, so it doesn't need this
+  return person;
+}
+// ---------- one draw per person, like Hellhall's zombies. All the baked body-part meshes become ONE skinned
+// mesh whose bones are the existing joints (hips, knees, shoulders, elbows, head…), so the walking animation
+// drives it unchanged. The eyes are a second small skinned mesh so they can light up. The original parts stay
+// in place but hidden: they come back when a lookalike is shot and falls apart.
+const EYE_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
+const EYE_GLOW = new THREE.MeshBasicMaterial({ vertexColors: true });
+function skinPerson(c) {
+  const root = c.g; root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), m4 = new THREE.Matrix4(), col = new THREE.Color();
+  const bones = [], boneOf = new Map();
+  const B = { pos: [], nor: [], col: [], si: [], sw: [] }, E = { pos: [], nor: [], col: [], si: [], sw: [] }, iris = [];
+  root.traverse(o => {
+    if (!o.isMesh || o === c.carry) return;
+    const par = o.parent;
+    if (!boneOf.has(par)) { boneOf.set(par, bones.length); bones.push(par); }
+    const bi = boneOf.get(par), eye = o.material === c.eyeMat || o.material === c.irisMat, T = eye ? E : B;
+    const gm = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    gm.applyMatrix4(m4.multiplyMatrices(inv, o.matrixWorld));
+    const p = gm.attributes.position.array, n = gm.attributes.normal.array, vc = gm.attributes.color, nv = p.length / 3;
+    if (o.material === c.irisMat) iris.push([E.col.length, nv]);
+    if (!vc) col.copy(o.material.color);
+    for (let i = 0; i < nv; i++) {
+      T.pos.push(p[i * 3], p[i * 3 + 1], p[i * 3 + 2]); T.nor.push(n[i * 3], n[i * 3 + 1], n[i * 3 + 2]);
+      if (vc) T.col.push(vc.array[i * 3], vc.array[i * 3 + 1], vc.array[i * 3 + 2]); else T.col.push(col.r, col.g, col.b);
+      T.si.push(bi, 0, 0, 0); T.sw.push(1, 0, 0, 0);
+    }
+    gm.dispose(); o.visible = false; o.userData.hid = true;
+  });
+  const skeleton = new THREE.Skeleton(bones);
+  const build = (T, m) => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(T.pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(T.nor, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(T.col, 3));
+    g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(T.si, 4));
+    g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(T.sw, 4));
+    const sm = new THREE.SkinnedMesh(g, m); sm.frustumCulled = false;
+    root.add(sm); sm.bind(skeleton); return sm;
+  };
+  c.skin = build(B, PERSON_MAT); c.eyeSkin = build(E, EYE_MAT); c.skeleton = skeleton; c.irisRanges = iris;
+}
+// a shot lookalike falls apart: bring back the real parts, drop the skinned mesh
+function unskinPerson(c) {
+  if (!c.skin) return;
+  for (const m of [c.skin, c.eyeSkin]) { c.g.remove(m); m.geometry.dispose(); }
+  c.skeleton.dispose(); c.skin = c.eyeSkin = null;
+  c.g.traverse(o => { if (o.userData.hid) o.visible = true; });
 }
 function say(c, txt, dur) {
   const g = c.bc.getContext('2d'), W = 512, Hh = 96;
@@ -1411,6 +1462,11 @@ function glowEyes(c) {
   c.creepy = true;
   c.eyeMat.color.set('#ffffff'); c.eyeMat.emissive.set('#fff2e0');
   c.irisMat.color.set('#ff2a1a'); c.irisMat.emissive.set('#ff2a1a');
+  if (c.eyeSkin) {
+    const a = c.eyeSkin.geometry.attributes.color, red = new THREE.Color('#ff2a1a');
+    for (const [start, n] of c.irisRanges) for (let i = 0; i < n; i++) a.setXYZ(start / 3 + i, red.r, red.g, red.b);
+    a.needsUpdate = true; c.eyeSkin.material = EYE_GLOW;
+  }
 }
 function walk(c, dt) {
   if (!c.route.length) return true;
@@ -1962,6 +2018,7 @@ function arrested() {
 // ---------- body parts: a shot lookalike falls apart into head, arms, legs and torso
 const parts = [];
 function dismember(c) {
+  unskinPerson(c);
   c.g.updateMatrixWorld(true);
   const torso = c.body.children.find(o => o.isMesh);
   const list = [[c.head, 'head', .1], [c.arms[0], 'arm', .06], [c.arms[1], 'arm', .06], [c.legs[0], 'leg', .08], [c.legs[1], 'leg', .08], [torso, 'torso', .12]];
@@ -2454,7 +2511,8 @@ const MERGED = mergeStatic();
 const FPS_GOAL = 60;
 const QN = ['HIGH', 'HIGH-', 'MED', 'MED-', 'LOW', 'MIN'];
 const QPR = [Math.min(devicePixelRatio, 1.5), Math.min(devicePixelRatio, 1.25), 1, .85, .7, .55];
-const QFAR = [200, 200, 200, 200, 80, 55];
+// The night fog is solid by 46 m (scene.fog), so nothing past ~48 m can be seen: don't draw it at all.
+const QFAR = [48, 48, 48, 48, 46, 44];
 let QL = 0; try { const q = parseInt(localStorage.getItem('laQL6'), 10); if (q >= 0 && q < QN.length) QL = q; } catch (e) {}
 function setQ(q) {
   QL = q; try { localStorage.setItem('laQL6', q); } catch (e) {}
