@@ -786,12 +786,14 @@ function updatePlay(dt){
     engagements();
     for(const p of P.pl)integrate(p,dt);
     separate();
+    keepInBounds();
     updateBall(dt);
     if(P.live)checkDead();
     if(AUTO&&P.isRun&&!P.caught&&P.live&&Math.floor(P.t*4)!==P._ls2&&P.t<2){P._ls2=Math.floor(P.t*4);(P._tr2=P._tr2||[]).push(`t=${P.t.toFixed(2)} `+P.pl.map(p=>`${p.team}${p.slot}(${(p.x-P.bx).toFixed(1)},${(p.z-P.los).toFixed(1)})${blocked(p)?"B":""}${p.blk?"->"+p.blk.slot:""}`).join(" "));}
 if(AUTO&&(P.caught||P.isRun)&&P.live&&P.ball.holder&&Math.floor(P.t*2)!==P._ls){P._ls=Math.floor(P.t*2);const h=P.ball.holder;const ds=P.pl.filter(o=>o.team!==h.team).map(o=>({o,d:dist(o,h)})).sort((a,b)=>a.d-b.d).slice(0,3);(P._tr=P._tr||[]).push(`t=${P.t.toFixed(1)} h=(${h.x.toFixed(1)},${h.z.toFixed(1)}) v=${Math.hypot(h.vx,h.vz).toFixed(1)} `+ds.map(({o,d})=>`${o.slot}:${d.toFixed(1)}${blocked(o)?"B":""}${o.stun>P.t?"S":""} v=${Math.hypot(o.vx,o.vz).toFixed(1)} tgt=(${o.tx.toFixed(0)},${o.tz.toFixed(0)})`).join(" | "));}
   }else if(P.over){
     for(const p of P.pl){p.vx*=0.88;p.vz*=0.88;p.x+=p.vx*dt;p.z+=p.vz*dt;}
+    keepInBounds();
     if(P.tackled)P.tackled.fall=Math.min(1,P.tackled.fall+dt*3);
     const b=P.ball;if(b.state==='fall'){b.y=Math.max(0.15,b.y-dt*4);}
   }
@@ -944,6 +946,11 @@ function integrate(p,dt){
   const a=p.acc*dt;let ex=dvx-p.vx,ez=dvz-p.vz;const el=Math.hypot(ex,ez);if(el>a){ex*=a/el;ez*=a/el;}
   p.vx+=ex;p.vz+=ez;p.x+=p.vx*dt;p.z+=p.vz*dt;
   if(blocked(p)&&p.eng.mode==="run"){const e=p.eng,ux=p.x-e.x,uz=p.z-e.z,L=Math.hypot(ux,uz)||1;p.x+=ux/L*1.3*dt;p.z+=uz/L*1.3*dt;}
+}
+// the player you control stays inside the field (sidelines + end lines) unless carrying the ball
+function keepInBounds(){
+  const p=P.userDef&&P.ctrl;if(!p||(P.ball.state==="held"&&P.ball.holder===p))return;
+  const LX=FIELD_HALF-0.35;if(p.x>LX){p.x=LX;if(p.vx>0)p.vx=0;}else if(p.x<-LX){p.x=-LX;if(p.vx<0)p.vx=0;}if(p.z>109.6){p.z=109.6;if(p.vz>0)p.vz=0;}else if(p.z<-9.6){p.z=-9.6;if(p.vz<0)p.vz=0;}
 }
 function separate(){
   const L=P.pl;
