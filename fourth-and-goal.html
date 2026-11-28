@@ -964,7 +964,10 @@ function histPos(p,lag){const t=P.t-lag;for(let i=p.hx.length-1;i>=0;i--)if(p.hx
 function defAI(d){
   const b=P.ball;
   if(d.stun>P.t){d.tx=d.x;d.tz=d.z;return;}
-  if(P.userDef&&d===P.ctrl){const m=inputDir();if(m.x||m.z){d.tx=d.x+m.x*6;d.tz=d.z+m.z*6;d.arr=false;d.sm=1;return;}}
+  if(P.userDef&&d===P.ctrl){const m=inputDir();
+    // at a sideline, pushing out of bounds turns him to run downfield along the line (keeps his up/down direction, else the way he faces)
+    if(m.x&&!(b.state==="held"&&b.holder===d)&&Math.abs(d.x)>=FIELD_HALF-0.45&&Math.sign(m.x)===Math.sign(d.x)){m.z=Math.sign(m.z)||(Math.abs(d.vz)>0.3?Math.sign(d.vz):-1);m.x=0;}
+    if(m.x||m.z){d.tx=d.x+m.x*6;d.tz=d.z+m.z*6;d.arr=false;d.sm=1;return;}}
   if(b.state==='held'&&b.holder.team==='D'){if(b.holder===d)return aiRun(d,-1);return blockAI(d,'run');}
   if(P.off.type==='kneel'||P.off.type==='spike'||d.job==='hold'){d.tx=d.x;d.tz=d.z;return;}
   if(b.state==='air'&&!b.pitch){
